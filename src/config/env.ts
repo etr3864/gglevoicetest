@@ -19,6 +19,6 @@ export const config = {
   },
   call: {
     targetPhone: process.env.TARGET_PHONE || '',
-    customerName: process.env.CUSTOMER_NAME || 'Moshe',
+    customerName: process.env.CUSTOMER_NAME || '',
   }
 };
