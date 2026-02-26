@@ -486,7 +486,7 @@ function ApiReferenceCard({ agentId, apiKey: initialKey }: { agentId: string; ap
   const { toast } = useToast();
   const [copied, setCopied] = useState<string | null>(null);
   const [showKey, setShowKey] = useState(false);
-  const apiBase = window.location.origin;
+  const apiBase = import.meta.env.VITE_API_URL || window.location.origin;
 
   const regenerate = useMutation({
     mutationFn: () => api.post(`/agents/${agentId}/regenerate-key`).then(r => r.data.data.apiKey),
