@@ -79,7 +79,7 @@ function handleMedia(callControlId: string, pcm: Buffer): void {
   }
 
   if (conn.provider) {
-    conn.provider.sendAudio({ data: pcm, format: 'pcm16', sampleRate: 16000 });
+    conn.provider.sendAudio({ data: pcm, format: 'pcm16', sampleRate: 8000 });
   }
   if (conn.transcriber) {
     conn.transcriber.sendAudio(pcm);
@@ -94,7 +94,7 @@ function drainEarlyAudio(callControlId: string, conn: ActiveConnection): boolean
 
   for (const pcm of buffered) {
     if (conn.provider) {
-      conn.provider.sendAudio({ data: pcm, format: 'pcm16', sampleRate: 16000 });
+      conn.provider.sendAudio({ data: pcm, format: 'pcm16', sampleRate: 8000 });
     }
     if (conn.transcriber) {
       conn.transcriber.sendAudio(pcm);

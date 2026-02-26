@@ -97,16 +97,22 @@ export class GeminiProvider implements VoiceProvider {
       return;
     }
 
-    if (!this.ws || this.ws.readyState !== WebSocket.OPEN || !this.ready) return;
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN || !this.ready || chunk.data.length === 0) return;
+
+    let pcm = chunk.data;
+    if (pcm.length % 2 !== 0) {
+      log.warn('Odd audio chunk length', { length: pcm.length });
+      pcm = Buffer.concat([pcm, Buffer.from([0])]);
+    }
 
     this.audioSentCount++;
     this.trackSend('audio');
 
     this.ws.send(JSON.stringify({
-      realtime_input: {
-        media_chunks: [{
-          mime_type: 'audio/pcm;rate=16000',
-          data: chunk.data.toString('base64'),
+      realtimeInput: {
+        mediaChunks: [{
+          mimeType: 'audio/pcm;rate=8000',
+          data: pcm.toString('base64'),
         }],
       },
     }));
@@ -137,9 +143,9 @@ export class GeminiProvider implements VoiceProvider {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN || !this.ready) return;
     this.trackSend('startConversation');
     this.ws.send(JSON.stringify({
-      client_content: {
+      clientContent: {
         turns: [{ role: 'user', parts: [{ text: 'The customer is now on the line. Begin the conversation.' }] }],
-        turn_complete: true,
+        turnComplete: true,
       },
     }));
   }
@@ -185,10 +191,21 @@ export class GeminiProvider implements VoiceProvider {
   private injectHistory(): void {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN || this.history.length === 0) return;
 
+    // Merge consecutive turns with the same role
+    const mergedTurns = this.history.reduce((acc, curr) => {
+      const last = acc[acc.length - 1];
+      if (last && last.role === curr.role) {
+        last.parts.push(...curr.parts);
+      } else {
+        acc.push({ role: curr.role, parts: [...curr.parts] });
+      }
+      return acc;
+    }, [] as typeof this.history);
+
     this.ws.send(JSON.stringify({
-      client_content: {
-        turns: this.history,
-        turn_complete: true,
+      clientContent: {
+        turns: mergedTurns,
+        turnComplete: true,
       },
     }));
 
@@ -200,12 +217,15 @@ export class GeminiProvider implements VoiceProvider {
     this.reconnectBuffer = [];
     if (chunks.length === 0) return;
 
-    for (const data of chunks) {
-      if (!this.ws || this.ws.readyState !== WebSocket.OPEN) break;
+    for (let data of chunks) {
+      if (!this.ws || this.ws.readyState !== WebSocket.OPEN || data.length === 0) break;
+      if (data.length % 2 !== 0) {
+        data = Buffer.concat([data, Buffer.from([0])]);
+      }
       this.ws.send(JSON.stringify({
-        realtime_input: {
-          media_chunks: [{
-            mime_type: 'audio/pcm;rate=16000',
+        realtimeInput: {
+          mediaChunks: [{
+            mimeType: 'audio/pcm;rate=8000',
             data: data.toString('base64'),
           }],
         },
@@ -308,22 +328,21 @@ export class GeminiProvider implements VoiceProvider {
 
     const setup: Record<string, unknown> = {
       model,
-      generation_config: this.buildGenerationConfig(generation, voice, languageCode),
-      system_instruction: { parts: [{ text: systemPrompt }] },
-      output_audio_transcription: {},
+      generationConfig: this.buildGenerationConfig(generation, voice, languageCode),
+      systemInstruction: { parts: [{ text: systemPrompt }] },
     };
 
     if (tools?.length) {
-      setup.tools = [{ function_declarations: tools.map(t => this.formatTool(t)) }];
+      setup.tools = [{ functionDeclarations: tools.map(t => this.formatTool(t)) }];
     }
     if (vad) {
-      setup.realtime_input_config = this.buildVadConfig(vad);
+      setup.realtimeInputConfig = this.buildVadConfig(vad);
     }
     if (proactiveAudio) {
-      setup.proactivity = { proactive_audio: true };
+      setup.proactivity = { proactiveAudio: true };
     }
     if (contextCompression) {
-      setup.context_window_compression = this.buildCompressionConfig(contextCompression);
+      setup.contextWindowCompression = this.buildCompressionConfig(contextCompression);
     }
 
     return setup;
@@ -335,34 +354,34 @@ export class GeminiProvider implements VoiceProvider {
     languageCode?: string,
   ): Record<string, unknown> {
     const speechConfig: Record<string, unknown> = {
-      voice_config: { prebuilt_voice_config: { voice_name: voice } },
+      voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } },
     };
-    if (languageCode) speechConfig.language_code = languageCode;
+    if (languageCode) speechConfig.languageCode = languageCode;
 
     const config: Record<string, unknown> = {
       temperature: Math.min(Math.max(generation.temperature, 0), 2),
-      max_output_tokens: Math.min(generation.maxOutputTokens, 8192),
-      response_modalities: ['AUDIO'],
-      speech_config: speechConfig,
+      maxOutputTokens: Math.min(generation.maxOutputTokens, 8192),
+      responseModalities: ['AUDIO'],
+      speechConfig,
     };
-    if (generation.topP != null) config.top_p = generation.topP;
-    if (generation.topK != null) config.top_k = generation.topK;
-    if (generation.presencePenalty != null) config.presence_penalty = generation.presencePenalty;
-    if (generation.frequencyPenalty != null) config.frequency_penalty = generation.frequencyPenalty;
+    if (generation.topP != null) config.topP = generation.topP;
+    if (generation.topK != null) config.topK = generation.topK;
+    if (generation.presencePenalty != null) config.presencePenalty = generation.presencePenalty;
+    if (generation.frequencyPenalty != null) config.frequencyPenalty = generation.frequencyPenalty;
 
     return config;
   }
 
   private buildVadConfig(vad: NonNullable<ProviderConfig['modelConfig']['vad']>): Record<string, unknown> {
     const detection: Record<string, unknown> = {};
-    if (vad.startOfSpeechSensitivity) detection.start_of_speech_sensitivity = vad.startOfSpeechSensitivity;
-    if (vad.endOfSpeechSensitivity) detection.end_of_speech_sensitivity = vad.endOfSpeechSensitivity;
-    if (vad.prefixPaddingMs != null) detection.prefix_padding_ms = vad.prefixPaddingMs;
-    if (vad.silenceDurationMs != null) detection.silence_duration_ms = vad.silenceDurationMs;
+    if (vad.startOfSpeechSensitivity) detection.startOfSpeechSensitivity = vad.startOfSpeechSensitivity;
+    if (vad.endOfSpeechSensitivity) detection.endOfSpeechSensitivity = vad.endOfSpeechSensitivity;
+    if (vad.prefixPaddingMs != null) detection.prefixPaddingMs = vad.prefixPaddingMs;
+    if (vad.silenceDurationMs != null) detection.silenceDurationMs = vad.silenceDurationMs;
 
-    const realtimeInput: Record<string, unknown> = { automatic_activity_detection: detection };
-    if (vad.activityHandling) realtimeInput.activity_handling = vad.activityHandling;
-    if (vad.turnCoverage) realtimeInput.turn_coverage = vad.turnCoverage;
+    const realtimeInput: Record<string, unknown> = { automaticActivityDetection: detection };
+    if (vad.activityHandling) realtimeInput.activityHandling = vad.activityHandling;
+    if (vad.turnCoverage) realtimeInput.turnCoverage = vad.turnCoverage;
 
     return realtimeInput;
   }
@@ -372,10 +391,10 @@ export class GeminiProvider implements VoiceProvider {
   ): Record<string, unknown> {
     const config: Record<string, unknown> = {};
     if (compression.slidingWindowSize) {
-      config.sliding_window = { target_tokens: compression.slidingWindowSize };
+      config.slidingWindow = { targetTokens: compression.slidingWindowSize };
     }
     if (compression.triggerTokens) {
-      config.trigger_tokens = compression.triggerTokens;
+      config.triggerTokens = compression.triggerTokens;
     }
     return config;
   }
@@ -385,12 +404,12 @@ export class GeminiProvider implements VoiceProvider {
       name: tool.name,
       description: tool.description,
       parameters: {
-        type: 'object',
+        type: 'OBJECT',
         properties: Object.fromEntries(
           Object.entries(tool.parameters).map(([key, param]) => [
             key,
             {
-              type: param.type,
+              type: param.type.toUpperCase(),
               description: param.description,
               ...(param.enum && { enum: param.enum }),
             },
@@ -491,7 +510,7 @@ export class GeminiProvider implements VoiceProvider {
         this.events?.onAudio({
           data: Buffer.from(part.inlineData.data, 'base64'),
           format: 'pcm16',
-          sampleRate: 24000,
+          sampleRate: 8000,
         });
       }
     }
@@ -534,37 +553,36 @@ export class GeminiProvider implements VoiceProvider {
   // =====================================================================
 
   private async handleToolCall(toolCall: GeminiToolCall): Promise<void> {
-    if (!this.events?.onToolCall || !this.ws) return;
+    if (!this.events?.onToolCall || !this.ws || !toolCall.functionCalls?.length) return;
 
-    for (const call of toolCall.functionCalls || []) {
-      const result = await this.events.onToolCall({
-        id: call.id || crypto.randomUUID(),
-        name: call.name,
-        arguments: call.args || {},
-      });
-      if (result.error) {
-        log.warn('Tool call error', { name: call.name, error: result.error });
-      }
-      this.sendToolResponse(call.name, result);
-    }
+    const responses = await Promise.all(
+      toolCall.functionCalls.map(async (call) => {
+        const id = call.id || crypto.randomUUID();
+        const result = await this.events!.onToolCall!({
+          id,
+          name: call.name,
+          arguments: call.args || {},
+        });
+        
+        if (result.error) log.warn('Tool call error', { name: call.name, error: result.error });
+
+        return {
+          id: result.callId,
+          name: call.name,
+          response: result.error ? { error: result.error } : { result: result.result },
+        };
+      })
+    );
+
+    this.sendToolResponses(responses);
   }
 
-  private sendToolResponse(name: string, result: { callId: string; result: unknown; error?: string }): void {
+  private sendToolResponses(responses: Array<{ id: string; name: string; response: unknown }>): void {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
 
-    const payload = {
-      tool_response: {
-        function_responses: [{
-          id: result.callId,
-          name,
-          response: result.error
-            ? { error: result.error }
-            : { result: result.result },
-        }],
-      },
-    };
-
-    this.trackSend(`tool_response:${name}`);
-    this.ws.send(JSON.stringify(payload));
+    this.trackSend('toolResponse');
+    this.ws.send(JSON.stringify({
+      toolResponse: { functionResponses: responses },
+    }));
   }
 }
