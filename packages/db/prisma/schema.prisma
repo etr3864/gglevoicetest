@@ -1,0 +1,115 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  role      String   @default("admin")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("users")
+}
+
+model Agent {
+  id                   String        @id @default(uuid())
+  name                 String
+  apiKey               String?       @unique @map("api_key")
+  phoneNumber          String?       @unique @map("phone_number")
+  telnyxPhoneId        String?       @map("telnyx_phone_id")
+  telnyxAppId          String?       @map("telnyx_app_id")
+  status               String        @default("active")
+  voice                String        @default("Aoede")
+  basePrompt           String?       @map("base_prompt") @db.Text
+  modelConfig          Json?         @map("model_config")
+  activeHours          Json?         @map("active_hours")
+  calendarConfig       Json?         @map("calendar_config")
+  calendarInstructions String?       @map("calendar_instructions") @db.Text
+  businessHours        Json?         @map("business_hours")
+  createdAt            DateTime      @default(now()) @map("created_at")
+  calls                Call[]
+  appointments         Appointment[]
+
+  @@map("agents")
+}
+
+model Contact {
+  id               String        @id @default(uuid())
+  phone            String        @unique
+  name             String?
+  email            String?
+  gender           String?
+  notes            String?       @db.Text
+  metadata         Json?
+  totalCalls       Int           @default(0) @map("total_calls")
+  totalDurationSec Int           @default(0) @map("total_duration_sec")
+  lastCallAt       DateTime?     @map("last_call_at")
+  createdAt        DateTime      @default(now()) @map("created_at")
+  calls            Call[]
+  appointments     Appointment[]
+
+  @@map("contacts")
+}
+
+model Call {
+  id           String        @id @default(uuid())
+  agentId      String        @map("agent_id")
+  contactId    String?       @map("contact_id")
+  direction    String
+  status       String        @default("queued")
+  context      Json?
+  recordingUrl String?       @map("recording_url")
+  durationSec  Int?          @map("duration_sec")
+  startedAt    DateTime?     @map("started_at")
+  endedAt      DateTime?     @map("ended_at")
+  createdAt    DateTime      @default(now()) @map("created_at")
+  agent        Agent         @relation(fields: [agentId], references: [id])
+  contact      Contact?      @relation(fields: [contactId], references: [id])
+  utterances   Utterance[]
+  appointments Appointment[]
+
+  @@index([agentId, createdAt])
+  @@map("calls")
+}
+
+model Utterance {
+  id      String @id @default(uuid())
+  callId  String @map("call_id")
+  speaker String
+  startMs Int    @map("start_ms")
+  endMs   Int    @map("end_ms")
+  text    String @db.Text
+  call    Call   @relation(fields: [callId], references: [id], onDelete: Cascade)
+
+  @@index([callId, startMs])
+  @@map("utterances")
+}
+
+model Appointment {
+  id            String   @id @default(uuid())
+  agentId       String   @map("agent_id")
+  contactId     String?  @map("contact_id")
+  callId        String?  @map("call_id")
+  googleEventId String?  @map("google_event_id")
+  title         String
+  description   String?  @db.Text
+  phone         String
+  startTime     DateTime @map("start_time")
+  endTime       DateTime @map("end_time")
+  duration      Int
+  status        String   @default("scheduled")
+  createdAt     DateTime @default(now()) @map("created_at")
+  agent         Agent    @relation(fields: [agentId], references: [id])
+  contact       Contact? @relation(fields: [contactId], references: [id])
+  call          Call?    @relation(fields: [callId], references: [id])
+
+  @@index([agentId, startTime])
+  @@index([contactId])
+  @@map("appointments")
+}

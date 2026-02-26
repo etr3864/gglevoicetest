@@ -1,0 +1,35 @@
+{
+  "name": "@voice/api",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "dev": "NODE_OPTIONS='--disable-warning=MODULE_TYPELESS_PACKAGE_JSON' tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "NODE_OPTIONS='--disable-warning=MODULE_TYPELESS_PACKAGE_JSON' node dist/index.js",
+    "lint": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@voice/db": "workspace:*",
+    "@voice/shared": "workspace:*",
+    "bcryptjs": "^2.4.3",
+    "bullmq": "^5.30.0",
+    "cacheable-lookup": "^7.0.0",
+    "cors": "^2.8.5",
+    "dotenv": "^17.3.1",
+    "express": "^5.0.1",
+    "ioredis": "^5.4.0",
+    "jsonwebtoken": "^9.0.2",
+    "ws": "^8.18.0",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.0",
+    "@types/jsonwebtoken": "^9.0.7",
+    "@types/node": "^22.0.0",
+    "@types/ws": "^8.5.13",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}

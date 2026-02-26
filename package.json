@@ -1,34 +1,29 @@
 {
-  "name": "gglvoice",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "name": "voice-ai-platform",
+  "private": true,
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "tsc",
-    "start": "node dist/index.js",
-    "dev": "ts-node src/index.ts",
-    "call": "ts-node src/run-call.ts"
+    "dev": "docker compose -f docker-compose.dev.yml up",
+    "dev:api": "pnpm --filter @voice/api dev",
+    "dev:web": "pnpm --filter @voice/web dev",
+    "build": "pnpm -r build",
+    "db:generate": "pnpm --filter @voice/db generate",
+    "db:push": "pnpm --filter @voice/db push",
+    "db:migrate": "pnpm --filter @voice/db migrate",
+    "db:seed": "pnpm --filter @voice/db seed",
+    "db:studio": "pnpm --filter @voice/db studio",
+    "lint": "pnpm -r lint"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "dependencies": {
-    "@fastify/formbody": "^8.0.2",
-    "@fastify/websocket": "^11.2.0",
-    "@google/generative-ai": "^0.24.1",
-    "dotenv": "^17.2.3",
-    "fastify": "^5.6.2",
-    "g711": "^1.0.1",
-    "ts-node": "^10.9.2",
-    "twilio": "^5.10.7",
-    "typescript": "^5.9.3",
-    "ws": "^8.18.3"
+  "engines": {
+    "node": ">=20",
+    "pnpm": ">=9"
   },
-  "devDependencies": {
-    "@types/express": "^5.0.6",
-    "@types/node": "^25.0.0",
-    "@types/ws": "^8.18.1",
-    "nodemon": "^3.1.11"
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@prisma/client",
+      "@prisma/engines",
+      "prisma",
+      "esbuild",
+      "msgpackr-extract"
+    ]
   }
 }
