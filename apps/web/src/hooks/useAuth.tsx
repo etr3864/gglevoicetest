@@ -32,23 +32,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     async function init() {
-      const raw = localStorage.getItem('auth_tokens');
-      if (!raw) { setIsLoading(false); return; }
-
-      const { accessToken, refreshToken } = JSON.parse(raw) as AuthTokens;
-      const payload = parseJwt(accessToken);
-
-      if (!isTokenExpired(payload)) {
-        setUser(payload);
-        setIsLoading(false);
-        return;
-      }
-
       try {
-        const res = await axios.post('/auth/refresh', { refreshToken });
-        const tokens = res.data.data as AuthTokens;
-        localStorage.setItem('auth_tokens', JSON.stringify(tokens));
-        setUser(parseJwt(tokens.accessToken));
+        const raw = localStorage.getItem('auth_tokens');
+        if (!raw) { setIsLoading(false); return; }
+
+        let parsed: AuthTokens;
+        try {
+          parsed = JSON.parse(raw) as AuthTokens;
+        } catch {
+          localStorage.removeItem('auth_tokens');
+          setIsLoading(false);
+          return;
+        }
+        const { accessToken, refreshToken } = parsed;
+        if (!accessToken || !refreshToken) {
+          localStorage.removeItem('auth_tokens');
+          setIsLoading(false);
+          return;
+        }
+
+        const payload = parseJwt(accessToken);
+        if (!isTokenExpired(payload)) {
+          setUser(payload);
+          setIsLoading(false);
+          return;
+        }
+
+        try {
+          const res = await axios.post('/auth/refresh', { refreshToken });
+          const tokens = res.data.data as AuthTokens;
+          localStorage.setItem('auth_tokens', JSON.stringify(tokens));
+          setUser(parseJwt(tokens.accessToken));
+        } catch {
+          localStorage.removeItem('auth_tokens');
+        }
       } catch {
         localStorage.removeItem('auth_tokens');
       }
