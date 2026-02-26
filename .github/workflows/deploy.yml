@@ -35,7 +35,7 @@ jobs:
       - name: Build and push image
         run: |
           IMAGE_TAG=${{ env.REGISTRY }}/${{ env.IMAGE }}:${{ github.sha }}
-          docker build -t $IMAGE_TAG -t ${{ env.REGISTRY }}/${{ env.IMAGE }}:latest -f apps/api/Dockerfile .
+          docker build -t $IMAGE_TAG -t ${{ env.REGISTRY }}/${{ env.IMAGE }}:latest -f Dockerfile .
           docker push $IMAGE_TAG
           docker push ${{ env.REGISTRY }}/${{ env.IMAGE }}:latest
 
