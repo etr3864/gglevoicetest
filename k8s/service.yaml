@@ -23,6 +23,11 @@ spec:
   timeoutSec: 3600
   connectionDraining:
     drainingTimeoutSec: 300
+  healthCheck:
+    checkIntervalSec: 10
+    port: 3000
+    type: HTTP
+    requestPath: /health
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress

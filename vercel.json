@@ -1,0 +1,5 @@
+{
+  "buildCommand": "pnpm --filter @voice/shared build && pnpm --filter @voice/web build",
+  "outputDirectory": "apps/web/dist",
+  "installCommand": "pnpm install"
+}
