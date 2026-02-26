@@ -1,0 +1,51 @@
+name: Build & Deploy to GKE
+
+on:
+  push:
+    branches: [main]
+
+env:
+  PROJECT_ID: gen-lang-client-0546829339
+  REGION: me-west1
+  REGISTRY: me-west1-docker.pkg.dev/gen-lang-client-0546829339/voice-ai
+  IMAGE: voice-api
+  GKE_CLUSTER: voice-ai-cluster
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
+
+      - name: Build and push image
+        run: |
+          IMAGE_TAG=${{ env.REGISTRY }}/${{ env.IMAGE }}:${{ github.sha }}
+          docker build -t $IMAGE_TAG -t ${{ env.REGISTRY }}/${{ env.IMAGE }}:latest -f apps/api/Dockerfile .
+          docker push $IMAGE_TAG
+          docker push ${{ env.REGISTRY }}/${{ env.IMAGE }}:latest
+
+      - uses: google-github-actions/get-gke-credentials@v2
+        with:
+          cluster_name: ${{ env.GKE_CLUSTER }}
+          location: ${{ env.REGION }}
+
+      - name: Deploy to GKE
+        run: |
+          kubectl set image deployment/voice-api \
+            voice-api=${{ env.REGISTRY }}/${{ env.IMAGE }}:${{ github.sha }}
+          kubectl rollout status deployment/voice-api --timeout=120s

@@ -1,0 +1,60 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: voice-api
+  labels:
+    app: voice-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: voice-api
+  template:
+    metadata:
+      labels:
+        app: voice-api
+    spec:
+      containers:
+        - name: voice-api
+          image: me-west1-docker.pkg.dev/gen-lang-client-0546829339/voice-ai/voice-api:latest
+          ports:
+            - containerPort: 3000
+          envFrom:
+            - secretRef:
+                name: voice-api-secrets
+          env:
+            - name: NODE_ENV
+              value: "production"
+            - name: PORT
+              value: "3000"
+            - name: API_URL
+              value: "https://voiceapi.0ptive.com"
+            - name: FRONTEND_URL
+              value: "https://voiceapp.0ptive.com"
+            - name: TELNYX_APP_ID
+              value: "2899429708024252053"
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            failureThreshold: 10
+            periodSeconds: 3
