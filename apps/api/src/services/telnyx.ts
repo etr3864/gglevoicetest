@@ -56,7 +56,7 @@ export async function startStream(callControlId: string, streamUrl: string): Pro
     stream_codec: 'L16',
     stream_bidirectional_mode: 'rtp',
     stream_bidirectional_codec: 'L16',
-    stream_bidirectional_sampling_rate: 8000,
+    stream_bidirectional_sampling_rate: 24000,
   });
 }
 

@@ -111,7 +111,7 @@ export class GeminiProvider implements VoiceProvider {
     this.ws.send(JSON.stringify({
       realtimeInput: {
         mediaChunks: [{
-          mimeType: 'audio/pcm;rate=8000',
+          mimeType: 'audio/pcm;rate=24000',
           data: pcm.toString('base64'),
         }],
       },
@@ -225,7 +225,7 @@ export class GeminiProvider implements VoiceProvider {
       this.ws.send(JSON.stringify({
         realtimeInput: {
           mediaChunks: [{
-            mimeType: 'audio/pcm;rate=8000',
+            mimeType: 'audio/pcm;rate=24000',
             data: data.toString('base64'),
           }],
         },
@@ -510,7 +510,7 @@ export class GeminiProvider implements VoiceProvider {
         this.events?.onAudio({
           data: Buffer.from(part.inlineData.data, 'base64'),
           format: 'pcm16',
-          sampleRate: 8000,
+          sampleRate: 24000,
         });
       }
     }

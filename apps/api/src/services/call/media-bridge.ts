@@ -79,7 +79,7 @@ function handleMedia(callControlId: string, pcm: Buffer): void {
   }
 
   if (conn.provider) {
-    conn.provider.sendAudio({ data: pcm, format: 'pcm16', sampleRate: 8000 });
+    conn.provider.sendAudio({ data: pcm, format: 'pcm16', sampleRate: 24000 });
   }
   if (conn.transcriber) {
     conn.transcriber.sendAudio(pcm);
@@ -94,8 +94,7 @@ function drainEarlyAudio(callControlId: string, conn: ActiveConnection): boolean
 
   for (const pcm of buffered) {
     if (conn.provider) {
-      // Telnyx streams to us at 8000Hz
-      conn.provider.sendAudio({ data: pcm, format: 'pcm16', sampleRate: 8000 });
+      conn.provider.sendAudio({ data: pcm, format: 'pcm16', sampleRate: 24000 });
     }
     if (conn.transcriber) {
       conn.transcriber.sendAudio(pcm);
@@ -251,21 +250,6 @@ function createTranscriber(callControlId: string, streamStartTs: number): Deepgr
 
 // --- Provider Events ---
 
-function downsample24kTo8k(buffer: Buffer): Buffer {
-  // Gemini returns 24kHz PCM16, Telnyx expects 8kHz PCM16
-  // We need to keep 1 out of every 3 samples (a sample is 2 bytes)
-  const numSamples = Math.floor(buffer.length / 2);
-  const outSamples = Math.floor(numSamples / 3);
-  const outBuffer = Buffer.alloc(outSamples * 2);
-
-  for (let i = 0; i < outSamples; i++) {
-    // Read the i*3 sample from source, write to i in destination
-    buffer.copy(outBuffer, i * 2, i * 6, (i * 6) + 2);
-  }
-  
-  return outBuffer;
-}
-
 function buildProviderEvents(
   session: CallSession,
   callControlId: string,
@@ -280,13 +264,9 @@ function buildProviderEvents(
 
   const sendToTelnyx = (payload: Buffer) => {
     if (telnyxWs.readyState !== WebSocket.OPEN) return;
-    
-    // Convert Gemini's 24kHz audio down to Telnyx 8kHz
-    const downsampled = downsample24kTo8k(payload);
-    
     telnyxWs.send(JSON.stringify({
       event: 'media',
-      media: { payload: downsampled.toString('base64') },
+      media: { payload: payload.toString('base64') },
     }));
   };
 
