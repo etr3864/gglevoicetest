@@ -10,8 +10,6 @@ const CHANNEL = 'agent-events';
 const subscriber = redis.duplicate();
 
 export async function initPubSub(): Promise<void> {
-  await subscriber.subscribe(CHANNEL);
-  
   subscriber.on('message', (channel, message) => {
     if (channel !== CHANNEL) return;
     try {
@@ -21,6 +19,8 @@ export async function initPubSub(): Promise<void> {
       log.error('Failed to parse pubsub message', err);
     }
   });
+
+  await subscriber.subscribe(CHANNEL);
 }
 
 export async function publishCallEvent(agentId: string, event: string, data: unknown): Promise<void> {

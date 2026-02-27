@@ -61,8 +61,8 @@ app.use('/', outboundRoutes);
 app.use('/webhooks', webhookRoutes);
 
 app.use('/agents', calendarRoutes);
+app.use('/', eventsRouter);
 app.use('/agents', authMiddleware, agentRoutes);
-app.use('/', eventsRouter); // SSE endpoint
 app.use('/', authMiddleware, callRoutes);
 app.use('/', authMiddleware, contactRoutes);
 app.use('/admin', authMiddleware, adminRoutes);
