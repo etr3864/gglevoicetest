@@ -64,7 +64,10 @@ export class GeminiMapper {
         functionResponses: responses.map((r) => ({
           id: r.id,
           name: r.name,
-          response: r.response,
+          response: {
+            name: r.name,
+            content: r.response,
+          },
         })),
       },
     };
