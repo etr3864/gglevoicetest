@@ -69,18 +69,6 @@ export function attachWebSocket(server: Server): void {
 }
 
 function handleMedia(callControlId: string, pcm: Buffer): void {
-  // Noise Gate: Calculate RMS volume to filter out background noise
-  // from the user before sending to Gemini
-  let sumSquares = 0;
-  for (let i = 0; i < pcm.length; i += 2) {
-    const sample = pcm.readInt16LE(i);
-    sumSquares += sample * sample;
-  }
-  const rms = Math.sqrt(sumSquares / (pcm.length / 2));
-  
-  // Drop quiet audio chunks (adjust threshold between 50-300 as needed)
-  if (rms < 150) return;
-
   const conn = activeConnections.get(callControlId);
 
   if (!conn) {
@@ -255,7 +243,7 @@ function createTranscriber(callControlId: string, streamStartTs: number): Deepgr
     });
   });
 
-  return transcriber.connect() ? transcriber : null;
+  return transcriber.connect({ sampleRate: 24000 }) ? transcriber : null;
 }
 
 // --- Provider Events ---
