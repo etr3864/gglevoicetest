@@ -60,7 +60,21 @@ export class GeminiMapper {
 
   static buildToolResponsePayload(responses: Array<{ id: string; name: string; response: unknown }>): Record<string, unknown> {
     return {
-      toolResponse: { functionResponses: responses },
+      clientContent: {
+        turns: [
+          {
+            role: 'user',
+            parts: responses.map((r) => ({
+              functionResponse: {
+                id: r.id,
+                name: r.name,
+                response: r.response,
+              },
+            })),
+          },
+        ],
+        turnComplete: true,
+      },
     };
   }
 
