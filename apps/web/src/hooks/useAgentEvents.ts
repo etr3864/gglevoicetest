@@ -2,13 +2,26 @@ import { useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import api from '../lib/api';
 
+function getAccessToken(): string | null {
+  try {
+    const raw = localStorage.getItem('auth_tokens');
+    if (!raw) return null;
+    const { accessToken } = JSON.parse(raw);
+    return accessToken ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export function useAgentEvents(agentId: string | undefined, enabled: boolean) {
   const qc = useQueryClient();
 
   useEffect(() => {
     if (!agentId || !enabled) return;
 
-    const url = `${api.defaults.baseURL}/agents/${agentId}/events`;
+    const token = getAccessToken();
+    const base = `${api.defaults.baseURL}/agents/${agentId}/events`;
+    const url = token ? `${base}?token=${encodeURIComponent(token)}` : base;
     const sse = new EventSource(url);
 
     sse.addEventListener('call_created', (e) => {
@@ -44,10 +57,7 @@ export function useAgentEvents(agentId: string | undefined, enabled: boolean) {
       }
     });
 
-    sse.onerror = () => {
-      // EventSource automatically reconnects, but we can log it
-      console.warn('SSE connection error, reconnecting...');
-    };
+    sse.onerror = () => {};
 
     return () => {
       sse.close();

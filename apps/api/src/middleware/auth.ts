@@ -28,6 +28,24 @@ export function authMiddleware(req: Request, _res: Response, next: NextFunction)
   }
 }
 
+/** For SSE: EventSource cannot send headers, so token may be in query. */
+export function authMiddlewareOptionalToken(req: Request, _res: Response, next: NextFunction) {
+  const token =
+    (req.query.token as string) ||
+    (req.headers.authorization?.startsWith('Bearer ') ? req.headers.authorization.slice(7) : null);
+  if (!token) {
+    throw new AppError(401, 'UNAUTHORIZED', 'Missing or invalid token');
+  }
+  try {
+    const secret = process.env.JWT_SECRET || 'dev-secret';
+    const payload = jwt.verify(token, secret) as JwtPayload;
+    req.user = payload;
+    next();
+  } catch {
+    throw new AppError(401, 'UNAUTHORIZED', 'Invalid or expired token');
+  }
+}
+
 export function adminMiddleware(req: Request, _res: Response, next: NextFunction) {
   if (req.user?.role !== 'admin') {
     throw new AppError(403, 'FORBIDDEN', 'Admin access required');
