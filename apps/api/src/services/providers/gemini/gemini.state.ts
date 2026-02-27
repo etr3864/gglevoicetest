@@ -38,12 +38,14 @@ export class GeminiState {
     const text = this.agentTranscriptBuf.trim();
     if (text) {
       this.history.push({ role: 'model', parts: [{ text }] });
-      events?.onTranscript({
-        speaker: 'agent',
-        text,
-        timestamp: this.agentTranscriptTs ?? new Date(),
-        isFinal: true,
-      });
+      // We no longer emit this to the UI to avoid showing the model's internal
+      // markdown "thoughts". Instead, we use Deepgram to transcribe the actual audio.
+      // events?.onTranscript({
+      //   speaker: 'agent',
+      //   text,
+      //   timestamp: this.agentTranscriptTs ?? new Date(),
+      //   isFinal: true,
+      // });
     }
     this.agentTranscriptBuf = '';
     this.agentTranscriptTs = null;
