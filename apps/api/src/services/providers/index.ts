@@ -5,5 +5,5 @@ export type {
   ModelConfig, GenerationConfig, VadConfig,
 } from './types';
 export { DEFAULT_MODEL_CONFIG, mergeModelConfig } from './types';
-export { GeminiProvider } from './gemini.provider';
+export { GeminiProvider } from './gemini/gemini.provider';
 export { KeyPool, geminiKeyPool } from './key-pool';

@@ -18,58 +18,9 @@ import { redis } from '../../lib/redis';
 
 const log = createLogger('bridge');
 
-class JitterBuffer {
-  private buffer: Buffer = Buffer.alloc(0);
-  private timer: NodeJS.Timeout | null = null;
-  private readonly CHUNK_SIZE = 640; // 20ms of 16kHz PCM16 (16000 * 2 bytes/sample * 0.02s)
-  private readonly INTERVAL_MS = 20;
-
-  constructor(private readonly onChunk: (chunk: Buffer) => void) {}
-
-  push(data: Buffer): void {
-    this.buffer = Buffer.concat([this.buffer, data]);
-    this.start();
-  }
-
-  clear(): void {
-    this.buffer = Buffer.alloc(0);
-    this.stop();
-  }
-
-  private start(): void {
-    if (this.timer) return;
-    this.timer = setInterval(() => {
-      if (this.buffer.length >= this.CHUNK_SIZE) {
-        const chunk = this.buffer.subarray(0, this.CHUNK_SIZE);
-        this.buffer = this.buffer.subarray(this.CHUNK_SIZE);
-        this.onChunk(chunk);
-      } else if (this.buffer.length > 0) {
-        const chunk = this.buffer;
-        this.buffer = Buffer.alloc(0);
-        this.onChunk(chunk);
-        this.stop();
-      } else {
-        this.stop();
-      }
-    }, this.INTERVAL_MS);
-  }
-
-  private stop(): void {
-    if (this.timer) {
-      clearInterval(this.timer);
-      this.timer = null;
-    }
-  }
-
-  destroy(): void {
-    this.clear();
-  }
-}
-
 interface ActiveConnection {
   provider: VoiceProvider | null;
   transcriber: DeepgramTranscriber | null;
-  jitterBuffer: JitterBuffer;
 }
 
 const activeConnections = new Map<string, ActiveConnection>();
@@ -193,36 +144,27 @@ async function resolveConnection(
   streamStartTs: number,
   telnyxWs: WebSocket,
 ): Promise<ActiveConnection | null> {
-  const jitterBuffer = new JitterBuffer((chunk) => {
-    if (telnyxWs.readyState !== WebSocket.OPEN) return;
-    telnyxWs.send(JSON.stringify({
-      event: 'media',
-      media: { payload: chunk.toString('base64') },
-    }));
-  });
-
   const claimed = await claim(session.callId);
 
   if (claimed) {
     const transcriber = bindTranscriber(callControlId, streamStartTs);
-    const events = buildProviderEvents(session, callControlId, telnyxWs, !!transcriber, jitterBuffer);
+    const events = buildProviderEvents(session, callControlId, telnyxWs, !!transcriber);
     claimed.provider.setEvents(events);
-    return { provider: claimed.provider, transcriber, jitterBuffer };
+    return { provider: claimed.provider, transcriber };
   }
 
   const transcriber = createTranscriber(callControlId, streamStartTs);
-  const events = buildProviderEvents(session, callControlId, telnyxWs, !!transcriber, jitterBuffer);
+  const events = buildProviderEvents(session, callControlId, telnyxWs, !!transcriber);
   const provider = await connectProvider(session, events);
 
   if (telnyxWs.readyState !== WebSocket.OPEN) {
     log.warn('Telnyx disconnected during provider setup', { callControlId });
     provider?.disconnect();
     transcriber?.close();
-    jitterBuffer.destroy();
     return null;
   }
 
-  return { provider, transcriber, jitterBuffer };
+  return { provider, transcriber };
 }
 
 function bindTranscriber(
@@ -241,7 +183,6 @@ function teardown(callControlId: string | null): void {
   if (conn) {
     conn.transcriber?.close();
     try { conn.provider?.disconnect(); } catch {}
-    conn.jitterBuffer.destroy();
     activeConnections.delete(callControlId);
   }
 
@@ -314,7 +255,6 @@ function buildProviderEvents(
   callControlId: string,
   telnyxWs: WebSocket,
   hasDeepgram: boolean,
-  jitterBuffer: JitterBuffer,
 ): ProviderEvents {
   const toolContext: ToolContext = {
     callId: session.callId,
@@ -322,7 +262,7 @@ function buildProviderEvents(
     contactPhone: session.contactPhone || undefined,
   };
 
-  const sendToTelnyxDirect = (payload: Buffer) => {
+  const sendToTelnyx = (payload: Buffer) => {
     if (telnyxWs.readyState !== WebSocket.OPEN) return;
     telnyxWs.send(JSON.stringify({
       event: 'media',
@@ -330,12 +270,22 @@ function buildProviderEvents(
     }));
   };
 
-  const sendToTelnyx = (payload: Buffer) => {
-    jitterBuffer.push(payload);
-  };
-
   audioWorkerPool.register(callControlId, (pcm16k) => {
-    if (pcm16k.length > 0) sendToTelnyx(pcm16k);
+    if (pcm16k.length > 0) {
+      // Noise Gate: Calculate RMS volume
+      let sumSquares = 0;
+      for (let i = 0; i < pcm16k.length; i += 2) {
+        const sample = pcm16k.readInt16LE(i);
+        sumSquares += sample * sample;
+      }
+      const rms = Math.sqrt(sumSquares / (pcm16k.length / 2));
+      
+      // Threshold for speaking (adjust between 50-300 as needed)
+      // 150 is a good starting point for filtering background static
+      if (rms > 150) {
+        sendToTelnyx(pcm16k);
+      }
+    }
   });
 
   return {
@@ -368,7 +318,6 @@ function buildProviderEvents(
     },
 
     onInterrupt: () => {
-      jitterBuffer.clear();
       audioWorkerPool.cleanup(callControlId);
       audioWorkerPool.register(callControlId, (pcm16k) => {
         if (pcm16k.length > 0) sendToTelnyx(pcm16k);
