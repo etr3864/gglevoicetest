@@ -81,7 +81,6 @@ export class GeminiMapper {
       maxOutputTokens: Math.min(generation.maxOutputTokens, 8192),
       responseModalities: ['AUDIO'],
       speechConfig,
-      audioOutputConfig: { sampleRate: 16000 },
     };
     if (generation.topP != null) config.topP = generation.topP;
     if (generation.topK != null) config.topK = generation.topK;
