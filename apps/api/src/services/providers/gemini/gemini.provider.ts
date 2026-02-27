@@ -221,20 +221,44 @@ export class GeminiProvider implements VoiceProvider {
 
     const responses = await Promise.all(
       toolCall.functionCalls.map(async (call) => {
-        const id = call.id || crypto.randomUUID();
-        const result = await this.events!.onToolCall!({
-          id,
-          name: call.name,
-          arguments: call.args || {},
-        });
-        
-        if (result.error) log.warn('Tool call error', { name: call.name, error: result.error });
+        // Log the incoming tool call for debugging
+        log.info('Received tool call from Gemini', { name: call.name, args: call.args, id: call.id });
 
-        return {
-          id: result.callId,
-          name: call.name,
-          response: result.error ? { error: result.error } : { result: result.result },
-        };
+        // IMPORTANT: We MUST use the exact ID provided by Gemini. 
+        // If we generate a random UUID when one was provided, the connection will crash with 1008/1007.
+        // If Gemini didn't provide an ID, we fall back to a random string (but it usually does).
+        const id = call.id || crypto.randomUUID();
+        
+        try {
+          const result = await this.events!.onToolCall!({
+            id,
+            name: call.name,
+            arguments: call.args || {},
+          });
+          
+          if (result.error) {
+            log.warn('Tool execution returned error', { name: call.name, error: result.error });
+            return {
+              id: result.callId,
+              name: call.name,
+              response: { error: result.error }
+            };
+          }
+
+          log.info('Tool executed successfully', { name: call.name });
+          return {
+            id: result.callId,
+            name: call.name,
+            response: { result: result.result }
+          };
+        } catch (err) {
+          log.error('Tool execution threw exception', err, { name: call.name });
+          return {
+            id,
+            name: call.name,
+            response: { error: err instanceof Error ? err.message : 'Unknown execution error' }
+          };
+        }
       })
     );
 
