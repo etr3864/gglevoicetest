@@ -250,7 +250,7 @@ function createTranscriber(callControlId: string, streamStartTs: number): Deepgr
     await addTranscript(callControlId, {
       speaker: 'customer',
       text: result.text,
-      timestamp: new Date(streamStartTs + result.startSec * 1000),
+      timestamp: new Date(Date.now() - result.durationSec * 1000),
       isFinal: true,
     });
   });
@@ -264,7 +264,7 @@ function createAgentTranscriber(callControlId: string, streamStartTs: number): D
     await addTranscript(callControlId, {
       speaker: 'agent',
       text: result.text,
-      timestamp: new Date(streamStartTs + result.startSec * 1000),
+      timestamp: new Date(Date.now() - result.durationSec * 1000),
       isFinal: true,
     });
   });
