@@ -17,12 +17,28 @@ export interface CallSession {
 
 // Helper to store transcripts
 export async function addTranscript(callControlId: string, entry: TranscriptEntry): Promise<void> {
+  const transcriptsKey = `call:transcripts:${callControlId}`;
+  
+  const existingRaw = await redis.lrange(transcriptsKey, -1, -1);
+  
+  if (existingRaw.length > 0) {
+    const lastEntry = JSON.parse(existingRaw[0]);
+    
+    if (lastEntry.speaker === entry.speaker) {
+      lastEntry.text = `${lastEntry.text} ${entry.text}`.trim();
+      
+      await redis.rpop(transcriptsKey);
+      await redis.rpush(transcriptsKey, JSON.stringify(lastEntry));
+      return;
+    }
+  }
+
   const data = JSON.stringify({
     ...entry,
     timestamp: entry.timestamp.toISOString(),
   });
-  await redis.rpush(`call:transcripts:${callControlId}`, data);
-  await redis.expire(`call:transcripts:${callControlId}`, 7200); // 2 hours TTL
+  await redis.rpush(transcriptsKey, data);
+  await redis.expire(transcriptsKey, 7200); // 2 hours TTL
 }
 
 export async function getTranscripts(callControlId: string): Promise<TranscriptEntry[]> {

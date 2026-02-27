@@ -99,7 +99,7 @@ export default function CallDetailModal({ callId, onClose }: Props) {
               }`}>
                 <div className="flex items-center justify-between gap-4 mb-1">
                   <span className="text-xs text-[var(--text-muted)]">
-                    {formatMs(u.startMs)}
+                    {new Date(new Date(call.startedAt || call.createdAt).getTime() + u.startMs).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                   </span>
                   <span className={`text-xs font-medium ${
                     u.speaker === 'agent' ? 'text-emerald-400' : 'text-blue-400'
@@ -115,11 +115,4 @@ export default function CallDetailModal({ callId, onClose }: Props) {
       </div>
     </div>
   );
-}
-
-function formatMs(ms: number): string {
-  const s = Math.floor(ms / 1000);
-  const m = Math.floor(s / 60);
-  const sec = s % 60;
-  return `${m}:${sec.toString().padStart(2, '0')}`;
 }
