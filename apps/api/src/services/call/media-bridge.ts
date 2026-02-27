@@ -3,7 +3,6 @@ import type { Server } from 'http';
 import { prisma } from '@voice/db';
 import { createLogger } from '../../lib/logger';
 import { GEMINI_MODEL, DEFAULT_VOICE } from '../../lib/constants';
-import { audioWorkerPool } from '../../lib/audio';
 import { GeminiProvider, geminiKeyPool } from '../providers';
 import { globalRegistry, type ToolContext } from '../tools';
 import { getSession, endSession, addTranscript, type CallSession } from './session';
@@ -70,6 +69,18 @@ export function attachWebSocket(server: Server): void {
 }
 
 function handleMedia(callControlId: string, pcm: Buffer): void {
+  // Noise Gate: Calculate RMS volume to filter out background noise
+  // from the user before sending to Gemini
+  let sumSquares = 0;
+  for (let i = 0; i < pcm.length; i += 2) {
+    const sample = pcm.readInt16LE(i);
+    sumSquares += sample * sample;
+  }
+  const rms = Math.sqrt(sumSquares / (pcm.length / 2));
+  
+  // Drop quiet audio chunks (adjust threshold between 50-300 as needed)
+  if (rms < 150) return;
+
   const conn = activeConnections.get(callControlId);
 
   if (!conn) {
@@ -187,7 +198,6 @@ function teardown(callControlId: string | null): void {
   }
 
   expire(callControlId);
-  audioWorkerPool.cleanup(callControlId);
   endSession(callControlId).catch((err) => {
     log.error('Failed to end session', err, { callControlId });
   });
@@ -270,29 +280,13 @@ function buildProviderEvents(
     }));
   };
 
-  audioWorkerPool.register(callControlId, (pcm16k) => {
-    if (pcm16k.length > 0) {
-      // Noise Gate: Calculate RMS volume
-      let sumSquares = 0;
-      for (let i = 0; i < pcm16k.length; i += 2) {
-        const sample = pcm16k.readInt16LE(i);
-        sumSquares += sample * sample;
-      }
-      const rms = Math.sqrt(sumSquares / (pcm16k.length / 2));
-      
-      // Threshold for speaking (adjust between 50-300 as needed)
-      // 150 is a good starting point for filtering background static
-      if (rms > 150) {
-        sendToTelnyx(pcm16k);
-      }
-    }
-  });
-
   return {
     onReady: () => {},
 
     onAudio: (chunk) => {
-      audioWorkerPool.process(callControlId, chunk.data);
+      if (chunk.data.length > 0) {
+        sendToTelnyx(chunk.data);
+      }
     },
 
     onTranscript: async (entry) => {
@@ -318,11 +312,6 @@ function buildProviderEvents(
     },
 
     onInterrupt: () => {
-      audioWorkerPool.cleanup(callControlId);
-      audioWorkerPool.register(callControlId, (pcm16k) => {
-        if (pcm16k.length > 0) sendToTelnyx(pcm16k);
-      });
-
       if (telnyxWs.readyState === WebSocket.OPEN) {
         telnyxWs.send(JSON.stringify({ event: 'clear' }));
       }

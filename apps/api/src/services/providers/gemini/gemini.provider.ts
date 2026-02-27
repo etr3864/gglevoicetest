@@ -188,7 +188,7 @@ export class GeminiProvider implements VoiceProvider {
 
     const parts = content.modelTurn?.parts || [];
 
-    // Process Audio
+    // Process Audio and Text
     for (const part of parts) {
       if (part.inlineData?.mimeType?.startsWith('audio/pcm')) {
         this.state.getAgentTranscriptTs(); // Initialize timestamp
@@ -198,14 +198,14 @@ export class GeminiProvider implements VoiceProvider {
           sampleRate: 16000,
         });
       }
+      if (part.text) {
+        this.state.appendOutputTranscript(part.text);
+      }
     }
 
-    // Process Transcripts
+    // Process Transcripts (Input)
     if (content.inputTranscript) {
       this.state.addInputTranscript(content.inputTranscript, this.events);
-    }
-    if (content.outputTranscription?.text) {
-      this.state.appendOutputTranscript(content.outputTranscription.text);
     }
 
     if (content.turnComplete) {
