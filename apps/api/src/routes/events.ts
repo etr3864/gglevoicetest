@@ -10,7 +10,8 @@ router.get('/agents/:id/events', authMiddlewareOptionalToken, (req, res) => {
   res.setHeader('Connection', 'keep-alive');
   res.flushHeaders();
 
-  sseManager.addClient(req.params.id, res);
+  const agentId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  sseManager.addClient(agentId, res);
 });
 
 export default router;
