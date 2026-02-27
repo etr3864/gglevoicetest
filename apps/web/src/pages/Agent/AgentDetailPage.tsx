@@ -3,10 +3,11 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowRight, Save, Trash2, Settings, Phone, MessageSquare,
   FileText, Users, PhoneCall, PhoneOutgoing, Loader2, Calendar,
-  Copy, Check, RefreshCw, Eye, EyeOff,
+  Copy, Check, RefreshCw, Eye, EyeOff, Activity
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import api from '../../lib/api';
+import { useAgentEvents } from '../../hooks/useAgentEvents';
 import { Button } from '../../components/ui/Button';
 import { Card, CardContent } from '../../components/ui/Card';
 import { Input } from '../../components/ui/Input';
@@ -54,6 +55,8 @@ export default function AgentDetailPage() {
     queryFn: () => api.get(`/agents/${id}/calls?limit=50`).then(r => r.data),
     enabled: !!id && tab === 'calls',
   });
+
+  useAgentEvents(id, tab === 'calls');
 
   const { data: contactsData } = useQuery({
     queryKey: ['agent-contacts', id],
@@ -250,12 +253,19 @@ export default function AgentDetailPage() {
                       call.status === 'failed' ? 'danger' :
                       call.status === 'in_call' ? 'warning' : 'info'
                     }>
+                      {call.status === 'in_call' && <Activity className="w-3 h-3 inline mr-1 animate-pulse" />}
                       {call.status}
                     </Badge>
                     {call.durationSec != null && (
                       <span className="text-xs text-[var(--text-muted)]">{formatDuration(call.durationSec)}</span>
                     )}
                     <Badge variant="neutral">{call.direction === 'inbound' ? 'נכנסת' : 'יוצאת'}</Badge>
+                    
+                    {call.status === 'completed' && (
+                      <span className="text-xs text-[var(--text-muted)] ml-2">
+                        {call.transcriptSaved ? 'תמלול זמין' : 'מעבד תמלול...'}
+                      </span>
+                    )}
                   </div>
                   <div className="text-left">
                     <p className="text-sm font-medium text-[var(--text-primary)]">

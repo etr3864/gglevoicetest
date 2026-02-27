@@ -4,6 +4,7 @@ import { normalizePhone } from '../lib/phone';
 import { createWorker } from '../lib/queue';
 import { createOutboundCall } from '../services/telnyx';
 import { createSession, warmup } from '../services/call';
+import { publishCallEvent } from '../services/events/pubsub';
 
 const log = createLogger('outbound-worker');
 
@@ -31,7 +32,7 @@ export function startOutboundWorker(): void {
     const { callId, agentId, phone } = job.data;
 
     const agent = await validateAgent(callId, agentId);
-    await markCalling(callId);
+    await markCalling(callId, agentId);
 
     warmup(callId, agentId, phone).catch((err) => {
       log.error('Warmup failed', err, { callId });
@@ -59,15 +60,17 @@ async function validateAgent(callId: string, agentId: string) {
   if (!agent || !agent.phoneNumber || !appId) {
     const missing = !agent ? 'agent not found' : !agent.phoneNumber ? 'no phone number' : 'no Telnyx App ID';
     log.error('Agent validation failed', undefined, { callId, agentId, missing });
-    await prisma.call.update({ where: { id: callId }, data: { status: 'failed' } });
+    const call = await prisma.call.update({ where: { id: callId }, data: { status: 'failed' } });
+    await publishCallEvent(agentId, 'call_updated', { call });
     throw new Error(`Agent ${agentId}: ${missing}`);
   }
 
   return { ...agent, telnyxAppId: appId };
 }
 
-async function markCalling(callId: string): Promise<void> {
-  await prisma.call.update({ where: { id: callId }, data: { status: 'calling' } });
+async function markCalling(callId: string, agentId: string): Promise<void> {
+  const call = await prisma.call.update({ where: { id: callId }, data: { status: 'calling' } });
+  await publishCallEvent(agentId, 'call_updated', { call });
 }
 
 async function dialOutbound(
@@ -94,7 +97,8 @@ async function dialOutbound(
   } catch (err) {
     const detail = extractTelnyxError(err);
     log.error('Dial failed', undefined, { callId, from, to, ...detail });
-    await prisma.call.update({ where: { id: callId }, data: { status: 'failed' } });
+    const call = await prisma.call.update({ where: { id: callId }, data: { status: 'failed' } });
+    await publishCallEvent(agentId, 'call_updated', { call });
     throw err;
   }
 }

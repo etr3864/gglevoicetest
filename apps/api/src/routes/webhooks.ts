@@ -4,6 +4,7 @@ import { createLogger } from '../lib/logger';
 import { normalizePhone } from '../lib/phone';
 import { answerCall, startStream, hangupCall } from '../services/telnyx';
 import { createSession, endSession, getSession, warmup } from '../services/call';
+import { publishCallEvent } from '../services/events/pubsub';
 
 const log = createLogger('webhook');
 const router = Router();
@@ -45,6 +46,14 @@ router.post('/telnyx', async (req, res) => {
           log.warn('call.answered no session', { callControlId: callControlId.slice(-12) });
           break;
         }
+        
+        // Update status to in_call
+        const updatedCall = await prisma.call.update({
+          where: { id: session.callId },
+          data: { status: 'in_call' },
+        });
+        await publishCallEvent(session.agentId, 'call_updated', { call: updatedCall });
+
         await startStream(callControlId, getStreamUrl());
         break;
       }
@@ -109,7 +118,10 @@ async function handleIncomingCall(
       status: 'in_call',
       startedAt: new Date(),
     },
+    include: { contact: { select: { phone: true, name: true } } },
   });
+
+  await publishCallEvent(agent.id, 'call_created', { call });
 
   await createSession({
     callId: call.id,

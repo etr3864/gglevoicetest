@@ -5,6 +5,7 @@ import { createAgentSchema, updateAgentSchema } from '@voice/shared';
 import { AppError } from '../middleware/error-handler';
 import { outboundQueue } from '../lib/queue';
 import { normalizePhone } from '../lib/phone';
+import { publishCallEvent } from '../services/events/pubsub';
 
 function generateApiKey(): string {
   return `vk_${crypto.randomBytes(24).toString('hex')}`;
@@ -95,7 +96,10 @@ router.post('/:id/outbound', async (req, res) => {
       status: 'queued',
       context: context ? (context as Prisma.InputJsonValue) : Prisma.DbNull,
     },
+    include: { contact: { select: { phone: true, name: true } } },
   });
+
+  await publishCallEvent(agent.id, 'call_created', { call });
 
   await outboundQueue.add('dial', {
     callId: call.id,

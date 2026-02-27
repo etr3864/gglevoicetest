@@ -2,6 +2,7 @@ import { prisma } from '@voice/db';
 import { createLogger } from '../../lib/logger';
 import { redis } from '../../lib/redis';
 import type { TranscriptEntry } from '../providers/types';
+import { publishCallEvent } from '../events/pubsub';
 
 const log = createLogger('session');
 const SESSION_COUNT_KEY = 'call:session_count';
@@ -116,10 +117,11 @@ export async function activeSessionCount(): Promise<number> {
 
 async function finalizeCallRecord(session: CallSession, durationSec: number): Promise<void> {
   try {
-    await prisma.call.update({
+    const call = await prisma.call.update({
       where: { id: session.callId },
       data: { status: 'completed', endedAt: new Date(), durationSec },
     });
+    await publishCallEvent(session.agentId, 'call_updated', { call });
   } catch (err) {
     log.error('Failed to update call record', err, { callId: session.callId });
   }
@@ -138,6 +140,11 @@ async function persistUtterances(session: CallSession, transcripts: TranscriptEn
         startMs: Math.max(0, t.timestamp.getTime() - baseTime),
         endMs: Math.max(0, t.timestamp.getTime() - baseTime + 500),
       })),
+    });
+    
+    // Notify frontend that transcript is ready
+    await publishCallEvent(session.agentId, 'call_updated', { 
+      call: { id: session.callId, transcriptSaved: true } 
     });
   } catch (err) {
     log.error('Failed to save utterances', err, { callId: session.callId });

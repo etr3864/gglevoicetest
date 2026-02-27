@@ -16,10 +16,13 @@ import outboundRoutes from './routes/outbound';
 import adminRoutes from './routes/admin';
 import calendarRoutes from './routes/calendar';
 import webhookRoutes from './routes/webhooks';
+import eventsRouter from './routes/events';
 import { registerBuiltinTools } from './services/tools';
 import { attachWebSocket } from './services/call';
 import { geminiKeyPool } from './services/providers';
 import { startOutboundWorker } from './workers/outbound';
+import { initPubSub, closePubSub } from './services/events/pubsub';
+import { sseManager } from './services/events/sse.manager';
 
 const log = createLogger('app');
 const app = express();
@@ -59,6 +62,7 @@ app.use('/webhooks', webhookRoutes);
 
 app.use('/agents', calendarRoutes);
 app.use('/agents', authMiddleware, agentRoutes);
+app.use('/', eventsRouter); // SSE endpoint
 app.use('/', authMiddleware, callRoutes);
 app.use('/', authMiddleware, contactRoutes);
 app.use('/admin', authMiddleware, adminRoutes);
@@ -68,6 +72,7 @@ app.use(errorHandler);
 async function start() {
   try {
     await redis.ping();
+    await initPubSub();
 
     registerBuiltinTools();
     startOutboundWorker();
@@ -76,6 +81,19 @@ async function start() {
     server.listen(PORT, '0.0.0.0', () => {
       log.info(`Server ready on :${PORT}`, { geminiKeys: geminiKeyPool.size });
     });
+
+    const shutdown = async () => {
+      log.info('Shutting down gracefully...');
+      sseManager.shutdown();
+      await closePubSub();
+      server.close(() => {
+        log.info('Server closed');
+        process.exit(0);
+      });
+    };
+
+    process.on('SIGTERM', shutdown);
+    process.on('SIGINT', shutdown);
   } catch (err) {
     log.error('Startup failed', err);
     process.exit(1);

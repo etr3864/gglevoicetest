@@ -15,12 +15,20 @@ router.get('/agents/:id/calls', async (req, res) => {
       orderBy: { createdAt: 'desc' },
       skip,
       take: limit,
-      include: { contact: { select: { phone: true, name: true } } },
+      include: { 
+        contact: { select: { phone: true, name: true } },
+        _count: { select: { utterances: true } }
+      },
     }),
     prisma.call.count({ where: { agentId: req.params.id } }),
   ]);
 
-  res.json({ data: calls, meta: { page, limit, total } });
+  const formattedCalls = calls.map(c => ({
+    ...c,
+    transcriptSaved: c._count.utterances > 0
+  }));
+
+  res.json({ data: formattedCalls, meta: { page, limit, total } });
 });
 
 router.get('/calls/:id', async (req, res) => {
