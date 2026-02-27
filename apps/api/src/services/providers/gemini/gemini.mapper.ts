@@ -32,7 +32,7 @@ export class GeminiMapper {
       realtimeInput: {
         mediaChunks: [
           {
-            mimeType: 'audio/pcm;rate=16000',
+            mimeType: 'audio/pcm;rate=24000',
             data: pcmBase64,
           },
         ],

@@ -195,7 +195,7 @@ export class GeminiProvider implements VoiceProvider {
         this.events?.onAudio({
           data: Buffer.from(part.inlineData.data, 'base64'),
           format: 'pcm16',
-          sampleRate: 16000,
+          sampleRate: 24000,
         });
       }
       if (part.text) {
