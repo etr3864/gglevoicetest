@@ -5,6 +5,7 @@ import { outboundQueue } from '../lib/queue';
 import { AppError } from '../middleware/error-handler';
 import { apikeyMiddleware } from '../middleware/apikey';
 import { normalizePhone } from '../lib/phone';
+import { publishCallEvent } from '../services/events/pubsub';
 
 const router = Router();
 
@@ -38,7 +39,10 @@ router.post('/v1/calls', apikeyMiddleware, async (req, res) => {
       status: 'queued',
       context: body.context ? (body.context as Prisma.InputJsonValue) : Prisma.DbNull,
     },
+    include: { contact: { select: { phone: true, name: true } } },
   });
+
+  await publishCallEvent(agent.id, 'call_created', { call });
 
   await outboundQueue.add('dial', {
     callId: call.id,
