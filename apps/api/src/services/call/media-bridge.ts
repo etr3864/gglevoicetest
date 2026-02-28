@@ -111,7 +111,9 @@ async function handleStreamStart(
   streamStartTs: number,
   telnyxWs: WebSocket,
 ): Promise<void> {
+  log.info('[BR-1] Stream start', { callControlId });
   const session = await getSession(callControlId);
+  log.info('[BR-2] getSession', { callControlId, found: !!session, elapsed: Date.now() - streamStartTs });
   if (!session) {
     log.warn('No session for stream', { callControlId });
     earlyAudioBuffers.delete(callControlId);
@@ -144,7 +146,9 @@ async function resolveConnection(
   streamStartTs: number,
   telnyxWs: WebSocket,
 ): Promise<ActiveConnection | null> {
+  log.info('[BR-3] claim start', { callId: session.callId, elapsed: Date.now() - streamStartTs });
   const claimed = await claim(session.callId);
+  log.info('[BR-4] claim done', { callId: session.callId, claimed: !!claimed, elapsed: Date.now() - streamStartTs });
 
   if (claimed) {
     const transcriber = bindTranscriber(callControlId, streamStartTs);
@@ -154,10 +158,12 @@ async function resolveConnection(
     return { provider: claimed.provider, transcriber, agentTranscriber };
   }
 
+  log.info('[BR-5] cold connect start', { callId: session.callId, elapsed: Date.now() - streamStartTs });
   const transcriber = createTranscriber(callControlId, streamStartTs);
   const agentTranscriber = createAgentTranscriber(callControlId, streamStartTs);
   const events = buildProviderEvents(session, callControlId, telnyxWs, !!transcriber, agentTranscriber);
   const provider = await connectProvider(session, events);
+  log.info('[BR-6] cold connect done', { callId: session.callId, elapsed: Date.now() - streamStartTs });
 
   if (telnyxWs.readyState !== WebSocket.OPEN) {
     log.warn('Telnyx disconnected during provider setup', { callControlId });
@@ -298,12 +304,19 @@ function buildProviderEvents(
   return {
     onReady: () => {},
 
-    onAudio: (chunk) => {
-      if (chunk.data.length > 0) {
-        sendToTelnyx(chunk.data);
-        agentTranscriber?.sendAudio(chunk.data);
-      }
-    },
+    onAudio: (() => {
+      let firstAudio = false;
+      return (chunk: { data: Buffer }) => {
+        if (chunk.data.length > 0) {
+          if (!firstAudio) {
+            log.info('[BR-7] FIRST AUDIO FROM GEMINI', { callControlId });
+            firstAudio = true;
+          }
+          sendToTelnyx(chunk.data);
+          agentTranscriber?.sendAudio(chunk.data);
+        }
+      };
+    })(),
 
     onTranscript: async (entry) => {
       if (entry.speaker === 'customer' || !hasDeepgram) {
