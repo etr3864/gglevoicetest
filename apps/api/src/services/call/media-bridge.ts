@@ -56,7 +56,7 @@ export function attachWebSocket(server: Server): void {
             break;
 
           case 'media':
-            if (msg.media?.payload && callControlId && msg.media.track !== 'outbound') {
+            if (msg.media?.payload && callControlId) {
               mediaChunkCount++;
               
               const rawBuf = Buffer.from(msg.media.payload, 'base64');

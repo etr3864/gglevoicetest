@@ -1,5 +1,5 @@
 export const STREAM = {
-  track: 'both_tracks',
+  track: 'inbound_track',
   codec: 'L16',
   bidirectionalMode: 'rtp',
 } as const;
