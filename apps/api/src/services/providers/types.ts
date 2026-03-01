@@ -49,6 +49,7 @@ export const DEFAULT_MODEL_CONFIG: ModelConfig = {
     temperature: 0.8,
     maxOutputTokens: 4096,
   },
+  proactiveAudio: true,
   vad: {
     silenceDurationMs: 300,
     endOfSpeechSensitivity: 'END_SENSITIVITY_HIGH',
@@ -135,6 +136,7 @@ export interface VoiceProvider {
   connect(config: ProviderConfig, events: ProviderEvents): Promise<void>;
   setEvents(events: ProviderEvents): void;
   sendAudio(chunk: AudioChunk): void;
+  startConversation(): void;
   disconnect(): void;
   isReady(): boolean;
 }

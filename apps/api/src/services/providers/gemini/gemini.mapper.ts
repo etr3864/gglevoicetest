@@ -30,6 +30,15 @@ export class GeminiMapper {
     return setup;
   }
 
+  static buildStartConversationPayload(): Record<string, unknown> {
+    return {
+      clientContent: {
+        turns: [{ role: 'user', parts: [{ text: 'The customer is now on the line. Begin the conversation.' }] }],
+        turnComplete: true,
+      },
+    };
+  }
+
   static buildAudioPayload(pcmBase64: string, sampleRate: number = GEMINI.inputRate): Record<string, unknown> {
     return {
       realtimeInput: {
