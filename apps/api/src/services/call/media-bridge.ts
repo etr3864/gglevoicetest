@@ -84,7 +84,7 @@ function handleMedia(callControlId: string, pcm: Buffer): void {
   }
 
   if (conn.provider) {
-    conn.provider.sendAudio({ data: pcm, format: 'pcm16', sampleRate: 8000 });
+    conn.provider.sendAudio({ data: pcm, format: 'pcm16', sampleRate: 16000 });
   }
   if (conn.transcriber) {
     conn.transcriber.sendAudio(pcm);
@@ -99,7 +99,7 @@ function drainEarlyAudio(callControlId: string, conn: ActiveConnection): boolean
 
   for (const pcm of buffered) {
     if (conn.provider) {
-      conn.provider.sendAudio({ data: pcm, format: 'pcm16', sampleRate: 8000 });
+      conn.provider.sendAudio({ data: pcm, format: 'pcm16', sampleRate: 16000 });
     }
     if (conn.transcriber) {
       conn.transcriber.sendAudio(pcm);
@@ -269,7 +269,7 @@ function createTranscriber(callControlId: string, streamStartTs: number): Deepgr
     });
   });
 
-  return transcriber.connect({ sampleRate: 8000 }) ? transcriber : null;
+  return transcriber.connect({ sampleRate: 16000 }) ? transcriber : null;
 }
 
 function createAgentTranscriber(callControlId: string, streamStartTs: number): DeepgramTranscriber | null {
