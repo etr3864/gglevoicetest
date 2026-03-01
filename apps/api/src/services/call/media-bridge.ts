@@ -78,9 +78,9 @@ export function attachWebSocket(server: Server): void {
   });
 }
 
-function swapEndian(buf: Buffer): Buffer {
+function swapEndian16(buf: Buffer): Buffer {
   const out = Buffer.allocUnsafe(buf.length);
-  for (let i = 0; i + 1 < buf.length; i += 2) {
+  for (let i = 0; i < buf.length - 1; i += 2) {
     out[i] = buf[i + 1];
     out[i + 1] = buf[i];
   }
@@ -88,20 +88,20 @@ function swapEndian(buf: Buffer): Buffer {
 }
 
 function handleMedia(callControlId: string, pcm: Buffer): void {
-  pcm = swapEndian(pcm);
   const conn = activeConnections.get(callControlId);
+  const swapped = swapEndian16(pcm);
 
   if (!conn) {
     const buf = earlyAudioBuffers.get(callControlId);
-    if (buf) buf.push(pcm);
+    if (buf) buf.push(swapped);
     return;
   }
 
   if (conn.provider) {
-    conn.provider.sendAudio({ data: pcm, format: 'pcm16', sampleRate: 24000 });
+    conn.provider.sendAudio({ data: swapped, format: 'pcm16', sampleRate: 24000 });
   }
   if (conn.transcriber) {
-    conn.transcriber.sendAudio(pcm);
+    conn.transcriber.sendAudio(swapped);
   }
 }
 
