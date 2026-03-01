@@ -34,6 +34,7 @@ export function attachWebSocket(server: Server): void {
   wss.on('connection', (ws) => {
     let callControlId: string | null = null;
     let streamStartTs = 0;
+    let mediaChunkCount = 0;
 
     ws.on('message', async (raw) => {
       try {
@@ -51,6 +52,10 @@ export function attachWebSocket(server: Server): void {
 
           case 'media':
             if (msg.media?.payload && callControlId) {
+              mediaChunkCount++;
+              if (mediaChunkCount === 1 || mediaChunkCount % 100 === 0) {
+                log.info('Telnyx media incoming', { callControlId, count: mediaChunkCount });
+              }
               handleMedia(callControlId, Buffer.from(msg.media.payload, 'base64'));
             }
             break;
@@ -253,6 +258,9 @@ async function connectProvider(
 function createTranscriber(callControlId: string, streamStartTs: number): DeepgramTranscriber | null {
   const transcriber = new DeepgramTranscriber(async (result) => {
     if (!result.isFinal || !result.text.trim()) return;
+    
+    log.info('Customer transcript received', { callControlId, text: result.text });
+    
     await addTranscript(callControlId, {
       speaker: 'customer',
       text: result.text,

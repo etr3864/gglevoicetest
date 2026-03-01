@@ -66,6 +66,7 @@ export class DeepgramTranscriber {
     });
 
     this.ws.on('open', () => {
+      log.info('Deepgram WS connected', { model: config?.model, language: config?.language });
       this.ready = true;
       this.startKeepalive();
     });
