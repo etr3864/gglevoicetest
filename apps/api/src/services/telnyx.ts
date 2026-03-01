@@ -86,7 +86,7 @@ export async function createOutboundCall(params: {
     webhook_url_method: 'POST',
     timeout_secs: 60,
     preferred_codecs: 'G722',
-    answering_machine_detection: 'premium',
+    answering_machine_detection: 'disabled',
     client_state: params.clientState
       ? Buffer.from(params.clientState).toString('base64')
       : undefined,
