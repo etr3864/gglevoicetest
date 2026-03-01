@@ -146,7 +146,7 @@ export class GeminiProvider implements VoiceProvider {
         if (!this.connection?.isReady() || data.length === 0) break;
         if (data.length % 2 !== 0) data = Buffer.concat([data, Buffer.from([0])]);
         // All inbound audio pushed to reconnect buffer is from Telnyx at 16000Hz
-        this.connection.send(GeminiMapper.buildAudioPayload(data.toString('base64'), 24000));
+        this.connection.send(GeminiMapper.buildAudioPayload(data.toString('base64'), 16000));
       }
 
       this.reconnecting = false;
