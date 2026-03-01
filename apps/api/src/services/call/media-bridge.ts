@@ -77,47 +77,18 @@ export function attachWebSocket(server: Server): void {
 function handleMedia(callControlId: string, pcm: Buffer): void {
   const conn = activeConnections.get(callControlId);
 
-  // Decode PCMU (G.711 mu-law) to PCM16
-  const pcm16 = decodePCMU(pcm);
-
   if (!conn) {
     const buf = earlyAudioBuffers.get(callControlId);
-    if (buf) buf.push(pcm16);
+    if (buf) buf.push(pcm);
     return;
   }
 
   if (conn.provider) {
-    conn.provider.sendAudio({ data: pcm16, format: 'pcm16', sampleRate: 8000 });
+    conn.provider.sendAudio({ data: pcm, format: 'pcm16', sampleRate: 24000 });
   }
   if (conn.transcriber) {
-    conn.transcriber.sendAudio(pcm16);
+    conn.transcriber.sendAudio(pcm);
   }
-}
-
-// Convert G.711 mu-law to 16-bit PCM
-function decodePCMU(buffer: Buffer): Buffer {
-  const pcm16 = Buffer.alloc(buffer.length * 2);
-  for (let i = 0; i < buffer.length; i++) {
-    const sample = decodeMuLawSample(buffer[i]);
-    pcm16.writeInt16LE(sample, i * 2);
-  }
-  return pcm16;
-}
-
-const MU_LAW_QUANT_MASK = 0xf;
-const MU_LAW_SEG_MASK = 0x70;
-const MU_LAW_SEG_SHIFT = 4;
-const MU_LAW_SIGN_BIT = 0x80;
-const MU_LAW_BIAS = 0x84;
-
-function decodeMuLawSample(muLawSample: number): number {
-  muLawSample = ~muLawSample;
-  let sign = muLawSample & MU_LAW_SIGN_BIT;
-  let quantizedValue = muLawSample & MU_LAW_QUANT_MASK;
-  let segmentValue = (muLawSample & MU_LAW_SEG_MASK) >> MU_LAW_SEG_SHIFT;
-  let value = ((quantizedValue << 3) + MU_LAW_BIAS) << segmentValue;
-  value -= MU_LAW_BIAS;
-  return sign === 0 ? value : -value;
 }
 
 function drainEarlyAudio(callControlId: string, conn: ActiveConnection): boolean {
@@ -128,7 +99,7 @@ function drainEarlyAudio(callControlId: string, conn: ActiveConnection): boolean
 
   for (const pcm of buffered) {
     if (conn.provider) {
-      conn.provider.sendAudio({ data: pcm, format: 'pcm16', sampleRate: 8000 });
+      conn.provider.sendAudio({ data: pcm, format: 'pcm16', sampleRate: 24000 });
     }
     if (conn.transcriber) {
       conn.transcriber.sendAudio(pcm);
@@ -305,7 +276,7 @@ function createTranscriber(callControlId: string, streamStartTs: number): Deepgr
     });
   });
 
-  return transcriber.connect({ sampleRate: 8000 }) ? transcriber : null;
+  return transcriber.connect({ sampleRate: 24000 }) ? transcriber : null;
 }
 
 function createAgentTranscriber(callControlId: string, streamStartTs: number): DeepgramTranscriber | null {
