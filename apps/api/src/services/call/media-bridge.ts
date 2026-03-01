@@ -44,6 +44,10 @@ export function attachWebSocket(server: Server): void {
           case 'start':
             callControlId = msg.start?.call_control_id;
             streamStartTs = Date.now();
+            log.info('Telnyx stream start', { 
+              callControlId, 
+              mediaFormat: msg.start?.media_format 
+            });
             if (callControlId) {
               earlyAudioBuffers.set(callControlId, []);
               await handleStreamStart(callControlId, streamStartTs, ws);
