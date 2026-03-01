@@ -14,7 +14,7 @@ import { mergeModelConfig, type ModelConfig } from '../providers/types';
 import { buildContactContext } from '../contact-context';
 import { buildSchedulingPrompt } from './prompt-builder';
 import { redis } from '../../lib/redis';
-import { INBOUND, DEEPGRAM, NEEDS_ENDIAN_SWAP, swapEndian16 } from '../../lib/audio-config';
+import { INBOUND, DEEPGRAM, NEEDS_ENDIAN_SWAP, swapEndian16, downsample24to16 } from '../../lib/audio-config';
 
 const log = createLogger('bridge');
 
@@ -346,7 +346,7 @@ function buildProviderEvents(
             log.info('[BR-7] FIRST AUDIO FROM GEMINI', { callControlId });
             firstAudio = true;
           }
-          sendToTelnyx(chunk.data);
+          sendToTelnyx(downsample24to16(chunk.data));
           agentTranscriber?.sendAudio(chunk.data);
         }
       };
