@@ -29,6 +29,7 @@ export class GeminiProvider implements VoiceProvider {
   private reconnectAttempts = 0;
   private lastConnectTs = 0;
   private disconnecting = false;
+  private audioLogCount = 0;
 
   async connect(config: ProviderConfig, events: ProviderEvents): Promise<void> {
     this.events = events;
@@ -56,6 +57,11 @@ export class GeminiProvider implements VoiceProvider {
     }
 
     if (!this.connection?.isReady() || chunk.data.length === 0) return;
+
+    if (this.audioLogCount < 3) {
+      log.info('Gemini sendAudio', { bytes: chunk.data.length, rate: chunk.sampleRate });
+      this.audioLogCount++;
+    }
 
     this.connection.send(GeminiMapper.buildAudioPayload(chunk.data.toString('base64'), chunk.sampleRate));
   }
@@ -159,6 +165,11 @@ export class GeminiProvider implements VoiceProvider {
   private handleMessage(data: Buffer): void {
     try {
       const msg = JSON.parse(data.toString());
+
+      const keys = Object.keys(msg);
+      if (!msg.serverContent?.modelTurn) {
+        log.info('Gemini message received', { keys });
+      }
 
       if (msg.error) {
         const message = msg.error.message || 'Gemini API error';
