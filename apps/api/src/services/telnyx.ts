@@ -53,10 +53,7 @@ export async function startStream(callControlId: string, streamUrl: string): Pro
   await telnyxPost(`/calls/${callControlId}/actions/streaming_start`, {
     stream_url: streamUrl,
     stream_track: 'inbound_track',
-    stream_codec: 'L16',
-    stream_bidirectional_mode: 'rtp',
-    stream_bidirectional_codec: 'L16',
-    stream_bidirectional_sampling_rate: 24000,
+    stream_codec: 'PCMU',
   });
 }
 
