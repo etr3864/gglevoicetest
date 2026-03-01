@@ -1,5 +1,6 @@
 import WebSocket from 'ws';
 import { createLogger } from '../../lib/logger';
+import { DEEPGRAM } from '../../lib/audio-config';
 
 const log = createLogger('deepgram');
 
@@ -41,10 +42,10 @@ export class DeepgramTranscriber {
     }
 
     const params = new URLSearchParams({
-      model: config?.model ?? 'nova-3',
-      language: config?.language ?? 'he',
-      encoding: config?.encoding ?? 'linear16',
-      sample_rate: String(config?.sampleRate ?? 16000),
+      model: config?.model ?? DEEPGRAM.model,
+      language: config?.language ?? DEEPGRAM.language,
+      encoding: config?.encoding ?? DEEPGRAM.encoding,
+      sample_rate: String(config?.sampleRate ?? DEEPGRAM.customerRate),
       channels: '1',
       punctuate: 'true',
       interim_results: 'true',

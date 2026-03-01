@@ -14,6 +14,7 @@ import { mergeModelConfig, type ModelConfig } from '../providers/types';
 import { buildContactContext } from '../contact-context';
 import { buildSchedulingPrompt } from './prompt-builder';
 import { redis } from '../../lib/redis';
+import { INBOUND, DEEPGRAM, NEEDS_ENDIAN_SWAP, swapEndian16 } from '../../lib/audio-config';
 
 const log = createLogger('bridge');
 
@@ -58,9 +59,7 @@ export function attachWebSocket(server: Server): void {
             if (msg.media?.payload && callControlId) {
               mediaChunkCount++;
               const rawBuf = Buffer.from(msg.media.payload, 'base64');
-              if (mediaChunkCount === 1) {
-                log.info('First PCM chunk', { callControlId, bytes: rawBuf.length });
-              } else if (mediaChunkCount % 100 === 0) {
+              if (mediaChunkCount % 500 === 0) {
                 log.info('Telnyx media incoming', { callControlId, count: mediaChunkCount });
               }
               handleMedia(callControlId, rawBuf);
@@ -81,18 +80,9 @@ export function attachWebSocket(server: Server): void {
   });
 }
 
-function swapEndian16(buf: Buffer): Buffer {
-  const out = Buffer.allocUnsafe(buf.length);
-  for (let i = 0; i < buf.length - 1; i += 2) {
-    out[i] = buf[i + 1];
-    out[i + 1] = buf[i];
-  }
-  return out;
-}
-
 function handleMedia(callControlId: string, pcm: Buffer): void {
   const conn = activeConnections.get(callControlId);
-  const swapped = swapEndian16(pcm);
+  const swapped = NEEDS_ENDIAN_SWAP ? swapEndian16(pcm) : pcm;
 
   if (!conn) {
     const buf = earlyAudioBuffers.get(callControlId);
@@ -101,7 +91,7 @@ function handleMedia(callControlId: string, pcm: Buffer): void {
   }
 
   if (conn.provider) {
-    conn.provider.sendAudio({ data: swapped, format: 'pcm16', sampleRate: 16000 });
+    conn.provider.sendAudio({ data: swapped, format: 'pcm16', sampleRate: INBOUND.sampleRate });
   }
   if (conn.transcriber) {
     conn.transcriber.sendAudio(swapped);
@@ -116,7 +106,7 @@ function drainEarlyAudio(callControlId: string, conn: ActiveConnection): boolean
 
   for (const pcm of buffered) {
     if (conn.provider) {
-      conn.provider.sendAudio({ data: pcm, format: 'pcm16', sampleRate: 16000 });
+      conn.provider.sendAudio({ data: pcm, format: 'pcm16', sampleRate: INBOUND.sampleRate });
     }
     if (conn.transcriber) {
       conn.transcriber.sendAudio(pcm);
@@ -276,17 +266,10 @@ async function connectProvider(
 
 function createTranscriber(callControlId: string, streamStartTs: number): DeepgramTranscriber | null {
   const transcriber = new DeepgramTranscriber(async (result) => {
-    log.info('Deepgram raw result', { 
-      callControlId, 
-      text: result.text, 
-      isFinal: result.isFinal,
-      durationSec: result.durationSec
-    });
-
     if (!result.isFinal || !result.text.trim()) return;
-    
+
     log.info('Customer transcript received', { callControlId, text: result.text });
-    
+
     await addTranscript(callControlId, {
       speaker: 'customer',
       text: result.text,
@@ -295,7 +278,7 @@ function createTranscriber(callControlId: string, streamStartTs: number): Deepgr
     });
   });
 
-  return transcriber.connect({ sampleRate: 16000 }) ? transcriber : null;
+  return transcriber.connect({ sampleRate: DEEPGRAM.customerRate }) ? transcriber : null;
 }
 
 function createAgentTranscriber(callControlId: string, streamStartTs: number): DeepgramTranscriber | null {
@@ -309,7 +292,7 @@ function createAgentTranscriber(callControlId: string, streamStartTs: number): D
     });
   });
 
-  return transcriber.connect({ sampleRate: 24000 }) ? transcriber : null;
+  return transcriber.connect({ sampleRate: DEEPGRAM.agentRate }) ? transcriber : null;
 }
 
 // --- Provider Events ---

@@ -1,4 +1,5 @@
 import { createLogger } from '../lib/logger';
+import { STREAM, OUTBOUND } from '../lib/audio-config';
 
 const log = createLogger('telnyx');
 const BASE_URL = 'https://api.telnyx.com/v2';
@@ -52,11 +53,11 @@ export async function answerCall(callControlId: string): Promise<void> {
 export async function startStream(callControlId: string, streamUrl: string): Promise<void> {
   await telnyxPost(`/calls/${callControlId}/actions/streaming_start`, {
     stream_url: streamUrl,
-    stream_track: 'inbound_track',
-    stream_codec: 'L16',
-    stream_bidirectional_mode: 'rtp',
-    stream_bidirectional_codec: 'L16',
-    stream_bidirectional_sampling_rate: 16000,
+    stream_track: STREAM.track,
+    stream_codec: STREAM.codec,
+    stream_bidirectional_mode: STREAM.bidirectionalMode,
+    stream_bidirectional_codec: STREAM.codec,
+    stream_bidirectional_sampling_rate: OUTBOUND.sampleRate,
   });
 }
 

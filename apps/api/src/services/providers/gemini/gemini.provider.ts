@@ -3,6 +3,7 @@ import {
   VoiceProvider, ProviderConfig, ProviderEvents, AudioChunk,
 } from '../types';
 import { createLogger } from '../../../lib/logger';
+import { GEMINI } from '../../../lib/audio-config';
 import { GeminiMapper } from './gemini.mapper';
 import { GeminiConnection } from './gemini.connection';
 import { GeminiState } from './gemini.state';
@@ -145,7 +146,7 @@ export class GeminiProvider implements VoiceProvider {
       for (let data of chunks) {
         if (!this.connection?.isReady() || data.length === 0) break;
         if (data.length % 2 !== 0) data = Buffer.concat([data, Buffer.from([0])]);
-        this.connection.send(GeminiMapper.buildAudioPayload(data.toString('base64'), 16000));
+        this.connection.send(GeminiMapper.buildAudioPayload(data.toString('base64'), GEMINI.inputRate));
       }
 
       this.reconnecting = false;
@@ -195,7 +196,7 @@ export class GeminiProvider implements VoiceProvider {
         this.events?.onAudio({
           data: Buffer.from(part.inlineData.data, 'base64'),
           format: 'pcm16',
-          sampleRate: 24000,
+          sampleRate: GEMINI.outputRate,
         });
       }
       if (part.text) {

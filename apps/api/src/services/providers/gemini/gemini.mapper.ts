@@ -1,4 +1,5 @@
 import { ToolDefinition, ProviderConfig } from '../types';
+import { GEMINI } from '../../../lib/audio-config';
 
 export class GeminiMapper {
   static buildSetupPayload(config: ProviderConfig): Record<string, unknown> {
@@ -27,12 +28,12 @@ export class GeminiMapper {
     return setup;
   }
 
-  static buildAudioPayload(pcmBase64: string, sampleRate = 16000): Record<string, unknown> {
+  static buildAudioPayload(pcmBase64: string, sampleRate: number = GEMINI.inputRate): Record<string, unknown> {
     return {
       realtimeInput: {
         mediaChunks: [
           {
-            mimeType: `audio/pcm;rate=${sampleRate}`,
+            mimeType: GEMINI.mimeType(sampleRate),
             data: pcmBase64,
           },
         ],
