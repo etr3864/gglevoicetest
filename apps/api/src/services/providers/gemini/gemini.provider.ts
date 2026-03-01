@@ -61,7 +61,7 @@ export class GeminiProvider implements VoiceProvider {
       pcm = Buffer.concat([pcm, Buffer.from([0])]);
     }
 
-    this.connection.send(GeminiMapper.buildAudioPayload(pcm.toString('base64')));
+    this.connection.send(GeminiMapper.buildAudioPayload(pcm.toString('base64'), chunk.sampleRate));
   }
 
   disconnect(): void {
@@ -145,7 +145,8 @@ export class GeminiProvider implements VoiceProvider {
       for (let data of chunks) {
         if (!this.connection?.isReady() || data.length === 0) break;
         if (data.length % 2 !== 0) data = Buffer.concat([data, Buffer.from([0])]);
-        this.connection.send(GeminiMapper.buildAudioPayload(data.toString('base64')));
+        // All inbound audio pushed to reconnect buffer is from Telnyx at 8000Hz
+        this.connection.send(GeminiMapper.buildAudioPayload(data.toString('base64'), 8000));
       }
 
       this.reconnecting = false;
