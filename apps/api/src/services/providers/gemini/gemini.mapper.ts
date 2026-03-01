@@ -25,6 +25,8 @@ export class GeminiMapper {
       setup.contextWindowCompression = this.buildCompressionConfig(contextCompression);
     }
 
+    setup.inputAudioTranscription = {};
+
     return setup;
   }
 

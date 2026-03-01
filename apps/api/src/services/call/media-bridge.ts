@@ -89,18 +89,19 @@ export function attachWebSocket(server: Server): void {
 
 function handleMedia(callControlId: string, pcm: Buffer): void {
   const conn = activeConnections.get(callControlId);
+  const audio = NEEDS_ENDIAN_SWAP ? swapEndian16(pcm) : pcm;
 
   if (!conn) {
     const buf = earlyAudioBuffers.get(callControlId);
-    if (buf) buf.push(pcm);
+    if (buf) buf.push(audio);
     return;
   }
 
   if (conn.provider) {
-    conn.provider.sendAudio({ data: pcm, format: 'pcm16', sampleRate: INBOUND.sampleRate });
+    conn.provider.sendAudio({ data: audio, format: 'pcm16', sampleRate: INBOUND.sampleRate });
   }
   if (conn.transcriber) {
-    conn.transcriber.sendAudio(pcm);
+    conn.transcriber.sendAudio(audio);
   }
 }
 

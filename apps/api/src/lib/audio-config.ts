@@ -5,7 +5,7 @@ export const STREAM = {
 } as const;
 
 export const INBOUND = {
-  sampleRate: 24000,
+  sampleRate: 16000,
   encoding: 'linear16',
   channels: 1,
   endian: 'big',
