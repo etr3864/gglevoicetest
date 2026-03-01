@@ -57,12 +57,7 @@ export class GeminiProvider implements VoiceProvider {
 
     if (!this.connection?.isReady() || chunk.data.length === 0) return;
 
-    let pcm = chunk.data;
-    if (pcm.length % 2 !== 0) {
-      pcm = Buffer.concat([pcm, Buffer.from([0])]);
-    }
-
-    this.connection.send(GeminiMapper.buildAudioPayload(pcm.toString('base64'), chunk.sampleRate));
+    this.connection.send(GeminiMapper.buildAudioPayload(chunk.data.toString('base64'), chunk.sampleRate));
   }
 
   disconnect(): void {
