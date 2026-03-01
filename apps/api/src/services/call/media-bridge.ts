@@ -257,6 +257,13 @@ async function connectProvider(
 
 function createTranscriber(callControlId: string, streamStartTs: number): DeepgramTranscriber | null {
   const transcriber = new DeepgramTranscriber(async (result) => {
+    log.info('Deepgram raw result', { 
+      callControlId, 
+      text: result.text, 
+      isFinal: result.isFinal,
+      durationSec: result.durationSec
+    });
+
     if (!result.isFinal || !result.text.trim()) return;
     
     log.info('Customer transcript received', { callControlId, text: result.text });
