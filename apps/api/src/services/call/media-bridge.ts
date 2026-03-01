@@ -152,9 +152,11 @@ async function handleStreamStart(
   }
 
   activeConnections.set(callControlId, conn);
-  const hadEarlyAudio = drainEarlyAudio(callControlId, conn);
+  drainEarlyAudio(callControlId, conn); // Execute and clear the buffer
 
-  if (conn.provider && !hadEarlyAudio) {
+  // ALWAYS start the conversation, regardless of early audio. 
+  // Gemini needs this text prompt to know the call started and begin speaking.
+  if (conn.provider) {
     conn.provider.startConversation();
   }
 }
