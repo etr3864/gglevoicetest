@@ -15,11 +15,10 @@ export class GeminiMapper {
     if (tools?.length) {
       setup.tools = [{ functionDeclarations: tools.map((t) => this.formatTool(t)) }];
     }
-    const realtimeInputConfig: Record<string, unknown> = vad
-      ? this.buildVadConfig(vad)
-      : {};
-    realtimeInputConfig.inputAudioTranscription = {};
-    setup.realtimeInputConfig = realtimeInputConfig;
+    if (vad) {
+      setup.realtimeInputConfig = this.buildVadConfig(vad);
+    }
+    setup.inputAudioTranscription = {};
 
     if (proactiveAudio) {
       setup.proactivity = { proactiveAudio: true };
