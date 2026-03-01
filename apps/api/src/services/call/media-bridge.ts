@@ -59,7 +59,14 @@ export function attachWebSocket(server: Server): void {
             if (msg.media?.payload && callControlId && msg.media.track !== 'outbound') {
               mediaChunkCount++;
               const rawBuf = Buffer.from(msg.media.payload, 'base64');
-              if (mediaChunkCount % 500 === 0) {
+              if (mediaChunkCount === 1) {
+                log.info('First inbound chunk', {
+                  callControlId,
+                  bytes: rawBuf.length,
+                  track: msg.media.track,
+                  head: rawBuf.subarray(0, 8).toString('hex'),
+                });
+              } else if (mediaChunkCount % 500 === 0) {
                 log.info('Telnyx media incoming', { callControlId, count: mediaChunkCount });
               }
               handleMedia(callControlId, rawBuf);
@@ -82,19 +89,18 @@ export function attachWebSocket(server: Server): void {
 
 function handleMedia(callControlId: string, pcm: Buffer): void {
   const conn = activeConnections.get(callControlId);
-  const swapped = NEEDS_ENDIAN_SWAP ? swapEndian16(pcm) : pcm;
 
   if (!conn) {
     const buf = earlyAudioBuffers.get(callControlId);
-    if (buf) buf.push(swapped);
+    if (buf) buf.push(pcm);
     return;
   }
 
   if (conn.provider) {
-    conn.provider.sendAudio({ data: swapped, format: 'pcm16', sampleRate: INBOUND.sampleRate });
+    conn.provider.sendAudio({ data: pcm, format: 'pcm16', sampleRate: INBOUND.sampleRate });
   }
   if (conn.transcriber) {
-    conn.transcriber.sendAudio(swapped);
+    conn.transcriber.sendAudio(pcm);
   }
 }
 
