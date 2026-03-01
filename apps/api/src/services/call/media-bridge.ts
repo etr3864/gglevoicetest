@@ -59,12 +59,22 @@ export function attachWebSocket(server: Server): void {
             if (msg.media?.payload && callControlId && msg.media.track !== 'outbound') {
               mediaChunkCount++;
               const rawBuf = Buffer.from(msg.media.payload, 'base64');
-              if (mediaChunkCount === 1) {
-                log.info('First inbound chunk', {
+              
+              if (mediaChunkCount === 1 || mediaChunkCount === 100 || mediaChunkCount === 300) {
+                let isSilent = true;
+                for (let i = 0; i < rawBuf.length; i++) {
+                  if (rawBuf[i] !== 0) {
+                    isSilent = false;
+                    break;
+                  }
+                }
+                log.info('Inbound chunk diagnostics', {
                   callControlId,
+                  count: mediaChunkCount,
                   bytes: rawBuf.length,
                   track: msg.media.track,
                   head: rawBuf.subarray(0, 8).toString('hex'),
+                  isSilent
                 });
               } else if (mediaChunkCount % 500 === 0) {
                 log.info('Telnyx media incoming', { callControlId, count: mediaChunkCount });

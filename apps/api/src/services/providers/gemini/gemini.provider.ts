@@ -201,6 +201,7 @@ export class GeminiProvider implements VoiceProvider {
 
     // Process Transcripts (Input)
     if (content.inputTranscript) {
+      log.info('Gemini Input Transcript received', { text: content.inputTranscript });
       this.state.addInputTranscript(content.inputTranscript, this.events);
     }
 
