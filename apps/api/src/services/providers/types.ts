@@ -137,7 +137,6 @@ export interface VoiceProvider {
   sendAudio(chunk: AudioChunk): void;
   disconnect(): void;
   isReady(): boolean;
-  startConversation(): void;
 }
 
 /** Deep-merge agent overrides onto defaults */

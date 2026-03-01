@@ -15,17 +15,18 @@ export class GeminiMapper {
     if (tools?.length) {
       setup.tools = [{ functionDeclarations: tools.map((t) => this.formatTool(t)) }];
     }
-    if (vad) {
-      setup.realtimeInputConfig = this.buildVadConfig(vad);
-    }
+    const realtimeInputConfig: Record<string, unknown> = vad
+      ? this.buildVadConfig(vad)
+      : {};
+    realtimeInputConfig.inputAudioTranscription = {};
+    setup.realtimeInputConfig = realtimeInputConfig;
+
     if (proactiveAudio) {
       setup.proactivity = { proactiveAudio: true };
     }
     if (contextCompression) {
       setup.contextWindowCompression = this.buildCompressionConfig(contextCompression);
     }
-
-    setup.inputAudioTranscription = {};
 
     return setup;
   }
@@ -39,15 +40,6 @@ export class GeminiMapper {
             data: pcmBase64,
           },
         ],
-      },
-    };
-  }
-
-  static buildStartConversationPayload(): Record<string, unknown> {
-    return {
-      clientContent: {
-        turns: [{ role: 'user', parts: [{ text: 'The customer is now on the line. Begin the conversation.' }] }],
-        turnComplete: true,
       },
     };
   }
