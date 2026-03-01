@@ -20,9 +20,6 @@ export class GeminiMapper {
     }
     setup.inputAudioTranscription = {};
 
-    if (proactiveAudio) {
-      setup.proactivity = { proactiveAudio: true };
-    }
     if (contextCompression) {
       setup.contextWindowCompression = this.buildCompressionConfig(contextCompression);
     }
