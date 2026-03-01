@@ -35,7 +35,6 @@ export function attachWebSocket(server: Server): void {
     let callControlId: string | null = null;
     let streamStartTs = 0;
     let mediaChunkCount = 0;
-    let hasLoggedSpeech = false;
 
     ws.on('message', async (raw) => {
       try {
@@ -45,7 +44,6 @@ export function attachWebSocket(server: Server): void {
           case 'start':
             callControlId = msg.start?.call_control_id;
             streamStartTs = Date.now();
-            hasLoggedSpeech = false;
             log.info('Telnyx stream start', {
               callControlId,
               mediaFormat: JSON.stringify(msg.start?.media_format),
@@ -58,32 +56,21 @@ export function attachWebSocket(server: Server): void {
           case 'media':
             if (msg.media?.payload && callControlId) {
               mediaChunkCount++;
-              
               const rawBuf = Buffer.from(msg.media.payload, 'base64');
 
-              if (!hasLoggedSpeech) {
-                let isSilent = true;
-                // Check if buffer contains actual audio data (not just 0x00 or 0xff silence)
-                for (let i = 0; i < rawBuf.length; i++) {
-                  if (rawBuf[i] !== 0x00 && rawBuf[i] !== 0xff) {
-                    isSilent = false;
-                    break;
-                  }
+              if (mediaChunkCount === 1) {
+                let peak = 0;
+                for (let i = 0; i < rawBuf.length - 1; i += 2) {
+                  const sample = rawBuf.readInt16BE(i);
+                  const abs = sample < 0 ? -sample : sample;
+                  if (abs > peak) peak = abs;
                 }
-
-                if (!isSilent) {
-                  log.info('FIRST SPEECH DETECTED', {
-                    callControlId,
-                    count: mediaChunkCount,
-                    bytes: rawBuf.length,
-                    head: rawBuf.subarray(0, 16).toString('hex')
-                  });
-                  hasLoggedSpeech = true;
-                }
-              }
-
-              if (mediaChunkCount % 500 === 0) {
-                log.info('Telnyx media incoming', { callControlId, count: mediaChunkCount });
+                log.info('First inbound chunk', {
+                  callControlId,
+                  bytes: rawBuf.length,
+                  peak,
+                  head: rawBuf.subarray(0, 8).toString('hex'),
+                });
               }
               handleMedia(callControlId, rawBuf);
             }
@@ -124,9 +111,7 @@ async function handleStreamStart(
   streamStartTs: number,
   telnyxWs: WebSocket,
 ): Promise<void> {
-  log.info('[BR-1] Stream start', { callControlId });
   const session = await getSession(callControlId);
-  log.info('[BR-2] getSession', { callControlId, found: !!session, elapsed: Date.now() - streamStartTs });
   if (!session) {
     log.warn('No session for stream', { callControlId });
     return;
@@ -141,10 +126,6 @@ async function handleStreamStart(
   if (!conn) return;
 
   activeConnections.set(callControlId, conn);
-
-  if (conn.provider) {
-    conn.provider.startConversation();
-  }
 }
 
 async function resolveConnection(
@@ -153,24 +134,22 @@ async function resolveConnection(
   streamStartTs: number,
   telnyxWs: WebSocket,
 ): Promise<ActiveConnection | null> {
-  log.info('[BR-3] claim start', { callId: session.callId, elapsed: Date.now() - streamStartTs });
   const claimed = await claim(session.callId);
-  log.info('[BR-4] claim done', { callId: session.callId, claimed: !!claimed, elapsed: Date.now() - streamStartTs });
 
   if (claimed) {
     const transcriber = createTranscriber(callControlId);
     const agentTranscriber = createAgentTranscriber(callControlId);
     const events = buildProviderEvents(session, callControlId, telnyxWs, !!transcriber, agentTranscriber);
     claimed.provider.setEvents(events);
+    log.info('Warmup claimed', { callId: session.callId, elapsed: Date.now() - streamStartTs });
     return { provider: claimed.provider, transcriber, agentTranscriber };
   }
 
-  log.info('[BR-5] cold connect start', { callId: session.callId, elapsed: Date.now() - streamStartTs });
   const transcriber = createTranscriber(callControlId);
   const agentTranscriber = createAgentTranscriber(callControlId);
   const events = buildProviderEvents(session, callControlId, telnyxWs, !!transcriber, agentTranscriber);
   const provider = await connectProvider(session, events);
-  log.info('[BR-6] cold connect done', { callId: session.callId, elapsed: Date.now() - streamStartTs });
+  log.info('Cold connect done', { callId: session.callId, elapsed: Date.now() - streamStartTs });
 
   if (telnyxWs.readyState !== WebSocket.OPEN) {
     log.warn('Telnyx disconnected during provider setup', { callControlId });
@@ -298,19 +277,12 @@ function buildProviderEvents(
   return {
     onReady: () => {},
 
-    onAudio: (() => {
-      let firstAudio = false;
-      return (chunk: { data: Buffer }) => {
-        if (chunk.data.length > 0) {
-          if (!firstAudio) {
-            log.info('[BR-7] FIRST AUDIO FROM GEMINI', { callControlId });
-            firstAudio = true;
-          }
-          sendToTelnyx(downsample24to16(chunk.data));
-          agentTranscriber?.sendAudio(chunk.data);
-        }
-      };
-    })(),
+    onAudio: (chunk: { data: Buffer }) => {
+      if (chunk.data.length > 0) {
+        sendToTelnyx(downsample24to16(chunk.data));
+        agentTranscriber?.sendAudio(chunk.data);
+      }
+    },
 
     onTranscript: async (entry) => {
       if (entry.speaker === 'customer' || !hasDeepgram) {

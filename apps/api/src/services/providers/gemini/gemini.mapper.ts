@@ -4,7 +4,7 @@ import { GEMINI } from '../../../lib/audio-config';
 export class GeminiMapper {
   static buildSetupPayload(config: ProviderConfig): Record<string, unknown> {
     const { modelConfig, systemPrompt, voice, model, tools } = config;
-    const { generation, vad, proactiveAudio, languageCode, contextCompression } = modelConfig;
+    const { generation, vad, languageCode, contextCompression } = modelConfig;
 
     const setup: Record<string, unknown> = {
       model,
@@ -25,15 +25,6 @@ export class GeminiMapper {
     }
 
     return setup;
-  }
-
-  static buildStartConversationPayload(): Record<string, unknown> {
-    return {
-      clientContent: {
-        turns: [{ role: 'user', parts: [{ text: 'The customer is now on the line. Begin the conversation.' }] }],
-        turnComplete: true,
-      },
-    };
   }
 
   static buildAudioPayload(pcmBase64: string, sampleRate: number = GEMINI.inputRate): Record<string, unknown> {
