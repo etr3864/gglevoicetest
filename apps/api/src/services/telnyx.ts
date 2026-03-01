@@ -52,11 +52,8 @@ export async function answerCall(callControlId: string): Promise<void> {
 export async function startStream(callControlId: string, streamUrl: string): Promise<void> {
   await telnyxPost(`/calls/${callControlId}/actions/streaming_start`, {
     stream_url: streamUrl,
-    stream_track: 'both_tracks',
+    stream_track: 'inbound_track',
     stream_codec: 'L16',
-    stream_bidirectional_mode: 'rtp',
-    stream_bidirectional_codec: 'L16',
-    stream_bidirectional_sampling_rate: 24000,
   });
 }
 
