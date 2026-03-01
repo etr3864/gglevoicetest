@@ -27,7 +27,7 @@ export class GeminiMapper {
     return setup;
   }
 
-  static buildAudioPayload(pcmBase64: string, sampleRate = 24000): Record<string, unknown> {
+  static buildAudioPayload(pcmBase64: string, sampleRate = 16000): Record<string, unknown> {
     return {
       realtimeInput: {
         mediaChunks: [

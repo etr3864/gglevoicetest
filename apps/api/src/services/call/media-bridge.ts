@@ -57,10 +57,13 @@ export function attachWebSocket(server: Server): void {
           case 'media':
             if (msg.media?.payload && callControlId) {
               mediaChunkCount++;
-              if (mediaChunkCount === 1 || mediaChunkCount % 100 === 0) {
+              const rawBuf = Buffer.from(msg.media.payload, 'base64');
+              if (mediaChunkCount === 1) {
+                log.info('First PCM chunk', { callControlId, bytes: rawBuf.length });
+              } else if (mediaChunkCount % 100 === 0) {
                 log.info('Telnyx media incoming', { callControlId, count: mediaChunkCount });
               }
-              handleMedia(callControlId, Buffer.from(msg.media.payload, 'base64'));
+              handleMedia(callControlId, rawBuf);
             }
             break;
 
@@ -306,7 +309,7 @@ function createAgentTranscriber(callControlId: string, streamStartTs: number): D
     });
   });
 
-  return transcriber.connect({ sampleRate: 16000 }) ? transcriber : null;
+  return transcriber.connect({ sampleRate: 24000 }) ? transcriber : null;
 }
 
 // --- Provider Events ---
