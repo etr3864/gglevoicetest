@@ -35,6 +35,7 @@ export function attachWebSocket(server: Server): void {
     let callControlId: string | null = null;
     let streamStartTs = 0;
     let mediaChunkCount = 0;
+    let hasLoggedSpeech = false;
 
     ws.on('message', async (raw) => {
       try {
@@ -44,6 +45,7 @@ export function attachWebSocket(server: Server): void {
           case 'start':
             callControlId = msg.start?.call_control_id;
             streamStartTs = Date.now();
+            hasLoggedSpeech = false;
             log.info('Telnyx stream start', {
               callControlId,
               mediaFormat: JSON.stringify(msg.start?.media_format),
@@ -56,10 +58,34 @@ export function attachWebSocket(server: Server): void {
           case 'media':
             if (msg.media?.payload && callControlId && msg.media.track !== 'outbound') {
               mediaChunkCount++;
+              
+              const rawBuf = Buffer.from(msg.media.payload, 'base64');
+
+              if (!hasLoggedSpeech) {
+                let isSilent = true;
+                // Check if buffer contains actual audio data (not just 0x00 or 0xff silence)
+                for (let i = 0; i < rawBuf.length; i++) {
+                  if (rawBuf[i] !== 0x00 && rawBuf[i] !== 0xff) {
+                    isSilent = false;
+                    break;
+                  }
+                }
+
+                if (!isSilent) {
+                  log.info('FIRST SPEECH DETECTED', {
+                    callControlId,
+                    count: mediaChunkCount,
+                    bytes: rawBuf.length,
+                    head: rawBuf.subarray(0, 16).toString('hex')
+                  });
+                  hasLoggedSpeech = true;
+                }
+              }
+
               if (mediaChunkCount % 500 === 0) {
                 log.info('Telnyx media incoming', { callControlId, count: mediaChunkCount });
               }
-              handleMedia(callControlId, Buffer.from(msg.media.payload, 'base64'));
+              handleMedia(callControlId, rawBuf);
             }
             break;
 
