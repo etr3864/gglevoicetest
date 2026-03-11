@@ -23,7 +23,18 @@ export const INBOUND = {
 
 export const OUTBOUND = {
   sampleRate: 24_000,
+  gain: 1.5,
 } as const;
+
+export function applyGain(buf: Buffer, gain: number): Buffer {
+  if (gain === 1.0) return buf;
+  const out = Buffer.allocUnsafe(buf.length);
+  for (let i = 0; i <= buf.length - 2; i += 2) {
+    const sample = buf.readInt16LE(i);
+    out.writeInt16LE(Math.max(-32768, Math.min(32767, Math.round(sample * gain))), i);
+  }
+  return out;
+}
 
 // ─── Section 4: Gemini ─────────────────────────────────────────────────────
 

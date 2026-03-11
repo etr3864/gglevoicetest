@@ -15,8 +15,8 @@ import { buildContactContext } from '../contact-context';
 import { buildSchedulingPrompt } from './prompt-builder';
 import { redis } from '../../lib/redis';
 import {
-  INBOUND, DEEPGRAM, NEEDS_ENDIAN_SWAP,
-  swapEndian16, diagnoseChunk, peakAmplitude,
+  INBOUND, OUTBOUND, DEEPGRAM, NEEDS_ENDIAN_SWAP,
+  swapEndian16, diagnoseChunk, peakAmplitude, applyGain,
 } from '../../lib/audio-config';
 import { PlayoutBuffer } from '../../lib/playout-buffer';
 
@@ -316,9 +316,10 @@ function buildProviderEvents(
       });
     }
 
+    const amplified = applyGain(payload, OUTBOUND.gain);
     telnyxWs.send(JSON.stringify({
       event: 'media',
-      media: { payload: payload.toString('base64') },
+      media: { payload: amplified.toString('base64') },
     }));
   };
 
