@@ -39,7 +39,7 @@ export function applyGain(buf: Buffer, gain: number): Buffer {
 // ─── Section 4: Gemini ─────────────────────────────────────────────────────
 
 export const GEMINI = {
-  inputRate: INBOUND.sampleRate,
+  inputRate: 16_000,
   outputRate: 24_000,
   mimeType: (rate: number) => `audio/pcm;rate=${rate}`,
 } as const;

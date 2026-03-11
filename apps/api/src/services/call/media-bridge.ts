@@ -14,6 +14,7 @@ import { mergeModelConfig, type ModelConfig } from '../providers/types';
 import { buildContactContext } from '../contact-context';
 import { buildSchedulingPrompt } from './prompt-builder';
 import { redis } from '../../lib/redis';
+import { audioWorkerPool } from '../../lib/audio';
 import {
   INBOUND, OUTBOUND, DEEPGRAM, NEEDS_ENDIAN_SWAP,
   swapEndian16, diagnoseChunk, applyGain,
@@ -98,8 +99,9 @@ function handleMedia(callControlId: string, pcm: Buffer, chunk: number): void {
   const audio = NEEDS_ENDIAN_SWAP ? swapEndian16(pcm) : pcm;
 
   if (conn.provider) {
-    conn.provider.sendAudio({ data: audio, format: 'pcm16', sampleRate: INBOUND.sampleRate });
-
+    // Vertex AI requires 16kHz for input, but we receive 24kHz from Telnyx.
+    // We must downsample it before sending to Gemini.
+    audioWorkerPool.process(callControlId, audio);
   }
   if (conn.transcriber) {
     conn.transcriber.sendAudio(audio);
@@ -132,6 +134,18 @@ async function handleStreamStart(
   if (conn.provider && !conn.greetingPreloaded) {
     conn.provider.startConversation();
   }
+
+  // Register callback for downsampled audio from the worker pool
+  audioWorkerPool.register(callControlId, (downsampledChunk) => {
+    const activeConn = activeConnections.get(callControlId);
+    if (activeConn?.provider) {
+      activeConn.provider.sendAudio({
+        data: downsampledChunk,
+        format: 'pcm16',
+        sampleRate: GEMINI.inputRate, // 16000
+      });
+    }
+  });
 }
 
 async function resolveConnection(
@@ -190,6 +204,8 @@ async function resolveConnection(
 
 function teardown(callControlId: string | null): void {
   if (!callControlId) return;
+
+  audioWorkerPool.cleanup(callControlId);
 
   const conn = activeConnections.get(callControlId);
   if (conn) {
