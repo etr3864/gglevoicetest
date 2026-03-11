@@ -89,8 +89,8 @@ export class GeminiProvider implements VoiceProvider {
         throw new Error('Failed to retrieve access token');
       }
 
-      const location = process.env.GCP_LOCATION || 'us-central1';
-      const project = process.env.GCP_PROJECT_ID;
+      const location = process.env.GCP_LOCATION || 'europe-west3';
+      const project = process.env.GCP_PROJECT_ID || 'gen-lang-client-0546829339';
       const model = this.config!.model;
 
       if (!project) {
@@ -117,8 +117,7 @@ export class GeminiProvider implements VoiceProvider {
       );
 
       const connectPromise = this.connection.connect(isReconnect);
-      
-      // Update config model to use Vertex AI full resource path for the setup payload
+
       const fullModelPath = `projects/${project}/locations/${location}/publishers/google/models/${model}`;
       const setupConfig = { ...this.config!, model: fullModelPath };
       
