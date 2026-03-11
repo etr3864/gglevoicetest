@@ -1,27 +1,39 @@
-export const STREAM = {
+// ─── Section 1: Telnyx Streaming API ────────────────────────────────────────
+
+export const TELNYX_STREAM = {
   track: 'inbound_track',
   codec: 'L16',
   bidirectionalMode: 'rtp',
+  bidirectionalCodec: 'L16',
+  bidirectionalSamplingRate: 24_000,
 } as const;
 
+export const TELNYX_SIP = {
+  preferredCodecs: 'G722',
+} as const;
+
+// ─── Section 2: Inbound (Telnyx → us) ──────────────────────────────────────
+
 export const INBOUND = {
-  sampleRate: 16000,
-  encoding: 'linear16',
-  channels: 1,
+  sampleRate: 16_000,
   endian: 'big',
 } as const;
 
+// ─── Section 3: Outbound (us → Telnyx) ─────────────────────────────────────
+
 export const OUTBOUND = {
-  sampleRate: 16000,
-  encoding: 'linear16',
-  channels: 1,
+  sampleRate: 24_000,
 } as const;
+
+// ─── Section 4: Gemini ─────────────────────────────────────────────────────
 
 export const GEMINI = {
   inputRate: INBOUND.sampleRate,
-  outputRate: 24000,
+  outputRate: 24_000,
   mimeType: (rate: number) => `audio/pcm;rate=${rate}`,
 } as const;
+
+// ─── Section 5: Deepgram ───────────────────────────────────────────────────
 
 export const DEEPGRAM = {
   customerRate: INBOUND.sampleRate,
@@ -30,6 +42,8 @@ export const DEEPGRAM = {
   model: 'nova-3',
   language: 'he',
 } as const;
+
+// ─── Section 6: Utilities ──────────────────────────────────────────────────
 
 export const NEEDS_ENDIAN_SWAP = INBOUND.endian === 'big';
 
@@ -42,22 +56,51 @@ export function swapEndian16(buf: Buffer): Buffer {
   return out;
 }
 
-export function downsample24to16(buf: Buffer): Buffer {
-  const inputSamples = buf.length / 2;
-  const outputSamples = Math.floor(inputSamples * 2 / 3);
-  const out = Buffer.allocUnsafe(outputSamples * 2);
-
-  for (let i = 0; i < outputSamples; i++) {
-    const srcPos = i * 1.5;
-    const srcIdx = Math.floor(srcPos);
-    const frac = srcPos - srcIdx;
-
-    const s0 = buf.readInt16LE(srcIdx * 2);
-    const s1 = srcIdx + 1 < inputSamples ? buf.readInt16LE((srcIdx + 1) * 2) : s0;
-
-    const interpolated = Math.round(s0 + frac * (s1 - s0));
-    out.writeInt16LE(Math.max(-32768, Math.min(32767, interpolated)), i * 2);
+export function peakAmplitude(buf: Buffer, endian: 'big' | 'little'): number {
+  let peak = 0;
+  const read = endian === 'big'
+    ? (offset: number) => buf.readInt16BE(offset)
+    : (offset: number) => buf.readInt16LE(offset);
+  for (let i = 0; i < buf.length - 1; i += 2) {
+    const abs = Math.abs(read(i));
+    if (abs > peak) peak = abs;
   }
+  return peak;
+}
 
-  return out;
+export function diagnoseChunk(buf: Buffer): { peak: number; status: 'OK' | 'SUSPECT' | 'SILENT' } {
+  const peak = peakAmplitude(buf, INBOUND.endian);
+  if (peak === 0) return { peak, status: 'SILENT' };
+  if (peak < 500) return { peak, status: 'SUSPECT' };
+  return { peak, status: 'OK' };
+}
+
+// ─── Section 7: Telnyx param builders ──────────────────────────────────────
+
+export function getStreamUrl(): string {
+  const base = process.env.API_URL || 'http://localhost:3000';
+  return base.replace('http', 'ws') + '/ws/media';
+}
+
+export function buildAnswerParams(streamUrl: string) {
+  return {
+    preferred_codecs: TELNYX_SIP.preferredCodecs,
+    stream_url: streamUrl,
+    stream_track: TELNYX_STREAM.track,
+    stream_codec: TELNYX_STREAM.codec,
+    stream_bidirectional_mode: TELNYX_STREAM.bidirectionalMode,
+    stream_bidirectional_codec: TELNYX_STREAM.bidirectionalCodec,
+    stream_bidirectional_sampling_rate: TELNYX_STREAM.bidirectionalSamplingRate,
+  };
+}
+
+export function buildDialStreamParams(streamUrl: string) {
+  return {
+    stream_url: streamUrl,
+    stream_track: TELNYX_STREAM.track,
+    stream_codec: TELNYX_STREAM.codec,
+    stream_bidirectional_mode: TELNYX_STREAM.bidirectionalMode,
+    stream_bidirectional_codec: TELNYX_STREAM.bidirectionalCodec,
+    stream_bidirectional_sampling_rate: TELNYX_STREAM.bidirectionalSamplingRate,
+  };
 }

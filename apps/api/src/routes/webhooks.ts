@@ -2,17 +2,13 @@ import { Router } from 'express';
 import { prisma } from '@voice/db';
 import { createLogger } from '../lib/logger';
 import { normalizePhone } from '../lib/phone';
-import { answerCall, startStream, hangupCall } from '../services/telnyx';
+import { getStreamUrl } from '../lib/audio-config';
+import { answerCall, hangupCall } from '../services/telnyx';
 import { createSession, endSession, getSession, warmup } from '../services/call';
 import { publishCallEvent } from '../services/events/pubsub';
 
 const log = createLogger('webhook');
 const router = Router();
-
-function getStreamUrl(): string {
-  const base = process.env.API_URL || 'http://localhost:3000';
-  return base.replace('http', 'ws') + '/ws/media';
-}
 
 router.post('/telnyx', async (req, res) => {
   const event = req.body?.data;
@@ -22,6 +18,8 @@ router.post('/telnyx', async (req, res) => {
   const callControlId = event.payload?.call_control_id;
   const from = event.payload?.from;
   const to = event.payload?.to;
+
+  log.info('Webhook received', { eventType, callControlId: callControlId?.slice(-12) });
 
   try {
     switch (eventType) {
@@ -46,15 +44,12 @@ router.post('/telnyx', async (req, res) => {
           log.warn('call.answered no session', { callControlId: callControlId.slice(-12) });
           break;
         }
-        
-        // Update status to in_call
+
         const updatedCall = await prisma.call.update({
           where: { id: session.callId },
           data: { status: 'in_call' },
         });
         await publishCallEvent(session.agentId, 'call_updated', { call: updatedCall });
-
-        await startStream(callControlId, getStreamUrl());
         break;
       }
 
@@ -82,6 +77,12 @@ router.post('/telnyx', async (req, res) => {
           });
         }
         await endSession(callControlId);
+        break;
+      }
+
+      case 'streaming.started':
+      case 'streaming.stopped': {
+        log.info('Streaming event', { eventType, callControlId: callControlId?.slice(-12) });
         break;
       }
     }
@@ -132,7 +133,7 @@ async function handleIncomingCall(
 
   warmup(call.id, agent.id, phone).catch(() => {});
 
-  await answerCall(callControlId);
+  await answerCall(callControlId, getStreamUrl());
 }
 
 export default router;

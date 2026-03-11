@@ -96,18 +96,24 @@ export async function endSession(callControlId: string): Promise<void> {
   const transcripts = await getTranscripts(callControlId);
   const durationSec = Math.round((Date.now() - new Date(session.startedAt).getTime()) / 1000);
 
-  // Clean up remaining Redis keys
   await redis.del(`call:session_by_id:${session.callId}`);
   await redis.del(`call:transcripts:${callControlId}`);
-
-  // Disconnect provider forcefully via Pub/Sub (handled in media-bridge.ts listening to this channel)
   await redis.publish('call:disconnect', callControlId);
 
   await finalizeCallRecord(session, durationSec);
   await persistUtterances(session, transcripts);
   await updateContactStats(session, durationSec);
 
-  log.info('Call ended', { callId: session.callId, durationSec });
+  const customerUtterances = transcripts.filter(t => t.speaker === 'customer').length;
+  const agentUtterances = transcripts.filter(t => t.speaker === 'agent').length;
+
+  log.info('Call ended', {
+    callId: session.callId,
+    durationSec,
+    customerUtterances,
+    agentUtterances,
+    transcriptCount: transcripts.length,
+  });
 }
 
 export async function activeSessionCount(): Promise<number> {

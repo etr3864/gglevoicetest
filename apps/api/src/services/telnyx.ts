@@ -1,5 +1,5 @@
 import { createLogger } from '../lib/logger';
-import { STREAM, OUTBOUND } from '../lib/audio-config';
+import { buildAnswerParams, buildDialStreamParams, TELNYX_SIP, getStreamUrl } from '../lib/audio-config';
 
 const log = createLogger('telnyx');
 const BASE_URL = 'https://api.telnyx.com/v2';
@@ -44,21 +44,8 @@ async function telnyxPost(path: string, body: Record<string, unknown>, timeoutMs
   }
 }
 
-export async function answerCall(callControlId: string): Promise<void> {
-  await telnyxPost(`/calls/${callControlId}/actions/answer`, {
-    preferred_codecs: 'G722',
-  });
-}
-
-export async function startStream(callControlId: string, streamUrl: string): Promise<void> {
-  await telnyxPost(`/calls/${callControlId}/actions/streaming_start`, {
-    stream_url: streamUrl,
-    stream_track: STREAM.track,
-    stream_codec: STREAM.codec,
-    stream_bidirectional_mode: STREAM.bidirectionalMode,
-    stream_bidirectional_codec: STREAM.codec,
-    stream_bidirectional_sampling_rate: OUTBOUND.sampleRate,
-  });
+export async function answerCall(callControlId: string, streamUrl: string): Promise<void> {
+  await telnyxPost(`/calls/${callControlId}/actions/answer`, buildAnswerParams(streamUrl));
 }
 
 export async function hangupCall(callControlId: string): Promise<void> {
@@ -77,6 +64,8 @@ export async function createOutboundCall(params: {
   clientState?: string;
   fromDisplayName?: string;
 }): Promise<{ callControlId: string; callLegId: string }> {
+  const streamUrl = getStreamUrl();
+
   const res = await telnyxPost('/calls', {
     connection_id: params.connectionId,
     from: params.from,
@@ -85,8 +74,9 @@ export async function createOutboundCall(params: {
     webhook_url: params.webhookUrl,
     webhook_url_method: 'POST',
     timeout_secs: 60,
-    preferred_codecs: 'G722',
+    preferred_codecs: TELNYX_SIP.preferredCodecs,
     answering_machine_detection: 'disabled',
+    ...buildDialStreamParams(streamUrl),
     client_state: params.clientState
       ? Buffer.from(params.clientState).toString('base64')
       : undefined,

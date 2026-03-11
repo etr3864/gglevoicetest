@@ -14,7 +14,10 @@ import { mergeModelConfig, type ModelConfig } from '../providers/types';
 import { buildContactContext } from '../contact-context';
 import { buildSchedulingPrompt } from './prompt-builder';
 import { redis } from '../../lib/redis';
-import { INBOUND, DEEPGRAM, NEEDS_ENDIAN_SWAP, swapEndian16, downsample24to16 } from '../../lib/audio-config';
+import {
+  INBOUND, DEEPGRAM, NEEDS_ENDIAN_SWAP,
+  swapEndian16, diagnoseChunk, peakAmplitude,
+} from '../../lib/audio-config';
 
 const log = createLogger('bridge');
 
@@ -46,7 +49,10 @@ export function attachWebSocket(server: Server): void {
             streamStartTs = Date.now();
             log.info('Telnyx stream start', {
               callControlId,
-              mediaFormat: JSON.stringify(msg.start?.media_format),
+              encoding: msg.start?.media_format?.encoding,
+              sampleRate: msg.start?.media_format?.sample_rate,
+              channels: msg.start?.media_format?.channels,
+              streamId: msg.stream_id,
             });
             if (callControlId) {
               await handleStreamStart(callControlId, streamStartTs, ws);
@@ -58,21 +64,18 @@ export function attachWebSocket(server: Server): void {
               mediaChunkCount++;
               const rawBuf = Buffer.from(msg.media.payload, 'base64');
 
-              if (mediaChunkCount === 1) {
-                let peak = 0;
-                for (let i = 0; i < rawBuf.length - 1; i += 2) {
-                  const sample = rawBuf.readInt16BE(i);
-                  const abs = sample < 0 ? -sample : sample;
-                  if (abs > peak) peak = abs;
-                }
-                log.info('First inbound chunk', {
+              if (mediaChunkCount <= 10) {
+                const diag = diagnoseChunk(rawBuf);
+                log.info('Inbound audio chunk', {
                   callControlId,
+                  chunk: mediaChunkCount,
                   bytes: rawBuf.length,
-                  peak,
+                  peak: diag.peak,
+                  status: diag.status,
                   head: rawBuf.subarray(0, 8).toString('hex'),
                 });
               }
-              handleMedia(callControlId, rawBuf);
+              handleMedia(callControlId, rawBuf, mediaChunkCount);
             }
             break;
 
@@ -90,7 +93,7 @@ export function attachWebSocket(server: Server): void {
   });
 }
 
-function handleMedia(callControlId: string, pcm: Buffer): void {
+function handleMedia(callControlId: string, pcm: Buffer, chunk: number): void {
   const conn = activeConnections.get(callControlId);
   if (!conn) return;
 
@@ -98,6 +101,15 @@ function handleMedia(callControlId: string, pcm: Buffer): void {
 
   if (conn.provider) {
     conn.provider.sendAudio({ data: audio, format: 'pcm16', sampleRate: INBOUND.sampleRate });
+
+    if (chunk === 1 || chunk % 100 === 0) {
+      log.info('Audio sent to Gemini', {
+        callControlId,
+        chunk,
+        bytes: audio.length,
+        sampleRate: INBOUND.sampleRate,
+      });
+    }
   }
   if (conn.transcriber) {
     conn.transcriber.sendAudio(audio);
@@ -224,7 +236,11 @@ function createTranscriber(callControlId: string): DeepgramTranscriber | null {
   const transcriber = new DeepgramTranscriber(async (result) => {
     if (!result.isFinal || !result.text.trim()) return;
 
-    log.info('Customer transcript received', { callControlId, text: result.text });
+    log.info('Customer transcript received', {
+      callControlId,
+      text: result.text,
+      confidence: result.confidence,
+    });
 
     await addTranscript(callControlId, {
       speaker: 'customer',
@@ -266,8 +282,21 @@ function buildProviderEvents(
     contactPhone: session.contactPhone || undefined,
   };
 
+  let outboundChunkCount = 0;
+
   const sendToTelnyx = (payload: Buffer) => {
     if (telnyxWs.readyState !== WebSocket.OPEN) return;
+
+    outboundChunkCount++;
+    if (outboundChunkCount === 1) {
+      log.info('First outbound chunk to Telnyx', {
+        callControlId,
+        bytes: payload.length,
+        peak: peakAmplitude(payload, 'little'),
+        head: payload.subarray(0, 8).toString('hex'),
+      });
+    }
+
     telnyxWs.send(JSON.stringify({
       event: 'media',
       media: { payload: payload.toString('base64') },
@@ -279,7 +308,7 @@ function buildProviderEvents(
 
     onAudio: (chunk: { data: Buffer }) => {
       if (chunk.data.length > 0) {
-        sendToTelnyx(downsample24to16(chunk.data));
+        sendToTelnyx(chunk.data);
         agentTranscriber?.sendAudio(chunk.data);
       }
     },
