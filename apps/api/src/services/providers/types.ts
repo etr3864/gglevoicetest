@@ -49,7 +49,8 @@ export const DEFAULT_MODEL_CONFIG: ModelConfig = {
     maxOutputTokens: 4096,
   },
   vad: {
-    silenceDurationMs: 300,
+    silenceDurationMs: 150,
+    prefixPaddingMs: 0,
     endOfSpeechSensitivity: 'END_SENSITIVITY_HIGH',
     startOfSpeechSensitivity: 'START_SENSITIVITY_HIGH',
     activityHandling: 'START_OF_ACTIVITY_INTERRUPTS',
