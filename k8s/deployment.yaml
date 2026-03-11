@@ -37,7 +37,7 @@ spec:
             - name: GCP_PROJECT_ID
               value: "gen-lang-client-0546829339"
             - name: GCP_LOCATION
-              value: "us-central1"
+              value: "europe-west3"
           resources:
             requests:
               cpu: 250m
