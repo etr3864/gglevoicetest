@@ -27,6 +27,7 @@ interface ActiveConnection {
   transcriber: DeepgramTranscriber | null;
   agentTranscriber: DeepgramTranscriber | null;
   playoutBuffer: PlayoutBuffer | null;
+  greetingPreloaded: boolean;
 }
 
 const activeConnections = new Map<string, ActiveConnection>();
@@ -141,7 +142,7 @@ async function handleStreamStart(
 
   activeConnections.set(callControlId, conn);
 
-  if (conn.provider) {
+  if (conn.provider && !conn.greetingPreloaded) {
     conn.provider.startConversation();
   }
 }
@@ -159,8 +160,17 @@ async function resolveConnection(
     const agentTranscriber = createAgentTranscriber(callControlId);
     const { events, playoutBuffer } = buildProviderEvents(session, callControlId, telnyxWs, !!transcriber, agentTranscriber);
     claimed.provider.setEvents(events);
-    log.info('Warmup claimed', { callId: session.callId, elapsed: Date.now() - streamStartTs });
-    return { provider: claimed.provider, transcriber, agentTranscriber, playoutBuffer };
+
+    for (const chunk of claimed.preloadedAudio) {
+      playoutBuffer.push(chunk);
+    }
+
+    log.info('Warmup claimed', {
+      callId: session.callId,
+      elapsed: Date.now() - streamStartTs,
+      preloadedChunks: claimed.preloadedAudio.length,
+    });
+    return { provider: claimed.provider, transcriber, agentTranscriber, playoutBuffer, greetingPreloaded: claimed.preloadedAudio.length > 0 };
   }
 
   const transcriber = createTranscriber(callControlId);
@@ -178,7 +188,7 @@ async function resolveConnection(
     return null;
   }
 
-  return { provider, transcriber, agentTranscriber, playoutBuffer };
+  return { provider, transcriber, agentTranscriber, playoutBuffer, greetingPreloaded: false };
 }
 
 function teardown(callControlId: string | null): void {

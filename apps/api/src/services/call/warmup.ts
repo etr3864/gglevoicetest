@@ -18,14 +18,13 @@ interface WarmEntry {
   provider: VoiceProvider;
   transcriber: DeepgramTranscriber | null;
   timer: NodeJS.Timeout;
+  preloadedAudio: Buffer[];
 }
 
 const pending = new Map<string, Promise<WarmEntry | null>>();
 const ready = new Map<string, WarmEntry>();
 
-const NO_OP_EVENTS: ProviderEvents = {
-  onReady: () => {},
-  onAudio: () => {},
+const BASE_NO_OP_EVENTS: Omit<ProviderEvents, 'onReady' | 'onAudio'> = {
   onTranscript: () => {},
   onToolCall: async (call) => ({ callId: call.id, result: null, error: 'Not connected yet' }),
   onError: () => {},
@@ -98,10 +97,22 @@ async function doWarmup(
   log.info('[WU-1] config built', { callId, elapsed: Date.now() - t0 });
   if (!config) return null;
 
+  const preloadedAudio: Buffer[] = [];
   const provider = new GeminiProvider();
 
+  const warmupEvents: ProviderEvents = {
+    ...BASE_NO_OP_EVENTS,
+    onReady: () => {
+      provider.startConversation();
+      log.info('[WU-3] startConversation sent', { callId });
+    },
+    onAudio: (chunk) => {
+      preloadedAudio.push(chunk.data);
+    },
+  };
+
   try {
-    await provider.connect(config, NO_OP_EVENTS);
+    await provider.connect(config, warmupEvents);
     log.info('[WU-2] gemini connected', { callId, elapsed: Date.now() - t0 });
   } catch (err) {
     log.error('Warmup failed', err, { callId, elapsed: Date.now() - t0 });
@@ -113,7 +124,7 @@ async function doWarmup(
     expire(callId);
   }, WARMUP_TTL_MS);
 
-  return { provider, transcriber: null, timer };
+  return { provider, transcriber: null, timer, preloadedAudio };
 }
 
 async function buildProviderConfig(
