@@ -34,18 +34,16 @@ export function startOutboundWorker(): void {
     const t0 = Date.now();
     const agent = await validateAgent(callId, agentId);
     await markCalling(callId, agentId);
-    log.info('[OUT-1] markCalling done', { callId, elapsed: Date.now() - t0 });
+    log.info('Call queued', { callId, to: phone, agentId });
 
     warmup(callId, agentId, phone).catch((err) => {
       log.error('Warmup failed', err, { callId });
     });
-    log.info('[OUT-2] warmup fired', { callId, elapsed: Date.now() - t0 });
 
     const { callControlId } = await dialOutbound(agent, phone, callId, agentId);
-    log.info('[OUT-3] dial done', { callId, elapsed: Date.now() - t0 });
+    log.info('Call dialing', { callId, elapsed: Date.now() - t0 });
 
     await createSession({ callId, agentId, callControlId, contactPhone: phone });
-    log.info('[OUT-4] session created', { callId, elapsed: Date.now() - t0 });
   }, { concurrency: parseInt(process.env.OUTBOUND_CONCURRENCY || '20') });
 
   worker.on('failed', (job, err) => {
@@ -98,7 +96,7 @@ async function dialOutbound(
       webhookUrl,
       clientState: JSON.stringify({ callId, agentId }),
     });
-    log.info('Outbound call started', { callId, to });
+    log.info('Outbound call started', { callId, to, from });
     return result;
   } catch (err) {
     const detail = extractTelnyxError(err);

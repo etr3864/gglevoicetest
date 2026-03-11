@@ -16,7 +16,7 @@ import { buildSchedulingPrompt } from './prompt-builder';
 import { redis } from '../../lib/redis';
 import {
   INBOUND, OUTBOUND, DEEPGRAM, NEEDS_ENDIAN_SWAP,
-  swapEndian16, diagnoseChunk, peakAmplitude, applyGain,
+  swapEndian16, diagnoseChunk, applyGain,
 } from '../../lib/audio-config';
 
 const log = createLogger('bridge');
@@ -48,12 +48,10 @@ export function attachWebSocket(server: Server): void {
           case 'start':
             callControlId = msg.start?.call_control_id;
             streamStartTs = Date.now();
-            log.info('Telnyx stream start', {
+            log.debug('Telnyx stream start', {
               callControlId,
               encoding: msg.start?.media_format?.encoding,
               sampleRate: msg.start?.media_format?.sample_rate,
-              channels: msg.start?.media_format?.channels,
-              streamId: msg.stream_id,
             });
             if (callControlId) {
               await handleStreamStart(callControlId, streamStartTs, ws);
@@ -65,15 +63,14 @@ export function attachWebSocket(server: Server): void {
               mediaChunkCount++;
               const rawBuf = Buffer.from(msg.media.payload, 'base64');
 
-              if (mediaChunkCount <= 10 || mediaChunkCount % 200 === 0) {
+              if (mediaChunkCount <= 5 || mediaChunkCount % 500 === 0) {
                 const diag = diagnoseChunk(rawBuf);
-                log.info('Inbound audio chunk', {
+                log.debug('Inbound audio chunk', {
                   callControlId,
                   chunk: mediaChunkCount,
                   bytes: rawBuf.length,
                   peak: diag.peak,
                   status: diag.status,
-                  head: rawBuf.subarray(0, 8).toString('hex'),
                 });
               }
               handleMedia(callControlId, rawBuf, mediaChunkCount);
@@ -103,14 +100,6 @@ function handleMedia(callControlId: string, pcm: Buffer, chunk: number): void {
   if (conn.provider) {
     conn.provider.sendAudio({ data: audio, format: 'pcm16', sampleRate: INBOUND.sampleRate });
 
-    if (chunk === 1 || chunk % 100 === 0) {
-      log.info('Audio sent to Gemini', {
-        callControlId,
-        chunk,
-        bytes: audio.length,
-        sampleRate: INBOUND.sampleRate,
-      });
-    }
   }
   if (conn.transcriber) {
     conn.transcriber.sendAudio(audio);
@@ -173,8 +162,9 @@ async function resolveConnection(
       setTimeout(() => { interruptRef.enabled = true; }, durationMs);
     }
 
-    log.info('Warmup claimed', {
+    log.info('Connection ready', {
       callId: session.callId,
+      type: 'warm',
       elapsed: Date.now() - streamStartTs,
       preloadedChunks: claimed.preloadedAudio.length,
     });
@@ -185,7 +175,7 @@ async function resolveConnection(
   const agentTranscriber = createAgentTranscriber(callControlId);
   const events = buildProviderEvents(session, callControlId, telnyxWs, !!transcriber, agentTranscriber, sendToTelnyx, interruptRef);
   const provider = await connectProvider(session, events);
-  log.info('Cold connect done', { callId: session.callId, elapsed: Date.now() - streamStartTs });
+  log.info('Connection ready', { callId: session.callId, type: 'cold', elapsed: Date.now() - streamStartTs });
 
   if (telnyxWs.readyState !== WebSocket.OPEN) {
     log.warn('Telnyx disconnected during provider setup', { callControlId });
@@ -261,11 +251,6 @@ function createTranscriber(callControlId: string): DeepgramTranscriber | null {
   const transcriber = new DeepgramTranscriber(async (result) => {
     if (!result.isFinal || !result.text.trim()) return;
 
-    log.info('Customer transcript received', {
-      callControlId,
-      text: result.text,
-      confidence: result.confidence,
-    });
 
     await addTranscript(callControlId, {
       speaker: 'customer',
@@ -299,14 +284,6 @@ function makeSendToTelnyx(callControlId: string, telnyxWs: WebSocket): (payload:
   return (payload: Buffer) => {
     if (telnyxWs.readyState !== WebSocket.OPEN) return;
     outboundChunkCount++;
-    if (outboundChunkCount === 1) {
-      log.info('First outbound chunk to Telnyx', {
-        callControlId,
-        bytes: payload.length,
-        peak: peakAmplitude(payload, 'little'),
-        head: payload.subarray(0, 8).toString('hex'),
-      });
-    }
     const amplified = applyGain(payload, OUTBOUND.gain);
     telnyxWs.send(JSON.stringify({
       event: 'media',
