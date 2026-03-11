@@ -18,6 +18,7 @@ import {
   INBOUND, DEEPGRAM, NEEDS_ENDIAN_SWAP,
   swapEndian16, diagnoseChunk, peakAmplitude,
 } from '../../lib/audio-config';
+import { PlayoutBuffer } from '../../lib/playout-buffer';
 
 const log = createLogger('bridge');
 
@@ -25,6 +26,7 @@ interface ActiveConnection {
   provider: VoiceProvider | null;
   transcriber: DeepgramTranscriber | null;
   agentTranscriber: DeepgramTranscriber | null;
+  playoutBuffer: PlayoutBuffer | null;
 }
 
 const activeConnections = new Map<string, ActiveConnection>();
@@ -155,15 +157,15 @@ async function resolveConnection(
   if (claimed) {
     const transcriber = createTranscriber(callControlId);
     const agentTranscriber = createAgentTranscriber(callControlId);
-    const events = buildProviderEvents(session, callControlId, telnyxWs, !!transcriber, agentTranscriber);
+    const { events, playoutBuffer } = buildProviderEvents(session, callControlId, telnyxWs, !!transcriber, agentTranscriber);
     claimed.provider.setEvents(events);
     log.info('Warmup claimed', { callId: session.callId, elapsed: Date.now() - streamStartTs });
-    return { provider: claimed.provider, transcriber, agentTranscriber };
+    return { provider: claimed.provider, transcriber, agentTranscriber, playoutBuffer };
   }
 
   const transcriber = createTranscriber(callControlId);
   const agentTranscriber = createAgentTranscriber(callControlId);
-  const events = buildProviderEvents(session, callControlId, telnyxWs, !!transcriber, agentTranscriber);
+  const { events, playoutBuffer } = buildProviderEvents(session, callControlId, telnyxWs, !!transcriber, agentTranscriber);
   const provider = await connectProvider(session, events);
   log.info('Cold connect done', { callId: session.callId, elapsed: Date.now() - streamStartTs });
 
@@ -172,10 +174,11 @@ async function resolveConnection(
     provider?.disconnect();
     transcriber?.close();
     agentTranscriber?.close();
+    playoutBuffer.destroy();
     return null;
   }
 
-  return { provider, transcriber, agentTranscriber };
+  return { provider, transcriber, agentTranscriber, playoutBuffer };
 }
 
 function teardown(callControlId: string | null): void {
@@ -183,6 +186,7 @@ function teardown(callControlId: string | null): void {
 
   const conn = activeConnections.get(callControlId);
   if (conn) {
+    conn.playoutBuffer?.destroy();
     conn.transcriber?.close();
     conn.agentTranscriber?.close();
     try { conn.provider?.disconnect(); } catch {}
@@ -280,7 +284,7 @@ function buildProviderEvents(
   telnyxWs: WebSocket,
   hasDeepgram: boolean,
   agentTranscriber: DeepgramTranscriber | null,
-): ProviderEvents {
+): { events: ProviderEvents; playoutBuffer: PlayoutBuffer } {
   const toolContext: ToolContext = {
     callId: session.callId,
     agentId: session.agentId,
@@ -308,12 +312,14 @@ function buildProviderEvents(
     }));
   };
 
-  return {
+  const playoutBuffer = new PlayoutBuffer(sendToTelnyx);
+
+  const events: ProviderEvents = {
     onReady: () => {},
 
     onAudio: (chunk: { data: Buffer }) => {
       if (chunk.data.length > 0) {
-        sendToTelnyx(chunk.data);
+        playoutBuffer.push(chunk.data);
         agentTranscriber?.sendAudio(chunk.data);
       }
     },
@@ -341,6 +347,7 @@ function buildProviderEvents(
     },
 
     onInterrupt: () => {
+      playoutBuffer.clear();
       if (telnyxWs.readyState === WebSocket.OPEN) {
         telnyxWs.send(JSON.stringify({ event: 'clear' }));
       }
@@ -348,6 +355,8 @@ function buildProviderEvents(
 
     onTurnComplete: () => {},
   };
+
+  return { events, playoutBuffer };
 }
 
 function handleToolAction(result: unknown, callControlId: string): void {
