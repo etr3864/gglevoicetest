@@ -45,7 +45,7 @@ export const DEEPGRAM = {
 
 // ─── Section 6: Utilities ──────────────────────────────────────────────────
 
-export const NEEDS_ENDIAN_SWAP = INBOUND.endian === 'big';
+export const NEEDS_ENDIAN_SWAP: boolean = INBOUND.endian === 'big';
 
 export function swapEndian16(buf: Buffer): Buffer {
   const out = Buffer.allocUnsafe(buf.length);
