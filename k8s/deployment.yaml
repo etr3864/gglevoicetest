@@ -14,7 +14,6 @@ spec:
       labels:
         app: voice-api
     spec:
-      serviceAccountName: voice-sa
       containers:
         - name: voice-api
           image: me-west1-docker.pkg.dev/gen-lang-client-0546829339/voice-ai/voice-api:latest
@@ -38,6 +37,12 @@ spec:
               value: "gen-lang-client-0546829339"
             - name: GCP_LOCATION
               value: "europe-west3"
+            - name: GOOGLE_APPLICATION_CREDENTIALS
+              value: "/var/secrets/google/credentials.json"
+          volumeMounts:
+            - name: google-cloud-key
+              mountPath: /var/secrets/google
+              readOnly: true
           resources:
             requests:
               cpu: 250m
@@ -63,3 +68,7 @@ spec:
               port: 3000
             failureThreshold: 10
             periodSeconds: 3
+      volumes:
+        - name: google-cloud-key
+          secret:
+            secretName: gcp-auth-secret
