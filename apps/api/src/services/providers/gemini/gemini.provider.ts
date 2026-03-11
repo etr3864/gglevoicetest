@@ -117,7 +117,12 @@ export class GeminiProvider implements VoiceProvider {
       );
 
       const connectPromise = this.connection.connect(isReconnect);
-      this.connection.setSetupPayload(GeminiMapper.buildSetupPayload(this.config!));
+      
+      // Update config model to use Vertex AI full resource path for the setup payload
+      const fullModelPath = `projects/${project}/locations/${location}/publishers/google/models/${model}`;
+      const setupConfig = { ...this.config!, model: fullModelPath };
+      
+      this.connection.setSetupPayload(GeminiMapper.buildSetupPayload(setupConfig));
       await connectPromise;
     } catch (err) {
       log.error('Connection failed', err);
