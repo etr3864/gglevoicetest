@@ -36,7 +36,7 @@ spec:
             - name: GCP_PROJECT_ID
               value: "gen-lang-client-0546829339"
             - name: GCP_LOCATION
-              value: "europe-west3"
+              value: "us-central1"
             - name: GOOGLE_APPLICATION_CREDENTIALS
               value: "/var/secrets/google/credentials.json"
           volumeMounts:
