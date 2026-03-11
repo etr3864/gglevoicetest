@@ -347,10 +347,10 @@ function buildProviderEvents(
     },
 
     onInterrupt: () => {
-      playoutBuffer.clear();
       if (telnyxWs.readyState === WebSocket.OPEN) {
         telnyxWs.send(JSON.stringify({ event: 'clear' }));
       }
+      playoutBuffer.clear();
     },
 
     onTurnComplete: () => {},
