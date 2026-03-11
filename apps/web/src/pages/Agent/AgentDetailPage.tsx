@@ -192,6 +192,7 @@ export default function AgentDetailPage() {
 
       {/* ===== System Prompt ===== */}
       {tab === 'prompt' && (
+        <>
         <Card>
           <div className="p-1">
             <div className="flex items-center justify-between px-5 pt-4 pb-2">
@@ -250,6 +251,7 @@ export default function AgentDetailPage() {
             </div>
           </div>
         </Card>
+        </>
       )}
 
       {/* ===== Calls ===== */}
