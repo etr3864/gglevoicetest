@@ -14,6 +14,7 @@ spec:
       labels:
         app: voice-api
     spec:
+      serviceAccountName: voice-sa
       containers:
         - name: voice-api
           image: me-west1-docker.pkg.dev/gen-lang-client-0546829339/voice-ai/voice-api:latest
@@ -33,6 +34,10 @@ spec:
               value: "https://voiceapp.0ptive.com"
             - name: TELNYX_APP_ID
               value: "2899429708024252053"
+            - name: GCP_PROJECT_ID
+              value: "gen-lang-client-0546829339"
+            - name: GCP_LOCATION
+              value: "us-central1"
           resources:
             requests:
               cpu: 250m

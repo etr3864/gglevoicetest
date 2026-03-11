@@ -23,7 +23,8 @@ export class GeminiConnection {
 
   constructor(
     private readonly url: string,
-    private readonly callbacks: ConnectionCallbacks
+    private readonly callbacks: ConnectionCallbacks,
+    private readonly headers?: Record<string, string>
   ) {}
 
   setSetupPayload(payload: Record<string, unknown>): void {
@@ -40,7 +41,10 @@ export class GeminiConnection {
         reject(new Error('Gemini connection timeout'));
       }, CONNECT_TIMEOUT_MS);
 
-      this.ws = new WebSocket(this.url, { agent: this.tlsAgent });
+      this.ws = new WebSocket(this.url, { 
+        agent: this.tlsAgent,
+        headers: this.headers 
+      });
 
       this.ws.on('open', () => {
         if (this.setupPayload) {

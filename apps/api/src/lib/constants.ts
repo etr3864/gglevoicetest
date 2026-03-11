@@ -1,4 +1,4 @@
-export const GEMINI_MODEL = 'models/gemini-2.5-flash-native-audio-preview-12-2025';
+export const GEMINI_MODEL = 'gemini-2.5-flash';
 
 export const DEFAULT_VOICE = 'Aoede';
 

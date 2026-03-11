@@ -11,13 +11,12 @@ export class KeyPool {
 
   constructor(keys?: string[]) {
     this.keys = keys ?? this.loadFromEnv();
-    if (this.keys.length === 0) {
-      log.warn('No API keys configured - set GEMINI_API_KEYS');
-    }
+    // In Vertex AI, API keys are not required as we use Google Auth via IAM Service Accounts.
+    // The pool is kept for backward compatibility and to satisfy interface requirements.
   }
 
   next(): string {
-    if (this.keys.length === 0) throw new Error('No API keys available');
+    if (this.keys.length === 0) return 'vertex-auth-mode';
 
     const now = Date.now();
     const total = this.keys.length;

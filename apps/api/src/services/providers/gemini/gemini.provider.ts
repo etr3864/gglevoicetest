@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { GoogleAuth } from 'google-auth-library';
 import {
   VoiceProvider, ProviderConfig, ProviderEvents, AudioChunk,
 } from '../types';
@@ -11,7 +12,6 @@ import { GeminiServerContent, GeminiToolCall } from './types';
 
 const log = createLogger('gemini:provider');
 
-const WS_URL = 'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent';
 const MAX_RECONNECTS = 2;
 const RECONNECT_COOLDOWN_MS = 5_000;
 const MAX_BUFFER_CHUNKS = 200;
@@ -29,6 +29,10 @@ export class GeminiProvider implements VoiceProvider {
   private reconnectAttempts = 0;
   private lastConnectTs = 0;
   private disconnecting = false;
+
+  private auth = new GoogleAuth({
+    scopes: ['https://www.googleapis.com/auth/cloud-platform'],
+  });
 
   async connect(config: ProviderConfig, events: ProviderEvents): Promise<void> {
     this.events = events;
@@ -77,24 +81,42 @@ export class GeminiProvider implements VoiceProvider {
   // =====================================================================
 
   private async openConnection(isReconnect: boolean): Promise<void> {
-    const url = `${WS_URL}?key=${this.config!.apiKey}`;
-    
-    log.debug('Gemini connecting', { isReconnect, model: this.config!.model });
-
-    this.connection = new GeminiConnection(url, {
-      onSetupComplete: () => {
-        this.lastConnectTs = Date.now();
-        log.debug('Gemini session ready', { isReconnect, attempt: this.reconnectAttempts });
-        if (!this.reconnecting) this.events?.onReady();
-      },
-      onMessage: (data) => this.handleMessage(data),
-      onClose: (code, reason) => this.handleClose(code, reason),
-      onError: (err) => this.events?.onError(err),
-    });
-
     try {
+      const client = await this.auth.getClient();
+      const token = await client.getAccessToken();
+
+      if (!token.token) {
+        throw new Error('Failed to retrieve access token');
+      }
+
+      const location = process.env.GCP_LOCATION || 'us-central1';
+      const project = process.env.GCP_PROJECT_ID;
+      const model = this.config!.model;
+
+      if (!project) {
+        throw new Error('GCP_PROJECT_ID environment variable is missing');
+      }
+
+      const url = `wss://${location}-aiplatform.googleapis.com/ws/google.cloud.aiplatform.v1beta1.LlmUtilityService/BidiGenerateContent?project=${project}&model=models/${model}`;
+      
+      log.debug('Gemini connecting to Vertex AI', { isReconnect, model, location });
+
+      this.connection = new GeminiConnection(
+        url,
+        {
+          onSetupComplete: () => {
+            this.lastConnectTs = Date.now();
+            log.debug('Gemini session ready', { isReconnect, attempt: this.reconnectAttempts });
+            if (!this.reconnecting) this.events?.onReady();
+          },
+          onMessage: (data) => this.handleMessage(data),
+          onClose: (code, reason) => this.handleClose(code, reason),
+          onError: (err) => this.events?.onError(err),
+        },
+        { Authorization: `Bearer ${token.token}` }
+      );
+
       const connectPromise = this.connection.connect(isReconnect);
-      // Let the connection wrapper handle sending setup upon 'open'
       this.connection.setSetupPayload(GeminiMapper.buildSetupPayload(this.config!));
       await connectPromise;
     } catch (err) {
