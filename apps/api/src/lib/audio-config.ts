@@ -15,9 +15,9 @@ export const TELNYX_SIP = {
 // ─── Section 2: Inbound (Telnyx → us) ──────────────────────────────────────
 
 export const INBOUND = {
-  sampleRate: 24_000,
-  endian: 'little',
-} as const;
+  sampleRate: 24_000 as const,
+  endian: 'little' as 'big' | 'little',
+};
 
 // ─── Section 3: Outbound (us → Telnyx) ─────────────────────────────────────
 
@@ -45,7 +45,7 @@ export const DEEPGRAM = {
 
 // ─── Section 6: Utilities ──────────────────────────────────────────────────
 
-export const NEEDS_ENDIAN_SWAP: boolean = INBOUND.endian === 'big';
+export const NEEDS_ENDIAN_SWAP = INBOUND.endian === 'big';
 
 export function swapEndian16(buf: Buffer): Buffer {
   const out = Buffer.allocUnsafe(buf.length);
