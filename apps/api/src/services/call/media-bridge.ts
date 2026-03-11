@@ -220,6 +220,7 @@ async function connectProvider(
     model: GEMINI_MODEL,
     voice: agent.voice || DEFAULT_VOICE,
     systemPrompt,
+    openingMessage: (agent as Record<string, unknown>).openingMessage as string | undefined ?? undefined,
     modelConfig: mergeModelConfig((agent as Record<string, unknown>).modelConfig as Partial<ModelConfig> | undefined),
     tools: globalRegistry.getDefinitions(),
   };

@@ -68,6 +68,7 @@ export interface ProviderConfig {
   model: string;
   voice: string;
   systemPrompt: string;
+  openingMessage?: string;
   modelConfig: ModelConfig;
   tools?: ToolDefinition[];
 }

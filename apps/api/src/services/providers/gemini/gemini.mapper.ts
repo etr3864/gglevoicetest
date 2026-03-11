@@ -27,10 +27,11 @@ export class GeminiMapper {
     return setup;
   }
 
-  static buildStartConversationPayload(): Record<string, unknown> {
+  static buildStartConversationPayload(openingMessage?: string): Record<string, unknown> {
+    const text = openingMessage?.trim() || 'The customer is now on the line. Greet them according to your system instructions.';
     return {
       clientContent: {
-        turns: [{ role: 'user', parts: [{ text: 'The customer is now on the line. Greet them according to your system instructions.' }] }],
+        turns: [{ role: 'user', parts: [{ text }] }],
         turnComplete: true,
       },
     };

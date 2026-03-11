@@ -68,6 +68,7 @@ export default function AgentDetailPage() {
   const [selectedContact, setSelectedContact] = useState<any>(null);
   const [showOutbound, setShowOutbound] = useState(false);
   const [prompt, setPrompt] = useState('');
+  const [openingMessage, setOpeningMessage] = useState('');
   const [form, setForm] = useState({
     name: '',
     voice: 'Aoede',
@@ -85,6 +86,7 @@ export default function AgentDetailPage() {
   useEffect(() => {
     if (agent) {
       setPrompt(agent.basePrompt || '');
+      setOpeningMessage(agent.openingMessage || '');
       setForm({
         name: agent.name,
         voice: agent.voice || 'Aoede',
@@ -96,7 +98,7 @@ export default function AgentDetailPage() {
   }, [agent]);
 
   const updatePrompt = useMutation({
-    mutationFn: () => api.patch(`/agents/${id}`, { basePrompt: prompt }),
+    mutationFn: () => api.patch(`/agents/${id}`, { basePrompt: prompt, openingMessage: openingMessage || null }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['agent', id] });
       toast('פרומפט נשמר', 'success');
@@ -216,6 +218,35 @@ export default function AgentDetailPage() {
                 <Save className="w-4 h-4" />
                 {updatePrompt.isPending ? 'שומר...' : 'שמור'}
               </Button>
+            </div>
+          </div>
+        </Card>
+
+        <Card>
+          <div className="p-1">
+            <div className="flex items-center justify-between px-5 pt-4 pb-1">
+              <span className="text-xs text-[var(--text-muted)]">{openingMessage.length} / 2000</span>
+              <h3 className="font-semibold text-[var(--text-primary)]">הודעת פתיחה</h3>
+            </div>
+            <div className="px-5 pb-2">
+              <p className="text-xs text-[var(--text-muted)] text-right leading-relaxed">
+                הטקסט שנשלח לסוכן ברגע שהלקוח מחובר לשיחה — גורם לו להתחיל לדבר.
+                <br />
+                משפיע על: <strong className="text-[var(--text-secondary)]">מה הסוכן אומר ראשון</strong>, טון הפתיחה, שפה.
+                <br />
+                אם ריק, ברירת המחדל היא: <em>"The customer is now on the line. Greet them according to your system instructions."</em>
+              </p>
+            </div>
+            <div className="px-3 pb-3">
+              <textarea
+                value={openingMessage}
+                onChange={(e) => setOpeningMessage(e.target.value)}
+                maxLength={2000}
+                rows={3}
+                className="w-full rounded-lg bg-[var(--bg-primary)] border border-[var(--border)] px-4 py-3 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]/30 resize-none leading-relaxed transition-colors"
+                placeholder='לדוגמה: "The customer is now on the line. Introduce yourself and ask how you can help."'
+                dir="ltr"
+              />
             </div>
           </div>
         </Card>

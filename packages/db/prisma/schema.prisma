@@ -27,6 +27,7 @@ model Agent {
   status               String        @default("active")
   voice                String        @default("Aoede")
   basePrompt           String?       @map("base_prompt") @db.Text
+  openingMessage       String?       @map("opening_message") @db.Text
   modelConfig          Json?         @map("model_config")
   activeHours          Json?         @map("active_hours")
   calendarConfig       Json?         @map("calendar_config")

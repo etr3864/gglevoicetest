@@ -46,7 +46,7 @@ export class GeminiProvider implements VoiceProvider {
 
   startConversation(): void {
     if (!this.connection?.isReady()) return;
-    this.connection.send(GeminiMapper.buildStartConversationPayload());
+    this.connection.send(GeminiMapper.buildStartConversationPayload(this.config?.openingMessage ?? undefined));
   }
 
   sendAudio(chunk: AudioChunk): void {
