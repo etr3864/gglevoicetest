@@ -9,7 +9,7 @@ export const TELNYX_STREAM = {
 } as const;
 
 export const TELNYX_SIP = {
-  preferredCodecs: 'G722',
+  preferredCodecs: 'PCMU',
 } as const;
 
 // ─── Section 2: Inbound (Telnyx → us) ──────────────────────────────────────
