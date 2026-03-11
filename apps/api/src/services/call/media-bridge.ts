@@ -64,7 +64,7 @@ export function attachWebSocket(server: Server): void {
               mediaChunkCount++;
               const rawBuf = Buffer.from(msg.media.payload, 'base64');
 
-              if (mediaChunkCount <= 10) {
+              if (mediaChunkCount <= 10 || mediaChunkCount % 200 === 0) {
                 const diag = diagnoseChunk(rawBuf);
                 log.info('Inbound audio chunk', {
                   callControlId,
