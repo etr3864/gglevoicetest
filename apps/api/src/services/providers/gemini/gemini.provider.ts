@@ -44,6 +44,11 @@ export class GeminiProvider implements VoiceProvider {
     this.events = events;
   }
 
+  startConversation(): void {
+    if (!this.connection?.isReady()) return;
+    this.connection.send(GeminiMapper.buildStartConversationPayload());
+  }
+
   sendAudio(chunk: AudioChunk): void {
     if (this.reconnecting) {
       this.state.pushAudioBuffer(chunk.data, MAX_BUFFER_CHUNKS);

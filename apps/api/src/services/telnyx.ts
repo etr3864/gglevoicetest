@@ -48,6 +48,10 @@ export async function answerCall(callControlId: string, streamUrl: string): Prom
   await telnyxPost(`/calls/${callControlId}/actions/answer`, buildAnswerParams(streamUrl));
 }
 
+export async function startStream(callControlId: string, streamUrl: string): Promise<void> {
+  await telnyxPost(`/calls/${callControlId}/actions/streaming_start`, buildAnswerParams(streamUrl));
+}
+
 export async function hangupCall(callControlId: string): Promise<void> {
   try {
     await telnyxPost(`/calls/${callControlId}/actions/hangup`, {});
@@ -76,7 +80,6 @@ export async function createOutboundCall(params: {
     timeout_secs: 60,
     preferred_codecs: TELNYX_SIP.preferredCodecs,
     answering_machine_detection: 'disabled',
-    ...buildDialStreamParams(streamUrl),
     client_state: params.clientState
       ? Buffer.from(params.clientState).toString('base64')
       : undefined,

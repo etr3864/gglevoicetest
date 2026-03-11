@@ -138,6 +138,10 @@ async function handleStreamStart(
   if (!conn) return;
 
   activeConnections.set(callControlId, conn);
+
+  if (conn.provider) {
+    conn.provider.startConversation();
+  }
 }
 
 async function resolveConnection(

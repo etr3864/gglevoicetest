@@ -134,6 +134,7 @@ export interface VoiceProvider {
   connect(config: ProviderConfig, events: ProviderEvents): Promise<void>;
   setEvents(events: ProviderEvents): void;
   sendAudio(chunk: AudioChunk): void;
+  startConversation(): void;
   disconnect(): void;
   isReady(): boolean;
 }

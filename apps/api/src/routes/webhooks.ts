@@ -3,7 +3,7 @@ import { prisma } from '@voice/db';
 import { createLogger } from '../lib/logger';
 import { normalizePhone } from '../lib/phone';
 import { getStreamUrl } from '../lib/audio-config';
-import { answerCall, hangupCall } from '../services/telnyx';
+import { answerCall, hangupCall, startStream } from '../services/telnyx';
 import { createSession, endSession, getSession, warmup } from '../services/call';
 import { publishCallEvent } from '../services/events/pubsub';
 
@@ -50,6 +50,8 @@ router.post('/telnyx', async (req, res) => {
           data: { status: 'in_call' },
         });
         await publishCallEvent(session.agentId, 'call_updated', { call: updatedCall });
+
+        await startStream(callControlId, getStreamUrl());
         break;
       }
 
