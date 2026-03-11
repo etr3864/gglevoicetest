@@ -16,7 +16,7 @@ export const TELNYX_SIP = {
 
 export const INBOUND = {
   sampleRate: 24_000,
-  endian: 'big',
+  endian: 'little',
 } as const;
 
 // ─── Section 3: Outbound (us → Telnyx) ─────────────────────────────────────
