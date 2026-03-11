@@ -97,7 +97,7 @@ export class GeminiProvider implements VoiceProvider {
         throw new Error('GCP_PROJECT_ID environment variable is missing');
       }
 
-      const url = `wss://${location}-aiplatform.googleapis.com/ws/google.cloud.aiplatform.v1beta1.LlmUtilityService/BidiGenerateContent?project=${project}&model=models/${model}`;
+      const url = `wss://${location}-aiplatform.googleapis.com/ws/google.cloud.aiplatform.v1beta1.LlmUtilityService/BidiGenerateContent`;
       
       log.debug('Gemini connecting to Vertex AI', { isReconnect, model, location });
 
