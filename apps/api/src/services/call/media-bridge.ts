@@ -155,14 +155,22 @@ async function resolveConnection(
 
   const sendToTelnyx = makeSendToTelnyx(callControlId, telnyxWs);
 
+  const interruptRef = { enabled: false };
+
   if (claimed) {
     const transcriber = createTranscriber(callControlId);
     const agentTranscriber = createAgentTranscriber(callControlId);
-    const events = buildProviderEvents(session, callControlId, telnyxWs, !!transcriber, agentTranscriber, sendToTelnyx);
+    const events = buildProviderEvents(session, callControlId, telnyxWs, !!transcriber, agentTranscriber, sendToTelnyx, interruptRef);
     claimed.provider.setEvents(events);
 
     for (const chunk of claimed.preloadedAudio) {
       sendToTelnyx(chunk);
+    }
+
+    if (claimed.preloadedAudio.length > 0) {
+      const totalBytes = claimed.preloadedAudio.reduce((s, b) => s + b.length, 0);
+      const durationMs = Math.ceil((totalBytes / 2 / OUTBOUND.sampleRate) * 1000) + 300;
+      setTimeout(() => { interruptRef.enabled = true; }, durationMs);
     }
 
     log.info('Warmup claimed', {
@@ -175,7 +183,7 @@ async function resolveConnection(
 
   const transcriber = createTranscriber(callControlId);
   const agentTranscriber = createAgentTranscriber(callControlId);
-  const events = buildProviderEvents(session, callControlId, telnyxWs, !!transcriber, agentTranscriber, sendToTelnyx);
+  const events = buildProviderEvents(session, callControlId, telnyxWs, !!transcriber, agentTranscriber, sendToTelnyx, interruptRef);
   const provider = await connectProvider(session, events);
   log.info('Cold connect done', { callId: session.callId, elapsed: Date.now() - streamStartTs });
 
@@ -314,6 +322,7 @@ function buildProviderEvents(
   hasDeepgram: boolean,
   agentTranscriber: DeepgramTranscriber | null,
   sendToTelnyx: (payload: Buffer) => void,
+  interruptRef: { enabled: boolean },
 ): ProviderEvents {
   const toolContext: ToolContext = {
     callId: session.callId,
@@ -354,12 +363,15 @@ function buildProviderEvents(
     },
 
     onInterrupt: () => {
+      if (!interruptRef.enabled) return;
       if (telnyxWs.readyState === WebSocket.OPEN) {
         telnyxWs.send(JSON.stringify({ event: 'clear' }));
       }
     },
 
-    onTurnComplete: () => {},
+    onTurnComplete: () => {
+      interruptRef.enabled = true;
+    },
   };
 }
 
