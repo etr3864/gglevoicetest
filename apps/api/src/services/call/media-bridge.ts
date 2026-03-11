@@ -16,7 +16,7 @@ import { buildSchedulingPrompt } from './prompt-builder';
 import { redis } from '../../lib/redis';
 import { audioWorkerPool } from '../../lib/audio';
 import {
-  INBOUND, OUTBOUND, DEEPGRAM, NEEDS_ENDIAN_SWAP,
+  INBOUND, OUTBOUND, DEEPGRAM, NEEDS_ENDIAN_SWAP, GEMINI,
   swapEndian16, diagnoseChunk, applyGain,
 } from '../../lib/audio-config';
 
