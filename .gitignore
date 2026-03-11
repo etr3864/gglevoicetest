@@ -6,6 +6,7 @@ dist/
 *.log
 .DS_Store
 .turbo
+gcp-key.json
 
 # k8s secrets – never commit
 k8s/secret.yaml
