@@ -18,7 +18,6 @@ import {
   INBOUND, OUTBOUND, DEEPGRAM, NEEDS_ENDIAN_SWAP,
   swapEndian16, diagnoseChunk, peakAmplitude, applyGain,
 } from '../../lib/audio-config';
-import { PlayoutBuffer } from '../../lib/playout-buffer';
 
 const log = createLogger('bridge');
 
@@ -26,7 +25,6 @@ interface ActiveConnection {
   provider: VoiceProvider | null;
   transcriber: DeepgramTranscriber | null;
   agentTranscriber: DeepgramTranscriber | null;
-  playoutBuffer: PlayoutBuffer | null;
   greetingPreloaded: boolean;
 }
 
@@ -155,14 +153,16 @@ async function resolveConnection(
 ): Promise<ActiveConnection | null> {
   const claimed = await claim(session.callId);
 
+  const sendToTelnyx = makeSendToTelnyx(callControlId, telnyxWs);
+
   if (claimed) {
     const transcriber = createTranscriber(callControlId);
     const agentTranscriber = createAgentTranscriber(callControlId);
-    const { events, playoutBuffer } = buildProviderEvents(session, callControlId, telnyxWs, !!transcriber, agentTranscriber);
+    const events = buildProviderEvents(session, callControlId, telnyxWs, !!transcriber, agentTranscriber, sendToTelnyx);
     claimed.provider.setEvents(events);
 
     for (const chunk of claimed.preloadedAudio) {
-      playoutBuffer.push(chunk);
+      sendToTelnyx(chunk);
     }
 
     log.info('Warmup claimed', {
@@ -170,12 +170,12 @@ async function resolveConnection(
       elapsed: Date.now() - streamStartTs,
       preloadedChunks: claimed.preloadedAudio.length,
     });
-    return { provider: claimed.provider, transcriber, agentTranscriber, playoutBuffer, greetingPreloaded: claimed.preloadedAudio.length > 0 };
+    return { provider: claimed.provider, transcriber, agentTranscriber, greetingPreloaded: claimed.preloadedAudio.length > 0 };
   }
 
   const transcriber = createTranscriber(callControlId);
   const agentTranscriber = createAgentTranscriber(callControlId);
-  const { events, playoutBuffer } = buildProviderEvents(session, callControlId, telnyxWs, !!transcriber, agentTranscriber);
+  const events = buildProviderEvents(session, callControlId, telnyxWs, !!transcriber, agentTranscriber, sendToTelnyx);
   const provider = await connectProvider(session, events);
   log.info('Cold connect done', { callId: session.callId, elapsed: Date.now() - streamStartTs });
 
@@ -184,11 +184,10 @@ async function resolveConnection(
     provider?.disconnect();
     transcriber?.close();
     agentTranscriber?.close();
-    playoutBuffer.destroy();
     return null;
   }
 
-  return { provider, transcriber, agentTranscriber, playoutBuffer, greetingPreloaded: false };
+  return { provider, transcriber, agentTranscriber, greetingPreloaded: false };
 }
 
 function teardown(callControlId: string | null): void {
@@ -196,7 +195,6 @@ function teardown(callControlId: string | null): void {
 
   const conn = activeConnections.get(callControlId);
   if (conn) {
-    conn.playoutBuffer?.destroy();
     conn.transcriber?.close();
     conn.agentTranscriber?.close();
     try { conn.provider?.disconnect(); } catch {}
@@ -288,24 +286,10 @@ function createAgentTranscriber(callControlId: string): DeepgramTranscriber | nu
 
 // --- Provider Events ---
 
-function buildProviderEvents(
-  session: CallSession,
-  callControlId: string,
-  telnyxWs: WebSocket,
-  hasDeepgram: boolean,
-  agentTranscriber: DeepgramTranscriber | null,
-): { events: ProviderEvents; playoutBuffer: PlayoutBuffer } {
-  const toolContext: ToolContext = {
-    callId: session.callId,
-    agentId: session.agentId,
-    contactPhone: session.contactPhone || undefined,
-  };
-
+function makeSendToTelnyx(callControlId: string, telnyxWs: WebSocket): (payload: Buffer) => void {
   let outboundChunkCount = 0;
-
-  const sendToTelnyx = (payload: Buffer) => {
+  return (payload: Buffer) => {
     if (telnyxWs.readyState !== WebSocket.OPEN) return;
-
     outboundChunkCount++;
     if (outboundChunkCount === 1) {
       log.info('First outbound chunk to Telnyx', {
@@ -315,22 +299,34 @@ function buildProviderEvents(
         head: payload.subarray(0, 8).toString('hex'),
       });
     }
-
     const amplified = applyGain(payload, OUTBOUND.gain);
     telnyxWs.send(JSON.stringify({
       event: 'media',
       media: { payload: amplified.toString('base64') },
     }));
   };
+}
 
-  const playoutBuffer = new PlayoutBuffer(sendToTelnyx);
+function buildProviderEvents(
+  session: CallSession,
+  callControlId: string,
+  telnyxWs: WebSocket,
+  hasDeepgram: boolean,
+  agentTranscriber: DeepgramTranscriber | null,
+  sendToTelnyx: (payload: Buffer) => void,
+): ProviderEvents {
+  const toolContext: ToolContext = {
+    callId: session.callId,
+    agentId: session.agentId,
+    contactPhone: session.contactPhone || undefined,
+  };
 
-  const events: ProviderEvents = {
+  return {
     onReady: () => {},
 
     onAudio: (chunk: { data: Buffer }) => {
       if (chunk.data.length > 0) {
-        playoutBuffer.push(chunk.data);
+        sendToTelnyx(chunk.data);
         agentTranscriber?.sendAudio(chunk.data);
       }
     },
@@ -361,13 +357,10 @@ function buildProviderEvents(
       if (telnyxWs.readyState === WebSocket.OPEN) {
         telnyxWs.send(JSON.stringify({ event: 'clear' }));
       }
-      playoutBuffer.clear();
     },
 
     onTurnComplete: () => {},
   };
-
-  return { events, playoutBuffer };
 }
 
 function handleToolAction(result: unknown, callControlId: string): void {
