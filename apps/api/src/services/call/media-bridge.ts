@@ -170,7 +170,7 @@ async function resolveConnection(
       elapsed: Date.now() - streamStartTs,
       preloadedChunks: claimed.preloadedAudio.length,
     });
-    return { provider: claimed.provider, transcriber, agentTranscriber, greetingPreloaded: claimed.preloadedAudio.length > 0 };
+    return { provider: claimed.provider, transcriber, agentTranscriber, greetingPreloaded: true };
   }
 
   const transcriber = createTranscriber(callControlId);
