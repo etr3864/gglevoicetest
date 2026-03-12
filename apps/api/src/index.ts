@@ -23,6 +23,7 @@ import { geminiKeyPool } from './services/providers';
 import { startOutboundWorker } from './workers/outbound';
 import { initPubSub, closePubSub } from './services/events/pubsub';
 import { sseManager } from './services/events/sse.manager';
+import { activeSessionCount } from './services/call/session';
 
 const log = createLogger('app');
 const app = express();
@@ -46,10 +47,16 @@ app.use(
 );
 app.use(express.json());
 
+const MAX_SESSIONS_PER_POD = parseInt(process.env.MAX_SESSIONS_PER_POD || '25');
+
 app.get('/health', async (_req, res) => {
   try {
     await redis.ping();
-    res.json({ status: 'healthy' });
+    const sessions = await activeSessionCount();
+    if (sessions >= MAX_SESSIONS_PER_POD) {
+      return res.status(503).json({ status: 'full', sessions });
+    }
+    res.json({ status: 'healthy', sessions });
   } catch {
     res.status(503).json({ status: 'degraded' });
   }
