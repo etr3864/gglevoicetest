@@ -82,9 +82,7 @@ async function processJob(job: { data: RecordingJob; attemptsMade: number }): Pr
 }
 
 async function downloadFromTelnyx(url: string): Promise<Buffer> {
-  const res = await fetch(url, {
-    headers: { 'Authorization': `Bearer ${process.env.TELNYX_API_KEY}` },
-  });
+  const res = await fetch(url);
   if (!res.ok) throw new Error(`Telnyx download failed: ${res.status}`);
   return Buffer.from(await res.arrayBuffer());
 }
