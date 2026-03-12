@@ -170,6 +170,7 @@ async function resolveConnection(
     const agentTranscriber = createAgentTranscriber(callControlId);
     const events = buildProviderEvents(session, callControlId, telnyxWs, !!transcriber, agentTranscriber, sendToTelnyx, interruptRef);
     claimed.provider.setEvents(events);
+    claimed.provider.setCallActiveCheck?.(() => activeConnections.has(callControlId));
 
     for (const chunk of claimed.preloadedAudio) {
       sendToTelnyx(chunk);
@@ -194,6 +195,7 @@ async function resolveConnection(
   const agentTranscriber = createAgentTranscriber(callControlId);
   const events = buildProviderEvents(session, callControlId, telnyxWs, !!transcriber, agentTranscriber, sendToTelnyx, interruptRef);
   const provider = await connectProvider(session, events);
+  provider?.setCallActiveCheck?.(() => activeConnections.has(callControlId));
   log.info('Connection ready', { callId: session.callId, type: 'cold', elapsed: Date.now() - streamStartTs });
 
   if (telnyxWs.readyState !== WebSocket.OPEN) {

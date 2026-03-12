@@ -135,6 +135,7 @@ export interface VoiceProvider {
   readonly type: ProviderType;
   connect(config: ProviderConfig, events: ProviderEvents): Promise<void>;
   setEvents(events: ProviderEvents): void;
+  setCallActiveCheck?(fn: () => boolean): void;
   sendAudio(chunk: AudioChunk): void;
   startConversation(): void;
   disconnect(): void;

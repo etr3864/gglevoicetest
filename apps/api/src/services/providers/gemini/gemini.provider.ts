@@ -12,9 +12,10 @@ import { GeminiServerContent, GeminiToolCall } from './types';
 
 const log = createLogger('gemini:provider');
 
-const MAX_RECONNECTS = 2;
+const MAX_CRASH_RECONNECTS = 3;
 const RECONNECT_COOLDOWN_MS = 5_000;
 const MAX_BUFFER_CHUNKS = 200;
+const STABLE_SESSION_MS = 60_000;
 
 export class GeminiProvider implements VoiceProvider {
   readonly type = 'gemini' as const;
@@ -29,6 +30,7 @@ export class GeminiProvider implements VoiceProvider {
   private reconnectAttempts = 0;
   private lastConnectTs = 0;
   private disconnecting = false;
+  private isCallActive: (() => boolean) | null = null;
 
   private auth = new GoogleAuth({
     scopes: ['https://www.googleapis.com/auth/cloud-platform'],
@@ -46,6 +48,10 @@ export class GeminiProvider implements VoiceProvider {
 
   setEvents(events: ProviderEvents): void {
     this.events = events;
+  }
+
+  setCallActiveCheck(fn: () => boolean): void {
+    this.isCallActive = fn;
   }
 
   startConversation(): void {
@@ -105,7 +111,11 @@ export class GeminiProvider implements VoiceProvider {
         url,
         {
           onSetupComplete: () => {
+            const sessionAge = Date.now() - this.lastConnectTs;
             this.lastConnectTs = Date.now();
+            if (isReconnect && sessionAge > STABLE_SESSION_MS) {
+              this.reconnectAttempts = 0;
+            }
             log.debug('Gemini session ready', { isReconnect, attempt: this.reconnectAttempts });
             if (!this.reconnecting) this.events?.onReady();
           },
@@ -133,13 +143,19 @@ export class GeminiProvider implements VoiceProvider {
     if (this.disconnecting) return;
 
     if (code === 1000) {
-      this.events?.onClose();
+      if (this.isCallActive?.()) {
+        log.info('Gemini session expired mid-call, reconnecting transparently');
+        this.reconnectAttempts = 0;
+        this.attemptReconnect();
+      } else {
+        this.events?.onClose();
+      }
       return;
     }
 
     log.warn('Gemini connection closed unexpectedly', { code, reason });
 
-    if (this.reconnectAttempts < MAX_RECONNECTS) {
+    if (this.reconnectAttempts < MAX_CRASH_RECONNECTS) {
       this.attemptReconnect();
     } else {
       this.events?.onError(new Error(`Gemini closed: ${code} ${reason}`));
