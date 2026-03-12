@@ -69,17 +69,6 @@ router.post('/telnyx', async (req, res) => {
         break;
       }
 
-      case 'call.machine.detection.ended': {
-        const result = event.payload?.result;
-        if (!callControlId) break;
-
-        if (result === 'machine') {
-          log.info('AMD: voicemail detected, hanging up', { callControlId: callControlId.slice(-12) });
-          await hangupCall(callControlId);
-        }
-        break;
-      }
-
       case 'call.hangup': {
         if (!callControlId) break;
         const payload = event.payload || {};
