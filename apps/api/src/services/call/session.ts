@@ -16,7 +16,6 @@ export interface CallSession {
   direction: 'inbound' | 'outbound';
   startedAt: string;
   callContext?: Record<string, unknown>;
-  didRing?: boolean;
 }
 
 // Helper to store transcripts
@@ -75,13 +74,6 @@ export async function createSession(params: {
   await redis.incr(SESSION_COUNT_KEY);
 
   return session;
-}
-
-export async function markRinging(callControlId: string): Promise<void> {
-  const session = await getSession(callControlId);
-  if (!session) return;
-  session.didRing = true;
-  await redis.set(`call:session:${callControlId}`, JSON.stringify(session), 'EX', 7200);
 }
 
 export async function getSession(callControlId: string): Promise<CallSession | undefined> {
