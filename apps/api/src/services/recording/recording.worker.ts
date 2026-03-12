@@ -32,7 +32,7 @@ async function processJob(job: { data: RecordingJob; attemptsMade: number }): Pr
   const { callId, agentId, userId, telnyxRecordingId, downloadUrl } = job.data;
 
   const lockKey = `recording:lock:${telnyxRecordingId}`;
-  const locked = await redis.set(lockKey, '1', 'NX', 'EX', 300);
+  const locked = await redis.set(lockKey, '1', 'EX', 300, 'NX');
   if (!locked) {
     log.info('Recording already being processed', { telnyxRecordingId });
     return;
