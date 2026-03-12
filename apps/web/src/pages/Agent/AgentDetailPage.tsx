@@ -464,10 +464,17 @@ function CallsTab({
                 <Badge variant={
                   call.status === 'completed' ? 'success' :
                   call.status === 'failed' ? 'danger' :
-                  call.status === 'in_call' ? 'warning' : 'info'
+                  call.status === 'in_call' ? 'warning' :
+                  call.status === 'ringing' ? 'warning' : 'info'
                 }>
                   {call.status === 'in_call' && <Activity className="w-3 h-3 inline mr-1 animate-pulse" />}
-                  {call.status}
+                  {call.status === 'ringing' && <Activity className="w-3 h-3 inline mr-1 animate-pulse" />}
+                  {call.status === 'calling' ? 'מחייג...' :
+                   call.status === 'ringing' ? 'מצלצל...' :
+                   call.status === 'in_call' ? 'בשיחה' :
+                   call.status === 'completed' ? 'הושלמה' :
+                   call.status === 'failed' ? 'נכשלה' :
+                   call.status === 'queued' ? 'ממתין' : call.status}
                 </Badge>
                 {call.durationSec != null && (
                   <span className="text-xs text-[var(--text-muted)]">{formatDuration(call.durationSec)}</span>

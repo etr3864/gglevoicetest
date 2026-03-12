@@ -13,7 +13,9 @@ export interface CallSession {
   agentId: string;
   callControlId: string;
   contactPhone: string | null;
-  startedAt: string; // ISO date string
+  direction: 'inbound' | 'outbound';
+  startedAt: string;
+  callContext?: Record<string, unknown>;
 }
 
 // Helper to store transcripts
@@ -58,9 +60,12 @@ export async function createSession(params: {
   agentId: string;
   callControlId: string;
   contactPhone: string | null;
+  direction?: 'inbound' | 'outbound';
+  callContext?: Record<string, unknown>;
 }): Promise<CallSession> {
   const session: CallSession = {
     ...params,
+    direction: params.direction ?? 'inbound',
     startedAt: new Date().toISOString(),
   };
 

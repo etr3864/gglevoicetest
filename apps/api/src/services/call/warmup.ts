@@ -31,10 +31,10 @@ const BASE_NO_OP_EVENTS: Omit<ProviderEvents, 'onReady' | 'onAudio'> = {
   onClose: () => {},
 };
 
-export async function warmup(callId: string, agentId: string, contactPhone: string | null): Promise<void> {
+export async function warmup(callId: string, agentId: string, contactPhone: string | null, callContext?: Record<string, unknown>): Promise<void> {
   if (pending.has(callId) || ready.has(callId)) return;
 
-  const promise = doWarmup(callId, agentId, contactPhone);
+  const promise = doWarmup(callId, agentId, contactPhone, callContext);
   pending.set(callId, promise);
 
   try {
@@ -91,8 +91,9 @@ async function doWarmup(
   callId: string,
   agentId: string,
   contactPhone: string | null,
+  callContext?: Record<string, unknown>,
 ): Promise<WarmEntry | null> {
-  const config = await buildProviderConfig(agentId, contactPhone);
+  const config = await buildProviderConfig(agentId, contactPhone, callContext);
   if (!config) return null;
 
   const preloadedAudio: Buffer[] = [];
@@ -126,6 +127,7 @@ async function doWarmup(
 async function buildProviderConfig(
   agentId: string,
   contactPhone: string | null,
+  callContext?: Record<string, unknown>,
 ): Promise<ProviderConfig | null> {
   const [agent, contactCtx] = await Promise.all([
     prisma.agent.findUnique({ where: { id: agentId } }),
@@ -139,6 +141,12 @@ async function buildProviderConfig(
 
   let systemPrompt = agent.basePrompt || 'You are a helpful voice assistant.';
   if (contactCtx) systemPrompt += `\n\n${contactCtx.promptSection}`;
+  if (callContext && Object.keys(callContext).length > 0) {
+    systemPrompt += '\n\n--- Call Context ---\n';
+    systemPrompt += Object.entries(callContext)
+      .map(([k, v]) => `${k}: ${typeof v === 'object' ? JSON.stringify(v) : v}`)
+      .join('\n');
+  }
   systemPrompt += buildSchedulingPrompt(agent as any);
 
   return {

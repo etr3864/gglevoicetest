@@ -128,7 +128,11 @@ export async function createOutboundCall(params: {
     webhook_url_method: 'POST',
     timeout_secs: 60,
     preferred_codecs: TELNYX_SIP.preferredCodecs,
-    answering_machine_detection: 'disabled',
+    answering_machine_detection: 'detect',
+    answering_machine_detection_config: {
+      total_analysis_time_millis: 3500,
+      silence_threshold: 500,
+    },
     client_state: params.clientState
       ? Buffer.from(params.clientState).toString('base64')
       : undefined,

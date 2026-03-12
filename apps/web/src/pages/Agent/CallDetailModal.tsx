@@ -173,12 +173,16 @@ function AudioPlayer({ callId, agentId }: { callId: string; agentId: string }) {
     }
   };
 
-  const seek = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const onSliderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!duration) return;
+    setProgress((parseFloat(e.target.value) / 100) * duration);
+  };
+
+  const onSliderCommit = (e: React.MouseEvent<HTMLInputElement> | React.TouchEvent<HTMLInputElement>) => {
     const audio = audioRef.current;
     if (!audio || !duration) return;
-    const t = (parseFloat(e.target.value) / 100) * duration;
-    audio.currentTime = t;
-    setProgress(t);
+    const val = parseFloat((e.target as HTMLInputElement).value);
+    audio.currentTime = (val / 100) * duration;
   };
 
   const downloadAudio = async () => {
@@ -214,7 +218,9 @@ function AudioPlayer({ callId, agentId }: { callId: string; agentId: string }) {
         min={0}
         max={100}
         value={duration ? (progress / duration) * 100 : 0}
-        onChange={seek}
+        onChange={onSliderChange}
+        onMouseUp={onSliderCommit}
+        onTouchEnd={onSliderCommit}
         className="flex-1 accent-emerald-500 h-1"
         disabled={!audioUrl || !duration}
       />

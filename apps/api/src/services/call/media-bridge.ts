@@ -244,6 +244,12 @@ async function connectProvider(
 
   let systemPrompt = agent.basePrompt || 'You are a helpful voice assistant.';
   if (contactCtx) systemPrompt += `\n\n${contactCtx.promptSection}`;
+  if (session.callContext && Object.keys(session.callContext).length > 0) {
+    systemPrompt += '\n\n--- Call Context ---\n';
+    systemPrompt += Object.entries(session.callContext)
+      .map(([k, v]) => `${k}: ${typeof v === 'object' ? JSON.stringify(v) : v}`)
+      .join('\n');
+  }
   systemPrompt += buildSchedulingPrompt(agent as any);
 
   const config: ProviderConfig = {

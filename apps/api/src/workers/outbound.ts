@@ -13,6 +13,7 @@ interface OutboundJob {
   agentId: string;
   contactId: string;
   phone: string;
+  context?: Record<string, unknown>;
 }
 
 function extractTelnyxError(err: unknown): { code?: string; reason?: string } {
@@ -29,14 +30,14 @@ function extractTelnyxError(err: unknown): { code?: string; reason?: string } {
 
 export function startOutboundWorker(): void {
   const worker = createWorker<OutboundJob>('outbound-calls', async (job) => {
-    const { callId, agentId, phone } = job.data;
+    const { callId, agentId, phone, context } = job.data;
 
     const t0 = Date.now();
     const agent = await validateAgent(callId, agentId);
     await markCalling(callId, agentId);
     log.info('Call queued', { callId, to: phone, agentId });
 
-    warmup(callId, agentId, phone).catch((err) => {
+    warmup(callId, agentId, phone, context).catch((err) => {
       log.error('Warmup failed', err, { callId });
     });
 
@@ -44,7 +45,7 @@ export function startOutboundWorker(): void {
     log.info('Call dialing', { callId, elapsed: Date.now() - t0 });
 
     await prisma.call.update({ where: { id: callId }, data: { callControlId } });
-    await createSession({ callId, agentId, callControlId, contactPhone: phone });
+    await createSession({ callId, agentId, callControlId, contactPhone: phone, direction: 'outbound', callContext: context });
   }, { concurrency: parseInt(process.env.OUTBOUND_CONCURRENCY || '20') });
 
   worker.on('failed', (job, err) => {
