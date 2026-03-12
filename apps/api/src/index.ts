@@ -57,16 +57,16 @@ app.get('/health/live', (_req, res) => {
 
 // Readiness: 503 when draining or at capacity — LB stops sending traffic
 app.get('/health/ready', async (_req, res) => {
+  const connections = activeConnectionCount();
   if (isDraining) {
-    return res.status(503).json({ status: 'draining', connections: activeConnectionCount() });
+    return res.status(503).json({ status: 'draining', connections });
+  }
+  if (connections >= MAX_SESSIONS_PER_POD) {
+    return res.status(503).json({ status: 'full', connections });
   }
   try {
     await redis.ping();
-    const sessions = await activeSessionCount();
-    if (sessions >= MAX_SESSIONS_PER_POD) {
-      return res.status(503).json({ status: 'full', sessions });
-    }
-    res.json({ status: 'ready', sessions });
+    res.json({ status: 'ready', connections });
   } catch {
     res.status(503).json({ status: 'degraded' });
   }
