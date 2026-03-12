@@ -37,7 +37,11 @@ router.post('/telnyx', async (req, res) => {
 
       case 'call.ringing': {
         if (!callControlId) break;
-        const session = await getSession(callControlId);
+        let session = await getSession(callControlId);
+        if (!session) {
+          await new Promise((r) => setTimeout(r, 500));
+          session = await getSession(callControlId);
+        }
         if (!session) break;
         const ringingCall = await prisma.call.update({
           where: { id: session.callId },
@@ -52,9 +56,13 @@ router.post('/telnyx', async (req, res) => {
           log.warn('call.answered missing call_control_id');
           break;
         }
-        const session = await getSession(callControlId);
+        let session = await getSession(callControlId);
         if (!session) {
-          log.warn('call.answered no session', { callControlId: callControlId.slice(-12) });
+          await new Promise((r) => setTimeout(r, 500));
+          session = await getSession(callControlId);
+        }
+        if (!session) {
+          log.warn('call.answered no session after retry', { callControlId: callControlId.slice(-12) });
           break;
         }
         // Start stream immediately for all calls.
