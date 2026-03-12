@@ -93,7 +93,7 @@ router.post('/telnyx', async (req, res) => {
         const durationMs = p.duration_millis ?? (p.duration_secs ? p.duration_secs * 1000 : 0);
 
         if (!recordingId || !downloadUrl) {
-          log.warn('call.recording.saved missing fields', { payload: JSON.stringify(p).slice(0, 200) });
+          log.warn('call.recording.saved missing fields', { payload: JSON.stringify(p) });
           break;
         }
 
