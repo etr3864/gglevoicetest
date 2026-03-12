@@ -69,10 +69,11 @@ router.post('/telnyx', async (req, res) => {
           break;
         }
 
-        if (session.direction === 'outbound' && !session.didRing) {
-          log.warn('Outbound answered without ringing — likely voicemail, retrying', {
+        const answerDelaySec = (Date.now() - new Date(session.startedAt).getTime()) / 1000;
+        if (session.direction === 'outbound' && answerDelaySec < 4 && !session.didRing) {
+          log.warn('Outbound answered too fast — likely voicemail', {
             callId: session.callId,
-            callControlId: callControlId.slice(-12),
+            answerDelaySec: answerDelaySec.toFixed(1),
           });
           await hangupCall(callControlId);
           await scheduleRetry(session);
