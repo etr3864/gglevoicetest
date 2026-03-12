@@ -142,7 +142,7 @@ async function handleStreamStart(
   // Register callback for downsampled audio from the worker pool
   audioWorkerPool.register(callControlId, (downsampledChunk) => {
     const activeConn = activeConnections.get(callControlId);
-    if (activeConn?.provider) {
+    if (activeConn?.provider && interruptRef.enabled) {
       activeConn.provider.sendAudio({
         data: downsampledChunk,
         format: 'pcm16',
