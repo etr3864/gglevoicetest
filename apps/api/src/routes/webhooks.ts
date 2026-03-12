@@ -89,11 +89,15 @@ router.post('/telnyx', async (req, res) => {
         if (!p?.call_control_id) break;
 
         const recordingId = p.recording_id ?? p.id;
-        const downloadUrl = p.download_urls?.mp3 ?? p.public_recording_urls?.mp3 ?? '';
-        const durationMs = p.duration_millis ?? (p.duration_secs ? p.duration_secs * 1000 : 0);
+        const downloadUrl = p.recording_urls?.mp3 ?? p.download_urls?.mp3 ?? p.public_recording_urls?.mp3 ?? '';
+        const durationMs = p.duration_millis
+          ?? (p.duration_secs ? p.duration_secs * 1000 : 0)
+          ?? (p.recording_started_at && p.recording_ended_at
+            ? new Date(p.recording_ended_at).getTime() - new Date(p.recording_started_at).getTime()
+            : 0);
 
         if (!recordingId || !downloadUrl) {
-          log.warn('call.recording.saved missing fields', { payload: JSON.stringify(p) });
+          log.warn('call.recording.saved missing fields', { recordingId, hasUrl: !!downloadUrl });
           break;
         }
 
