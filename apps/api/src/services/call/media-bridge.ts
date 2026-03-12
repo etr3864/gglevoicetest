@@ -27,6 +27,7 @@ interface ActiveConnection {
   transcriber: DeepgramTranscriber | null;
   agentTranscriber: DeepgramTranscriber | null;
   greetingPreloaded: boolean;
+  interruptRef: { enabled: boolean };
 }
 
 const activeConnections = new Map<string, ActiveConnection>();
@@ -142,7 +143,7 @@ async function handleStreamStart(
   // Register callback for downsampled audio from the worker pool
   audioWorkerPool.register(callControlId, (downsampledChunk) => {
     const activeConn = activeConnections.get(callControlId);
-    if (activeConn?.provider && interruptRef.enabled) {
+    if (activeConn?.provider && activeConn.interruptRef.enabled) {
       activeConn.provider.sendAudio({
         data: downsampledChunk,
         format: 'pcm16',
@@ -186,7 +187,7 @@ async function resolveConnection(
       elapsed: Date.now() - streamStartTs,
       preloadedChunks: claimed.preloadedAudio.length,
     });
-    return { provider: claimed.provider, transcriber, agentTranscriber, greetingPreloaded: true };
+    return { provider: claimed.provider, transcriber, agentTranscriber, greetingPreloaded: true, interruptRef };
   }
 
   const transcriber = createTranscriber(callControlId);
@@ -203,7 +204,7 @@ async function resolveConnection(
     return null;
   }
 
-  return { provider, transcriber, agentTranscriber, greetingPreloaded: false };
+  return { provider, transcriber, agentTranscriber, greetingPreloaded: false, interruptRef };
 }
 
 function teardown(callControlId: string | null): void {
