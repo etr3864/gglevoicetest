@@ -37,6 +37,8 @@ spec:
               value: "gen-lang-client-0546829339"
             - name: GCP_LOCATION
               value: "us-central1"
+            - name: AUDIO_POOL_SIZE
+              value: "8"
             - name: GOOGLE_APPLICATION_CREDENTIALS
               value: "/var/secrets/google/credentials.json"
           volumeMounts:
@@ -45,11 +47,11 @@ spec:
               readOnly: true
           resources:
             requests:
-              cpu: 250m
-              memory: 256Mi
-            limits:
               cpu: "1"
-              memory: 512Mi
+              memory: 1Gi
+            limits:
+              cpu: "2"
+              memory: 2Gi
           readinessProbe:
             httpGet:
               path: /health

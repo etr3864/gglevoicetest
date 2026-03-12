@@ -23,6 +23,9 @@ spec:
   timeoutSec: 3600
   connectionDraining:
     drainingTimeoutSec: 300
+  sessionAffinity:
+    affinityType: "CLIENT_IP"
+    affinityCookieTtlSec: 3600
   healthCheck:
     checkIntervalSec: 10
     port: 3000
