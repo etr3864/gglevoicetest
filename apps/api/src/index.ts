@@ -51,7 +51,7 @@ const MAX_SESSIONS_PER_POD = parseInt(process.env.MAX_SESSIONS_PER_POD || '25');
 let isDraining = false;
 
 // Liveness: always 200 as long as process is alive
-app.get('/health/live', (_req, res) => {
+app.get(['/health', '/health/live'], (_req, res) => {
   res.json({ status: 'alive' });
 });
 

@@ -46,6 +46,7 @@ jobs:
 
       - name: Deploy to GKE
         run: |
+          kubectl apply -f k8s/deployment.yaml
           kubectl set image deployment/voice-api \
             voice-api=${{ env.REGISTRY }}/${{ env.IMAGE }}:${{ github.sha }}
           kubectl rollout status deployment/voice-api --timeout=10m
