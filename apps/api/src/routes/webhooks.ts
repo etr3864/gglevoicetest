@@ -84,15 +84,24 @@ router.post('/telnyx', async (req, res) => {
         break;
       }
 
-      case 'recording.completed': {
+      case 'call.recording.saved': {
         const p = event.payload;
-        if (!p?.recording_id || !p?.call_control_id) break;
+        if (!p?.call_control_id) break;
+
+        const recordingId = p.recording_id ?? p.id;
+        const downloadUrl = p.download_urls?.mp3 ?? p.public_recording_urls?.mp3 ?? '';
+        const durationMs = p.duration_millis ?? (p.duration_secs ? p.duration_secs * 1000 : 0);
+
+        if (!recordingId || !downloadUrl) {
+          log.warn('call.recording.saved missing fields', { payload: JSON.stringify(p).slice(0, 200) });
+          break;
+        }
 
         await handleRecordingWebhook({
-          telnyxRecordingId: p.recording_id,
+          telnyxRecordingId: recordingId,
           callControlId: p.call_control_id,
-          downloadUrl: p.download_urls?.mp3 ?? '',
-          durationMs: p.duration_millis ?? 0,
+          downloadUrl,
+          durationMs,
         });
         break;
       }
