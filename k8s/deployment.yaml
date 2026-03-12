@@ -52,29 +52,26 @@ spec:
             limits:
               cpu: "2"
               memory: 2Gi
-          lifecycle:
-            preStop:
-              exec:
-                command: ["/bin/sh", "-c", "sleep 30"]
           readinessProbe:
             httpGet:
-              path: /health
+              path: /health/ready
               port: 3000
             initialDelaySeconds: 5
             periodSeconds: 10
+            failureThreshold: 1
           livenessProbe:
             httpGet:
-              path: /health
+              path: /health/live
               port: 3000
             initialDelaySeconds: 10
             periodSeconds: 30
           startupProbe:
             httpGet:
-              path: /health
+              path: /health/live
               port: 3000
             failureThreshold: 10
             periodSeconds: 3
-      terminationGracePeriodSeconds: 120
+      terminationGracePeriodSeconds: 1800
       volumes:
         - name: google-cloud-key
           secret:

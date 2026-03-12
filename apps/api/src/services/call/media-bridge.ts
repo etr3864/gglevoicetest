@@ -31,6 +31,10 @@ interface ActiveConnection {
 
 const activeConnections = new Map<string, ActiveConnection>();
 
+export function activeConnectionCount(): number {
+  return activeConnections.size;
+}
+
 export function attachWebSocket(server: Server): void {
   const wss = new WebSocketServer({ server, path: '/ws/media' });
 

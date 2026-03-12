@@ -18,7 +18,7 @@ import calendarRoutes from './routes/calendar';
 import webhookRoutes from './routes/webhooks';
 import eventsRouter from './routes/events';
 import { registerBuiltinTools } from './services/tools';
-import { attachWebSocket } from './services/call';
+import { attachWebSocket, activeConnectionCount } from './services/call';
 import { geminiKeyPool } from './services/providers';
 import { startOutboundWorker } from './workers/outbound';
 import { initPubSub, closePubSub } from './services/events/pubsub';
@@ -48,15 +48,25 @@ app.use(
 app.use(express.json());
 
 const MAX_SESSIONS_PER_POD = parseInt(process.env.MAX_SESSIONS_PER_POD || '25');
+let isDraining = false;
 
-app.get('/health', async (_req, res) => {
+// Liveness: always 200 as long as process is alive
+app.get('/health/live', (_req, res) => {
+  res.json({ status: 'alive' });
+});
+
+// Readiness: 503 when draining or at capacity — LB stops sending traffic
+app.get('/health/ready', async (_req, res) => {
+  if (isDraining) {
+    return res.status(503).json({ status: 'draining', connections: activeConnectionCount() });
+  }
   try {
     await redis.ping();
     const sessions = await activeSessionCount();
     if (sessions >= MAX_SESSIONS_PER_POD) {
       return res.status(503).json({ status: 'full', sessions });
     }
-    res.json({ status: 'healthy', sessions });
+    res.json({ status: 'ready', sessions });
   } catch {
     res.status(503).json({ status: 'degraded' });
   }
@@ -76,6 +86,16 @@ app.use('/admin', authMiddleware, adminRoutes);
 
 app.use(errorHandler);
 
+function waitForCallsToFinish(): Promise<void> {
+  return new Promise((resolve) => {
+    const check = () => {
+      if (activeConnectionCount() === 0) return resolve();
+      setTimeout(check, 1000);
+    };
+    check();
+  });
+}
+
 async function start() {
   try {
     await redis.ping();
@@ -90,13 +110,16 @@ async function start() {
     });
 
     const shutdown = async () => {
-      log.info('Shutting down gracefully...');
+      if (isDraining) return;
+      isDraining = true;
+      log.info('Draining: waiting for active calls to finish', { connections: activeConnectionCount() });
+
+      await waitForCallsToFinish();
+
+      log.info('All calls finished, shutting down');
       sseManager.shutdown();
       await closePubSub();
-      server.close(() => {
-        log.info('Server closed');
-        process.exit(0);
-      });
+      server.close(() => process.exit(0));
     };
 
     process.on('SIGTERM', shutdown);
