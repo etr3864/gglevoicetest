@@ -22,7 +22,7 @@ spec:
       initContainers:
         - name: migrate
           image: me-west1-docker.pkg.dev/gen-lang-client-0546829339/voice-ai/voice-api:latest
-          command: ["sh", "-c", "cd /app && pnpm dlx prisma@6 migrate deploy --schema=packages/db/prisma/schema.prisma"]
+          command: ["sh", "-c", "cd /app && HOME=/tmp pnpm dlx prisma@6 migrate resolve --applied '20260301000000_init' --schema=packages/db/prisma/schema.prisma 2>/dev/null || true && HOME=/tmp pnpm dlx prisma@6 migrate deploy --schema=packages/db/prisma/schema.prisma"]
           envFrom:
             - secretRef:
                 name: voice-api-secrets
