@@ -35,6 +35,18 @@ router.post('/telnyx', async (req, res) => {
         break;
       }
 
+      case 'call.ringing': {
+        if (!callControlId) break;
+        const session = await getSession(callControlId);
+        if (!session) break;
+        const ringingCall = await prisma.call.update({
+          where: { id: session.callId },
+          data: { status: 'ringing' },
+        });
+        await publishCallEvent(session.agentId, 'call_updated', { call: ringingCall });
+        break;
+      }
+
       case 'call.answered': {
         if (!callControlId) {
           log.warn('call.answered missing call_control_id');
@@ -45,13 +57,13 @@ router.post('/telnyx', async (req, res) => {
           log.warn('call.answered no session', { callControlId: callControlId.slice(-12) });
           break;
         }
-
+        // Start stream immediately for all calls.
+        // AMD runs in parallel — if machine is detected, we hang up mid-greeting.
         const updatedCall = await prisma.call.update({
           where: { id: session.callId },
           data: { status: 'in_call' },
         });
         await publishCallEvent(session.agentId, 'call_updated', { call: updatedCall });
-
         await startStream(callControlId, getStreamUrl());
         await startRecording(callControlId);
         break;
@@ -59,8 +71,10 @@ router.post('/telnyx', async (req, res) => {
 
       case 'call.machine.detection.ended': {
         const result = event.payload?.result;
-        if (result === 'machine' && callControlId) {
-          log.warn('AMD: machine detected, hanging up', { callControlId: callControlId.slice(-12) });
+        if (!callControlId) break;
+
+        if (result === 'machine') {
+          log.info('AMD: voicemail detected, hanging up', { callControlId: callControlId.slice(-12) });
           await hangupCall(callControlId);
         }
         break;
