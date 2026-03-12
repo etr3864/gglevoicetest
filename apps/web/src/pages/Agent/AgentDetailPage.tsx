@@ -75,6 +75,7 @@ export default function AgentDetailPage() {
     phoneNumber: '',
     telnyxPhoneId: '',
     telnyxAppId: '',
+    temperature: 0.7,
   });
 
   const { data: voicesData } = useQuery({
@@ -93,6 +94,7 @@ export default function AgentDetailPage() {
         phoneNumber: agent.phoneNumber || '',
         telnyxPhoneId: agent.telnyxPhoneId || '',
         telnyxAppId: agent.telnyxAppId || '',
+        temperature: agent.modelConfig?.generation?.temperature ?? 0.7,
       });
     }
   }, [agent]);
@@ -397,6 +399,17 @@ export default function AgentDetailPage() {
   );
 }
 
+const TEMPERATURE_LABELS: Record<number, string> = {
+  0.0: 'דטרמיניסטי', 0.3: 'שמרני', 0.5: 'מקצועי', 0.7: 'מאוזן',
+  1.0: 'יצירתי', 1.4: 'ספונטני', 2.0: 'כאוטי',
+};
+
+function temperatureLabel(val: number): string {
+  const keys = Object.keys(TEMPERATURE_LABELS).map(Number).sort((a, b) => a - b);
+  const closest = keys.reduce((prev, k) => Math.abs(k - val) < Math.abs(prev - val) ? k : prev, keys[0]);
+  return Math.abs(closest - val) <= 0.15 ? TEMPERATURE_LABELS[closest] : '';
+}
+
 function SettingsTab({ agent, form, setForm, voices, onSave, onDelete, isSaving }: {
   agent: any;
   form: any;
@@ -444,6 +457,32 @@ function SettingsTab({ agent, form, setForm, voices, onSave, onDelete, isSaving 
                 </optgroup>
               )}
             </select>
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-sm text-[var(--text-muted)]">
+                {form.temperature.toFixed(1)}
+                {temperatureLabel(form.temperature) && (
+                  <span className="mr-1.5 text-[var(--text-secondary)]">— {temperatureLabel(form.temperature)}</span>
+                )}
+              </span>
+              <label className="text-sm font-medium text-[var(--text-secondary)]">טמפרטורה</label>
+            </div>
+            <input
+              type="range"
+              min={0}
+              max={2}
+              step={0.1}
+              value={form.temperature}
+              onChange={(e) => setForm((f: any) => ({ ...f, temperature: parseFloat(e.target.value) }))}
+              className="w-full accent-emerald-500"
+            />
+            <div className="flex justify-between text-xs text-[var(--text-muted)] mt-1">
+              <span>0.0</span>
+              <span>1.0</span>
+              <span>2.0</span>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -506,6 +545,7 @@ function SettingsTab({ agent, form, setForm, voices, onSave, onDelete, isSaving 
             phoneNumber: form.phoneNumber || null,
             telnyxPhoneId: form.telnyxPhoneId || null,
             telnyxAppId: form.telnyxAppId || null,
+            modelConfig: { generation: { temperature: form.temperature } },
           })}
           disabled={isSaving}
         >

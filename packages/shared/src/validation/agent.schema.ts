@@ -1,5 +1,15 @@
 import { z } from 'zod';
 
+const modelConfigSchema = z.object({
+  generation: z.object({
+    temperature: z.number().min(0).max(2),
+    maxOutputTokens: z.number().int().min(1).max(8192).optional(),
+    topP: z.number().min(0).max(1).optional(),
+    presencePenalty: z.number().min(-2).max(2).optional(),
+    frequencyPenalty: z.number().min(-2).max(2).optional(),
+  }).optional(),
+}).optional();
+
 export const createAgentSchema = z.object({
   name: z.string().min(1).max(100),
   basePrompt: z.string().max(25000).optional(),
@@ -22,4 +32,5 @@ export const updateAgentSchema = z.object({
   activeHours: z.record(timeSlotSchema).nullable().optional(),
   calendarInstructions: z.string().max(5000).nullable().optional(),
   businessHours: z.record(timeSlotSchema).nullable().optional(),
+  modelConfig: modelConfigSchema,
 });

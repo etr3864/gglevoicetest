@@ -45,7 +45,7 @@ export interface ModelConfig {
 
 export const DEFAULT_MODEL_CONFIG: ModelConfig = {
   generation: {
-    temperature: 0.8,
+    temperature: 0.7,
     maxOutputTokens: 4096,
   },
   vad: {

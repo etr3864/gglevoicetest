@@ -91,6 +91,7 @@ export class GeminiMapper {
       maxOutputTokens: Math.min(generation.maxOutputTokens, 8192),
       responseModalities: ['AUDIO'],
       speechConfig,
+      enableAffectiveDialog: true,
     };
     if (generation.topP != null) config.topP = generation.topP;
     if (generation.topK != null) config.topK = generation.topK;
