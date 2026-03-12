@@ -4,9 +4,11 @@ import { createLogger } from '../lib/logger';
 import { normalizePhone } from '../lib/phone';
 import { getStreamUrl } from '../lib/audio-config';
 import { answerCall, hangupCall, startStream, startRecording } from '../services/telnyx';
-import { createSession, endSession, getSession, warmup } from '../services/call';
+import { createSession, endSession, getSession, markRinging, warmup } from '../services/call';
 import { publishCallEvent } from '../services/events/pubsub';
 import { handleRecordingWebhook } from '../services/recording/recording.service';
+import { outboundQueue } from '../lib/queue';
+import type { CallSession } from '../services/call';
 
 const log = createLogger('webhook');
 const router = Router();
@@ -43,6 +45,7 @@ router.post('/telnyx', async (req, res) => {
           session = await getSession(callControlId);
         }
         if (!session) break;
+        await markRinging(callControlId);
         const ringingCall = await prisma.call.update({
           where: { id: session.callId },
           data: { status: 'ringing' },
@@ -65,8 +68,17 @@ router.post('/telnyx', async (req, res) => {
           log.warn('call.answered no session after retry', { callControlId: callControlId.slice(-12) });
           break;
         }
-        // Start stream immediately for all calls.
-        // AMD runs in parallel — if machine is detected, we hang up mid-greeting.
+
+        if (session.direction === 'outbound' && !session.didRing) {
+          log.warn('Outbound answered without ringing — likely voicemail, retrying', {
+            callId: session.callId,
+            callControlId: callControlId.slice(-12),
+          });
+          await hangupCall(callControlId);
+          await scheduleRetry(session);
+          break;
+        }
+
         const updatedCall = await prisma.call.update({
           where: { id: session.callId },
           data: { status: 'in_call' },
@@ -176,6 +188,49 @@ async function handleIncomingCall(
   warmup(call.id, agent.id, phone).catch(() => {});
 
   await answerCall(callControlId, getStreamUrl());
+}
+
+const MAX_NO_RING_RETRIES = 2;
+const RETRY_DELAY_MS = 3_000;
+
+async function scheduleRetry(session: CallSession): Promise<void> {
+  const call = await prisma.call.findUnique({ where: { id: session.callId } });
+  if (!call) return;
+
+  const attempt = ((call.context as Record<string, unknown>)?.retryAttempt as number) || 0;
+  if (attempt >= MAX_NO_RING_RETRIES) {
+    log.warn('Max no-ring retries reached', { callId: session.callId, attempts: attempt });
+    await prisma.call.update({ where: { id: session.callId }, data: { status: 'failed' } });
+    await publishCallEvent(session.agentId, 'call_updated', {
+      call: { ...call, status: 'failed' },
+    });
+    return;
+  }
+
+  log.info('Scheduling retry after no-ring', { callId: session.callId, attempt: attempt + 1 });
+
+  const newCall = await prisma.call.create({
+    data: {
+      agentId: call.agentId,
+      contactId: call.contactId,
+      direction: 'outbound',
+      status: 'queued',
+      context: { ...(call.context as Record<string, unknown> || {}), retryAttempt: attempt + 1 },
+    },
+    include: { contact: { select: { phone: true, name: true } } },
+  });
+
+  await prisma.call.update({ where: { id: session.callId }, data: { status: 'failed' } });
+  await publishCallEvent(session.agentId, 'call_updated', { call: { ...call, status: 'failed' } });
+  await publishCallEvent(session.agentId, 'call_created', { call: newCall });
+
+  await outboundQueue.add('dial', {
+    callId: newCall.id,
+    agentId: call.agentId,
+    contactId: call.contactId!,
+    phone: session.contactPhone!,
+    context: newCall.context as Record<string, unknown>,
+  }, { delay: RETRY_DELAY_MS });
 }
 
 export default router;
