@@ -6,10 +6,10 @@ on:
 
 env:
   PROJECT_ID: gen-lang-client-0546829339
-  REGION: me-west1
+  REGION: us-central1
   REGISTRY: me-west1-docker.pkg.dev/gen-lang-client-0546829339/voice-ai
   IMAGE: voice-api
-  GKE_CLUSTER: voice-ai-cluster
+  GKE_CLUSTER: voice-ai-cluster-us
 
 jobs:
   build-and-deploy:
