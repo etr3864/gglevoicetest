@@ -19,6 +19,17 @@ spec:
       labels:
         app: voice-api
     spec:
+      initContainers:
+        - name: migrate
+          image: me-west1-docker.pkg.dev/gen-lang-client-0546829339/voice-ai/voice-api:latest
+          command: ["sh", "-c", "cd /app && ./node_modules/.bin/prisma migrate deploy --schema=packages/db/prisma/schema.prisma"]
+          envFrom:
+            - secretRef:
+                name: voice-api-secrets
+          volumeMounts:
+            - name: google-cloud-key
+              mountPath: /var/secrets/google
+              readOnly: true
       containers:
         - name: voice-api
           image: me-west1-docker.pkg.dev/gen-lang-client-0546829339/voice-ai/voice-api:latest
@@ -44,6 +55,8 @@ spec:
               value: "us-central1"
             - name: AUDIO_POOL_SIZE
               value: "8"
+            - name: GCS_RECORDING_BUCKET
+              value: "voice-ai-recordings-gen-lang-0546829339"
             - name: GOOGLE_APPLICATION_CREDENTIALS
               value: "/var/secrets/google/credentials.json"
           volumeMounts:

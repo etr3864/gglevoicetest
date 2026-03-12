@@ -72,9 +72,9 @@ COPY --from=builder /app/packages/shared/dist  ./packages/shared/dist
 COPY --from=builder /app/packages/db/dist      ./packages/db/dist
 COPY --from=builder /app/apps/api/dist         ./apps/api/dist
 
-# --- prisma: copy schema and generate client (prisma is a devDep, use dlx) ---
+# --- prisma: copy schema + migrations, generate client ---
 COPY packages/db/prisma ./packages/db/prisma
-RUN pnpm dlx prisma@6 generate --schema=packages/db/prisma/schema.prisma
+RUN ./node_modules/.bin/prisma generate --schema=packages/db/prisma/schema.prisma
 
 RUN chown -R nodejs:nodejs /app
 USER nodejs

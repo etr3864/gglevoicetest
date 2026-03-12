@@ -57,6 +57,21 @@ export function useAgentEvents(agentId: string | undefined, enabled: boolean) {
       }
     });
 
+    sse.addEventListener('recording_ready', (e) => {
+      try {
+        const { call } = JSON.parse(e.data);
+        qc.setQueryData(['agent-calls', agentId], (prev: any) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            data: prev.data.map((c: any) => (c.id === call.id ? { ...c, ...call } : c)),
+          };
+        });
+      } catch (err) {
+        console.error('Failed to parse recording_ready event', err);
+      }
+    });
+
     sse.onerror = () => {};
 
     return () => {

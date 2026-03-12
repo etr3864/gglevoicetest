@@ -1,0 +1,41 @@
+import { Router } from 'express';
+import { prisma } from '@voice/db';
+import { authMiddleware } from '../middleware/auth';
+import { AppError } from '../middleware/error-handler';
+import { getSignedUrl } from '../services/recording/recording.gcs';
+
+const router = Router();
+
+router.use(authMiddleware);
+
+router.get('/agents/:agentId/calls/:callId/recording', async (req, res) => {
+  const { agentId, callId } = req.params;
+  const gcsPath = await getRecordingPath(agentId, callId, req.user!.userId);
+  const url = await getSignedUrl(gcsPath, false);
+  res.json({ data: { url } });
+});
+
+router.get('/agents/:agentId/calls/:callId/recording/download', async (req, res) => {
+  const { agentId, callId } = req.params;
+  const gcsPath = await getRecordingPath(agentId, callId, req.user!.userId);
+  const url = await getSignedUrl(gcsPath, true);
+  res.json({ data: { url } });
+});
+
+async function getRecordingPath(agentId: string, callId: string, requestingUserId: string): Promise<string> {
+  const agent = await prisma.agent.findUnique({ where: { id: agentId } });
+  if (!agent) throw new AppError(404, 'NOT_FOUND', 'Agent not found');
+  if (agent.userId && agent.userId !== requestingUserId) {
+    throw new AppError(403, 'FORBIDDEN', 'Access denied');
+  }
+
+  const call = await prisma.call.findFirst({ where: { id: callId, agentId } });
+  if (!call) throw new AppError(404, 'NOT_FOUND', 'Call not found');
+  if (!call.recordingUrl || call.recordingStatus !== 'ready') {
+    throw new AppError(404, 'NOT_FOUND', 'Recording not available');
+  }
+
+  return call.recordingUrl;
+}
+
+export default router;

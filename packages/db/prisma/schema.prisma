@@ -13,12 +13,14 @@ model User {
   password  String
   role      String   @default("admin")
   createdAt DateTime @default(now()) @map("created_at")
+  agents    Agent[]
 
   @@map("users")
 }
 
 model Agent {
   id                   String        @id @default(uuid())
+  userId               String?       @map("user_id")
   name                 String
   apiKey               String?       @unique @map("api_key")
   phoneNumber          String?       @unique @map("phone_number")
@@ -34,6 +36,7 @@ model Agent {
   calendarInstructions String?       @map("calendar_instructions") @db.Text
   businessHours        Json?         @map("business_hours")
   createdAt            DateTime      @default(now()) @map("created_at")
+  user                 User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
   calls                Call[]
   appointments         Appointment[]
 
@@ -59,23 +62,29 @@ model Contact {
 }
 
 model Call {
-  id           String        @id @default(uuid())
-  agentId      String        @map("agent_id")
-  contactId    String?       @map("contact_id")
-  direction    String
-  status       String        @default("queued")
-  context      Json?
-  recordingUrl String?       @map("recording_url")
-  durationSec  Int?          @map("duration_sec")
-  startedAt    DateTime?     @map("started_at")
-  endedAt      DateTime?     @map("ended_at")
-  createdAt    DateTime      @default(now()) @map("created_at")
-  agent        Agent         @relation(fields: [agentId], references: [id])
-  contact      Contact?      @relation(fields: [contactId], references: [id])
-  utterances   Utterance[]
-  appointments Appointment[]
+  id                 String        @id @default(uuid())
+  agentId            String        @map("agent_id")
+  contactId          String?       @map("contact_id")
+  callControlId      String?       @map("call_control_id")
+  direction          String
+  status             String        @default("queued")
+  context            Json?
+  recordingUrl       String?       @map("recording_url")
+  recordingStatus    String?       @map("recording_status")
+  recordingDuration  Int?          @map("recording_duration")
+  recordingSizeBytes Int?          @map("recording_size_bytes")
+  telnyxRecordingId  String?       @unique @map("telnyx_recording_id")
+  durationSec        Int?          @map("duration_sec")
+  startedAt          DateTime?     @map("started_at")
+  endedAt            DateTime?     @map("ended_at")
+  createdAt          DateTime      @default(now()) @map("created_at")
+  agent              Agent         @relation(fields: [agentId], references: [id])
+  contact            Contact?      @relation(fields: [contactId], references: [id])
+  utterances         Utterance[]
+  appointments       Appointment[]
 
   @@index([agentId, createdAt])
+  @@index([callControlId])
   @@map("calls")
 }
 

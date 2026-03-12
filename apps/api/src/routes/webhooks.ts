@@ -3,9 +3,10 @@ import { prisma } from '@voice/db';
 import { createLogger } from '../lib/logger';
 import { normalizePhone } from '../lib/phone';
 import { getStreamUrl } from '../lib/audio-config';
-import { answerCall, hangupCall, startStream } from '../services/telnyx';
+import { answerCall, hangupCall, startStream, startRecording } from '../services/telnyx';
 import { createSession, endSession, getSession, warmup } from '../services/call';
 import { publishCallEvent } from '../services/events/pubsub';
+import { handleRecordingWebhook } from '../services/recording/recording.service';
 
 const log = createLogger('webhook');
 const router = Router();
@@ -52,6 +53,7 @@ router.post('/telnyx', async (req, res) => {
         await publishCallEvent(session.agentId, 'call_updated', { call: updatedCall });
 
         await startStream(callControlId, getStreamUrl());
+        await startRecording(callControlId);
         break;
       }
 
@@ -79,6 +81,19 @@ router.post('/telnyx', async (req, res) => {
           });
         }
         await endSession(callControlId);
+        break;
+      }
+
+      case 'recording.completed': {
+        const p = event.payload;
+        if (!p?.recording_id || !p?.call_control_id) break;
+
+        await handleRecordingWebhook({
+          telnyxRecordingId: p.recording_id,
+          callControlId: p.call_control_id,
+          downloadUrl: p.download_urls?.mp3 ?? '',
+          durationMs: p.duration_millis ?? 0,
+        });
         break;
       }
 
@@ -117,6 +132,7 @@ async function handleIncomingCall(
     data: {
       agentId: agent.id,
       contactId: contact.id,
+      callControlId,
       direction: 'inbound',
       status: 'in_call',
       startedAt: new Date(),

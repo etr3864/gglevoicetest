@@ -3,9 +3,10 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowRight, Save, Trash2, Settings, Phone, MessageSquare,
   FileText, Users, PhoneCall, PhoneOutgoing, Loader2, Calendar,
-  Copy, Check, RefreshCw, Eye, EyeOff, Activity
+  Copy, Check, RefreshCw, Eye, EyeOff, Activity, Play, Pause,
+  Download, Search, X as XIcon
 } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback, type RefObject, type MouseEvent as ReactMouseEvent } from 'react';
 import api from '../../lib/api';
 import { useAgentEvents } from '../../hooks/useAgentEvents';
 import { Button } from '../../components/ui/Button';
@@ -52,7 +53,7 @@ export default function AgentDetailPage() {
 
   const { data: callsData } = useQuery({
     queryKey: ['agent-calls', id],
-    queryFn: () => api.get(`/agents/${id}/calls?limit=50`).then(r => r.data),
+    queryFn: () => api.get(`/agents/${id}/calls?limit=100`).then(r => r.data),
     enabled: !!id && tab === 'calls',
   });
 
@@ -67,6 +68,9 @@ export default function AgentDetailPage() {
   const [selectedCallId, setSelectedCallId] = useState<string | null>(null);
   const [selectedContact, setSelectedContact] = useState<any>(null);
   const [showOutbound, setShowOutbound] = useState(false);
+  const [callSearch, setCallSearch] = useState('');
+  const [playingCallId, setPlayingCallId] = useState<string | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   const [prompt, setPrompt] = useState('');
   const [openingMessage, setOpeningMessage] = useState('');
   const [form, setForm] = useState({
@@ -257,71 +261,18 @@ export default function AgentDetailPage() {
       )}
 
       {/* ===== Calls ===== */}
-      {tab === 'calls' && (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-[var(--text-muted)]">
-              {callsData?.meta?.total ?? 0} שיחות
-            </span>
-            <Button size="sm" onClick={() => setShowOutbound(true)}>
-              <PhoneOutgoing className="w-3.5 h-3.5" />
-              שיחה יוצאת
-            </Button>
-          </div>
-          <Card>
-            <div className="divide-y divide-[var(--border)]">
-              {!callsData?.data?.length && (
-                <div className="px-6 py-12 text-center">
-                  <MessageSquare className="w-10 h-10 mx-auto mb-3 text-[var(--text-muted)]" />
-                  <p className="text-[var(--text-secondary)]">אין שיחות עדיין</p>
-                </div>
-              )}
-              {callsData?.data?.map((call: any) => (
-                <div
-                  key={call.id}
-                  className="px-5 py-3.5 flex items-center justify-between cursor-pointer hover:bg-[var(--bg-hover)] transition-colors"
-                  onClick={() => setSelectedCallId(call.id)}
-                >
-                  <div className="flex items-center gap-3">
-                    <Badge variant={
-                      call.status === 'completed' ? 'success' :
-                      call.status === 'failed' ? 'danger' :
-                      call.status === 'in_call' ? 'warning' : 'info'
-                    }>
-                      {call.status === 'in_call' && <Activity className="w-3 h-3 inline mr-1 animate-pulse" />}
-                      {call.status}
-                    </Badge>
-                    {call.durationSec != null && (
-                      <span className="text-xs text-[var(--text-muted)]">{formatDuration(call.durationSec)}</span>
-                    )}
-                    <Badge variant="neutral">{call.direction === 'inbound' ? 'נכנסת' : 'יוצאת'}</Badge>
-                    
-                    {call.status === 'completed' && (
-                      <span className="text-xs text-[var(--text-muted)] ml-2">
-                        {call.transcriptSaved ? 'תמלול זמין' : 'מעבד תמלול...'}
-                      </span>
-                    )}
-                  </div>
-                  <div className="text-left">
-                    <p className="text-sm font-medium text-[var(--text-primary)]">
-                      {call.contact?.name || call.contact?.phone || 'לא ידוע'}
-                    </p>
-                    <p className="text-xs text-[var(--text-muted)]">
-                      {new Date(call.createdAt).toLocaleString('he-IL')}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-            {callsData?.meta && callsData.meta.total > callsData.data.length && (
-              <div className="px-5 py-3 border-t border-[var(--border)] text-center">
-                <span className="text-xs text-[var(--text-muted)]">
-                  מציג {callsData.data.length} מתוך {callsData.meta.total}
-                </span>
-              </div>
-            )}
-          </Card>
-        </div>
+      {tab === 'calls' && id && (
+        <CallsTab
+          agentId={id}
+          callsData={callsData}
+          callSearch={callSearch}
+          setCallSearch={setCallSearch}
+          playingCallId={playingCallId}
+          setPlayingCallId={setPlayingCallId}
+          audioRef={audioRef}
+          onShowOutbound={() => setShowOutbound(true)}
+          onSelectCall={setSelectedCallId}
+        />
       )}
 
       {/* ===== Contacts ===== */}
@@ -395,6 +346,181 @@ export default function AgentDetailPage() {
       {showOutbound && id && (
         <OutboundCallDialog agentId={id} onClose={() => setShowOutbound(false)} />
       )}
+    </div>
+  );
+}
+
+function CallsTab({
+  agentId, callsData, callSearch, setCallSearch,
+  playingCallId, setPlayingCallId, audioRef,
+  onShowOutbound, onSelectCall,
+}: {
+  agentId: string;
+  callsData: any;
+  callSearch: string;
+  setCallSearch: (v: string) => void;
+  playingCallId: string | null;
+  setPlayingCallId: (id: string | null) => void;
+  audioRef: RefObject<HTMLAudioElement | null>;
+  onShowOutbound: () => void;
+  onSelectCall: (id: string) => void;
+}) {
+  const searchLower = callSearch.toLowerCase();
+  const filtered = (callsData?.data ?? []).filter((c: any) => {
+    if (!callSearch || callSearch.length < 3) return true;
+    return (
+      c.contact?.phone?.includes(callSearch) ||
+      c.contact?.name?.toLowerCase().includes(searchLower)
+    );
+  });
+
+  const playRecording = useCallback(async (e: ReactMouseEvent, call: any) => {
+    e.stopPropagation();
+    if (playingCallId === call.id) {
+      audioRef.current?.pause();
+      setPlayingCallId(null);
+      return;
+    }
+    try {
+      const res = await api.get(`/agents/${agentId}/calls/${call.id}/recording`);
+      const url = res.data.data.url;
+      if (audioRef.current) {
+        audioRef.current.pause();
+      }
+      const audio = new Audio(url);
+      audioRef.current = audio;
+      audio.onended = () => setPlayingCallId(null);
+      audio.onerror = async () => {
+        // Signed URL might have expired — refetch
+        try {
+          const retry = await api.get(`/agents/${agentId}/calls/${call.id}/recording`);
+          audio.src = retry.data.data.url;
+          audio.play();
+        } catch {
+          setPlayingCallId(null);
+        }
+      };
+      await audio.play();
+      setPlayingCallId(call.id);
+    } catch {
+      setPlayingCallId(null);
+    }
+  }, [agentId, playingCallId, audioRef, setPlayingCallId]);
+
+  const downloadRecording = useCallback(async (e: ReactMouseEvent, call: any) => {
+    e.stopPropagation();
+    try {
+      const res = await api.get(`/agents/${agentId}/calls/${call.id}/recording/download`);
+      const a = document.createElement('a');
+      a.href = res.data.data.url;
+      a.download = `call-${call.id}.mp3`;
+      a.click();
+    } catch {}
+  }, [agentId]);
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-3">
+        <div className="relative flex-1 max-w-xs">
+          <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-muted)]" />
+          <input
+            type="text"
+            value={callSearch}
+            onChange={e => setCallSearch(e.target.value)}
+            placeholder="חיפוש לפי מספר / שם..."
+            dir="rtl"
+            className="w-full rounded-lg bg-[var(--bg-primary)] border border-[var(--border)] pr-9 pl-9 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]/30 transition-colors"
+          />
+          {callSearch && (
+            <button onClick={() => setCallSearch('')} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)] hover:text-[var(--text-primary)]">
+              <XIcon className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+        <span className="text-sm text-[var(--text-muted)] shrink-0">
+          {filtered.length} שיחות
+        </span>
+        <Button size="sm" onClick={onShowOutbound}>
+          <PhoneOutgoing className="w-3.5 h-3.5" />
+          שיחה יוצאת
+        </Button>
+      </div>
+
+      <Card>
+        <div className="divide-y divide-[var(--border)]">
+          {!filtered.length && (
+            <div className="px-6 py-12 text-center">
+              <MessageSquare className="w-10 h-10 mx-auto mb-3 text-[var(--text-muted)]" />
+              <p className="text-[var(--text-secondary)]">{callSearch.length >= 3 ? 'לא נמצאו תוצאות' : 'אין שיחות עדיין'}</p>
+            </div>
+          )}
+          {filtered.map((call: any) => (
+            <div
+              key={call.id}
+              className="px-5 py-3.5 flex items-center justify-between cursor-pointer hover:bg-[var(--bg-hover)] transition-colors"
+              onClick={() => onSelectCall(call.id)}
+            >
+              <div className="flex items-center gap-3">
+                <Badge variant={
+                  call.status === 'completed' ? 'success' :
+                  call.status === 'failed' ? 'danger' :
+                  call.status === 'in_call' ? 'warning' : 'info'
+                }>
+                  {call.status === 'in_call' && <Activity className="w-3 h-3 inline mr-1 animate-pulse" />}
+                  {call.status}
+                </Badge>
+                {call.durationSec != null && (
+                  <span className="text-xs text-[var(--text-muted)]">{formatDuration(call.durationSec)}</span>
+                )}
+                <Badge variant="neutral">{call.direction === 'inbound' ? 'נכנסת' : 'יוצאת'}</Badge>
+                {call.status === 'completed' && (
+                  <span className="text-xs text-[var(--text-muted)]">
+                    {call.transcriptSaved ? 'תמלול זמין' : 'מעבד...'}
+                  </span>
+                )}
+                {call.recordingStatus === 'processing' && (
+                  <Loader2 className="w-3.5 h-3.5 text-[var(--text-muted)] animate-spin" />
+                )}
+                {call.recordingStatus === 'ready' && (
+                  <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                    <button
+                      onClick={e => playRecording(e, call)}
+                      className="p-1 rounded hover:bg-[var(--bg-hover)] text-emerald-400 hover:text-emerald-300 transition-colors"
+                      title={playingCallId === call.id ? 'עצור' : 'נגן הקלטה'}
+                    >
+                      {playingCallId === call.id
+                        ? <Pause className="w-3.5 h-3.5" />
+                        : <Play className="w-3.5 h-3.5" />}
+                    </button>
+                    <button
+                      onClick={e => downloadRecording(e, call)}
+                      className="p-1 rounded hover:bg-[var(--bg-hover)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
+                      title="הורד MP3"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
+              </div>
+              <div className="text-left">
+                <p className="text-sm font-medium text-[var(--text-primary)]">
+                  {call.contact?.name || call.contact?.phone || 'לא ידוע'}
+                </p>
+                <p className="text-xs text-[var(--text-muted)]">
+                  {new Date(call.createdAt).toLocaleString('he-IL')}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+        {callsData?.meta && callsData.meta.total > (callsData.data?.length ?? 0) && (
+          <div className="px-5 py-3 border-t border-[var(--border)] text-center">
+            <span className="text-xs text-[var(--text-muted)]">
+              מציג {callsData.data.length} מתוך {callsData.meta.total}
+            </span>
+          </div>
+        )}
+      </Card>
     </div>
   );
 }

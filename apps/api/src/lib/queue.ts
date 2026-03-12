@@ -23,3 +23,4 @@ export function createWorker<T>(name: string, processor: Processor<T>, opts?: Pa
 }
 
 export const outboundQueue = createQueue('outbound-calls');
+export const recordingQueue = createQueue('recordings');

@@ -11,6 +11,33 @@ function getApiKey(): string {
   return key;
 }
 
+async function telnyxGet(path: string, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<any> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const res = await fetch(`${BASE_URL}${path}`, {
+      headers: { 'Authorization': `Bearer ${getApiKey()}` },
+      signal: controller.signal,
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      log.error('API error', undefined, { status: res.status, path });
+      throw new Error(`Telnyx API ${res.status}: ${text}`);
+    }
+
+    return res.json();
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      throw new Error(`Telnyx API timeout after ${timeoutMs}ms: ${path}`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function telnyxPost(path: string, body: Record<string, unknown>, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<any> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -57,6 +84,28 @@ export async function hangupCall(callControlId: string): Promise<void> {
     await telnyxPost(`/calls/${callControlId}/actions/hangup`, {});
   } catch {
     // Call may already be ended
+  }
+}
+
+export async function startRecording(callControlId: string): Promise<void> {
+  await telnyxPost(`/calls/${callControlId}/actions/record_start`, {
+    format: 'mp3',
+    channels: 'single',
+  });
+}
+
+export async function fetchRecordingByCallControlId(callControlId: string): Promise<{
+  id: string;
+  download_urls: { mp3: string };
+  duration_millis: number;
+} | null> {
+  try {
+    const res = await telnyxGet(`/recordings?filter[call_control_id]=${callControlId}&page[size]=1`);
+    const rec = res?.data?.[0];
+    if (!rec) return null;
+    return { id: rec.id, download_urls: rec.download_urls, duration_millis: rec.duration_millis };
+  } catch {
+    return null;
   }
 }
 

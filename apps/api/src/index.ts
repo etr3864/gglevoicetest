@@ -16,11 +16,14 @@ import outboundRoutes from './routes/outbound';
 import adminRoutes from './routes/admin';
 import calendarRoutes from './routes/calendar';
 import webhookRoutes from './routes/webhooks';
+import recordingRoutes from './routes/recordings';
 import eventsRouter from './routes/events';
 import { registerBuiltinTools } from './services/tools';
 import { attachWebSocket, activeConnectionCount } from './services/call';
 import { geminiKeyPool } from './services/providers';
 import { startOutboundWorker } from './workers/outbound';
+import { startRecordingWorker } from './services/recording/recording.worker';
+import { startRecordingCrons } from './services/recording/recording.cron';
 import { initPubSub, closePubSub } from './services/events/pubsub';
 import { sseManager } from './services/events/sse.manager';
 import { activeSessionCount } from './services/call/session';
@@ -81,6 +84,7 @@ app.use('/agents', calendarRoutes);
 app.use('/', eventsRouter);
 app.use('/agents', authMiddleware, agentRoutes);
 app.use('/', authMiddleware, callRoutes);
+app.use('/', recordingRoutes);
 app.use('/', authMiddleware, contactRoutes);
 app.use('/admin', authMiddleware, adminRoutes);
 
@@ -103,6 +107,8 @@ async function start() {
 
     registerBuiltinTools();
     startOutboundWorker();
+    startRecordingWorker();
+    startRecordingCrons();
     attachWebSocket(server);
 
     server.listen(PORT, '0.0.0.0', () => {

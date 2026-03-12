@@ -43,6 +43,7 @@ export function startOutboundWorker(): void {
     const { callControlId } = await dialOutbound(agent, phone, callId, agentId);
     log.info('Call dialing', { callId, elapsed: Date.now() - t0 });
 
+    await prisma.call.update({ where: { id: callId }, data: { callControlId } });
     await createSession({ callId, agentId, callControlId, contactPhone: phone });
   }, { concurrency: parseInt(process.env.OUTBOUND_CONCURRENCY || '20') });
 
