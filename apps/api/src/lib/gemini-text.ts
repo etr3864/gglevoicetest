@@ -1,6 +1,4 @@
-import { GoogleAuth } from 'google-auth-library';
-
-const auth = new GoogleAuth({ scopes: ['https://www.googleapis.com/auth/cloud-platform'] });
+import { geminiKeyPool } from '../services/providers/key-pool';
 
 const SUMMARY_MODEL = 'gemini-2.0-flash';
 const REQUEST_TIMEOUT_MS = 30_000;
@@ -11,15 +9,10 @@ export interface TextGenerationResult {
 }
 
 export async function generateText(systemPrompt: string, userContent: string): Promise<TextGenerationResult> {
-  const location = process.env.GCP_LOCATION || 'europe-west3';
-  const project = process.env.GCP_PROJECT_ID;
-  if (!project) throw new Error('GCP_PROJECT_ID missing');
+  const apiKey = geminiKeyPool.next();
+  if (!apiKey || apiKey === 'vertex-auth-mode') throw new Error('No Gemini API key available');
 
-  const client = await auth.getClient();
-  const { token } = await client.getAccessToken();
-  if (!token) throw new Error('Failed to get GCP access token');
-
-  const url = `https://${location}-aiplatform.googleapis.com/v1/projects/${project}/locations/${location}/publishers/google/models/${SUMMARY_MODEL}:generateContent`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${SUMMARY_MODEL}:generateContent?key=${apiKey}`;
 
   const body = {
     contents: [{ role: 'user', parts: [{ text: userContent }] }],
@@ -33,10 +26,15 @@ export async function generateText(systemPrompt: string, userContent: string): P
   try {
     const res = await fetch(url, {
       method: 'POST',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
       signal: controller.signal,
     });
+
+    if (res.status === 429) {
+      geminiKeyPool.markRateLimited(apiKey);
+      throw new Error('Gemini API rate limited');
+    }
 
     if (!res.ok) {
       const err = await res.text().catch(() => res.statusText);
