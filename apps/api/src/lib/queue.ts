@@ -15,7 +15,10 @@ function parseBullMQConnection(): ConnectionOptions {
 const connection = parseBullMQConnection();
 
 export function createQueue(name: string) {
-  return new Queue(name, { connection });
+  return new Queue(name, {
+    connection,
+    defaultJobOptions: { removeOnComplete: 1000, removeOnFail: 500 },
+  });
 }
 
 export function createWorker<T>(name: string, processor: Processor<T>, opts?: Partial<WorkerOptions>) {

@@ -15,7 +15,7 @@ interface RecordingJob {
   downloadUrl: string;
 }
 
-export function startRecordingWorker(): void {
+export function startRecordingWorker() {
   const worker = createWorker<RecordingJob>('recordings', processJob, { concurrency: 5 });
 
   worker.on('failed', (job, err) => {
@@ -26,6 +26,8 @@ export function startRecordingWorker(): void {
       reason: err?.message?.slice(0, 150),
     });
   });
+
+  return worker;
 }
 
 async function processJob(job: { data: RecordingJob; attemptsMade: number }): Promise<void> {

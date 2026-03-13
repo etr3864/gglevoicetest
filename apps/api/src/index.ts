@@ -106,8 +106,8 @@ async function start() {
     await initPubSub();
 
     registerBuiltinTools();
-    startOutboundWorker();
-    startRecordingWorker();
+    const outboundWorker = startOutboundWorker();
+    const recordingWorker = startRecordingWorker();
     startRecordingCrons();
     attachWebSocket(server);
 
@@ -124,6 +124,7 @@ async function start() {
 
       log.info('All calls finished, shutting down');
       sseManager.shutdown();
+      await Promise.all([outboundWorker.close(), recordingWorker.close()]);
       await closePubSub();
       server.close(() => process.exit(0));
     };

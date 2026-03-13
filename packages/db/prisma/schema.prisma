@@ -74,6 +74,7 @@ model Call {
   recordingDuration  Int?          @map("recording_duration")
   recordingSizeBytes Int?          @map("recording_size_bytes")
   telnyxRecordingId  String?       @unique @map("telnyx_recording_id")
+  retryCount         Int           @default(0) @map("retry_count")
   durationSec        Int?          @map("duration_sec")
   startedAt          DateTime?     @map("started_at")
   endedAt            DateTime?     @map("ended_at")

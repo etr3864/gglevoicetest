@@ -476,6 +476,7 @@ function CallsTab({
                    call.status === 'failed' ? 'נכשלה' :
                    call.status === 'queued' ? 'ממתין' : call.status}
                 </Badge>
+                {call.retryCount > 0 && <Badge variant="warning">חויג שנית</Badge>}
                 {call.durationSec != null && (
                   <span className="text-xs text-[var(--text-muted)]">{formatDuration(call.durationSec)}</span>
                 )}

@@ -44,13 +44,11 @@ router.post('/v1/calls', apikeyMiddleware, async (req, res) => {
 
   await publishCallEvent(agent.id, 'call_created', { call });
 
-  await outboundQueue.add('dial', {
-    callId: call.id,
-    agentId: agent.id,
-    contactId: contact.id,
-    phone,
-    context: body.context,
-  });
+  await outboundQueue.add(
+    'dial',
+    { callId: call.id, agentId: agent.id, contactId: contact.id, phone, context: body.context },
+    { attempts: 2, backoff: { type: 'fixed', delay: 8000 } },
+  );
 
   res.status(201).json({ data: { call_id: call.id, status: 'queued' } });
 });

@@ -101,13 +101,11 @@ router.post('/:id/outbound', async (req, res) => {
 
   await publishCallEvent(agent.id, 'call_created', { call });
 
-  await outboundQueue.add('dial', {
-    callId: call.id,
-    agentId: agent.id,
-    contactId: contact.id,
-    phone,
-    context,
-  });
+  await outboundQueue.add(
+    'dial',
+    { callId: call.id, agentId: agent.id, contactId: contact.id, phone, context },
+    { attempts: 2, backoff: { type: 'fixed', delay: 8000 } },
+  );
 
   res.status(201).json({ data: { callId: call.id, status: 'queued' } });
 });

@@ -28,26 +28,24 @@ function extractTelnyxError(err: unknown): { code?: string; reason?: string } {
   }
 }
 
-export function startOutboundWorker(): void {
+export function startOutboundWorker() {
   const worker = createWorker<OutboundJob>('outbound-calls', async (job) => {
     const { callId, agentId, phone, context } = job.data;
+    const isRetry = job.attemptsMade > 0;
 
     const t0 = Date.now();
     const agent = await validateAgent(callId, agentId);
-    await markCalling(callId, agentId);
-    log.info('Call queued', { callId, to: phone, agentId });
+    await markCalling(callId, agentId, isRetry);
+    log.info('Call queued', { callId, to: phone, agentId, attempt: job.attemptsMade + 1 });
 
     warmup(callId, agentId, phone, context).catch((err) => {
       log.error('Warmup failed', err, { callId });
     });
 
-    const { callControlId } = await dialOutbound(agent, phone, callId, agentId);
+    const callControlId = await resolveCallControlId(agent, phone, callId, agentId);
     log.info('Call dialing', { callId, elapsed: Date.now() - t0 });
 
-    await Promise.all([
-      createSession({ callId, agentId, callControlId, contactPhone: phone, direction: 'outbound', callContext: context }),
-      prisma.call.update({ where: { id: callId }, data: { callControlId } }),
-    ]);
+    await createSession({ callId, agentId, callControlId, contactPhone: phone, direction: 'outbound', callContext: context });
   }, { concurrency: parseInt(process.env.OUTBOUND_CONCURRENCY || '20') });
 
   worker.on('failed', (job, err) => {
@@ -59,6 +57,8 @@ export function startOutboundWorker(): void {
       reason: err?.message?.slice(0, 150),
     });
   });
+
+  return worker;
 }
 
 async function validateAgent(callId: string, agentId: string) {
@@ -76,9 +76,26 @@ async function validateAgent(callId: string, agentId: string) {
   return { ...agent, telnyxAppId: appId };
 }
 
-async function markCalling(callId: string, agentId: string): Promise<void> {
-  const call = await prisma.call.update({ where: { id: callId }, data: { status: 'calling' } });
+async function markCalling(callId: string, agentId: string, isRetry = false): Promise<void> {
+  const call = await prisma.call.update({
+    where: { id: callId },
+    data: { status: 'calling', ...(isRetry && { retryCount: { increment: 1 } }) },
+  });
   await publishCallEvent(agentId, 'call_updated', { call });
+}
+
+async function resolveCallControlId(
+  agent: { phoneNumber: string | null; telnyxAppId: string | null },
+  phone: string,
+  callId: string,
+  agentId: string,
+): Promise<string> {
+  const existing = await prisma.call.findUnique({ where: { id: callId }, select: { callControlId: true } });
+  if (existing?.callControlId) return existing.callControlId;
+
+  const { callControlId } = await dialOutbound(agent, phone, callId, agentId);
+  await prisma.call.update({ where: { id: callId }, data: { callControlId } });
+  return callControlId;
 }
 
 async function dialOutbound(
@@ -88,7 +105,6 @@ async function dialOutbound(
   agentId: string,
 ) {
   const webhookUrl = `${process.env.API_URL}/webhooks/telnyx`;
-
   const from = normalizePhone(agent.phoneNumber!);
   const to = normalizePhone(phone);
 

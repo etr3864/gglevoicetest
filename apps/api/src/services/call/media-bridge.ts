@@ -222,7 +222,10 @@ function teardown(callControlId: string | null): void {
     activeConnections.delete(callControlId);
   }
 
-  expire(callControlId);
+  getSession(callControlId).then((session) => {
+    if (session) expire(session.callId);
+  }).catch(() => {});
+
   endSession(callControlId).catch((err) => {
     log.error('Failed to end session', err, { callControlId });
   });
