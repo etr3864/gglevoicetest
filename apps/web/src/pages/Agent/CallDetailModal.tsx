@@ -1,9 +1,10 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { X, Trash2, Clock, Phone, Play, Pause, Download } from 'lucide-react';
+import { X, Trash2, Clock, Phone, Play, Pause, Download, RefreshCw, FileText, PhoneIncoming, PhoneOutgoing } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import api from '../../lib/api';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
+import { cn } from '../../lib/cn';
 
 interface Props {
   callId: string;
@@ -21,6 +22,12 @@ export default function CallDetailModal({ callId, onClose }: Props) {
   const { data: utterances } = useQuery({
     queryKey: ['call-utterances', callId],
     queryFn: () => api.get(`/calls/${callId}/utterances`).then(r => r.data.data),
+  });
+
+  const { data: summaryData } = useQuery({
+    queryKey: ['call-summary', callId],
+    queryFn: () => api.get(`/calls/${callId}/summary`).then(r => r.data.data),
+    enabled: call?.status === 'completed',
   });
 
   const remove = useMutation({
@@ -68,7 +75,11 @@ export default function CallDetailModal({ callId, onClose }: Props) {
               }>
                 {call.status}
               </Badge>
-              <Badge variant="neutral">{call.direction === 'inbound' ? 'נכנסת' : 'יוצאת'}</Badge>
+              <span title={call.direction === 'inbound' ? 'שיחה נכנסת' : 'שיחה יוצאת'}>
+                {call.direction === 'inbound'
+                  ? <PhoneIncoming className="w-3.5 h-3.5 text-blue-400" />
+                  : <PhoneOutgoing className="w-3.5 h-3.5 text-emerald-400" />}
+              </span>
               {call.durationSec != null && (
                 <span className="flex items-center gap-1 text-[var(--text-muted)]">
                   <Clock className="w-3.5 h-3.5" />
@@ -97,7 +108,12 @@ export default function CallDetailModal({ callId, onClose }: Props) {
           </div>
         )}
 
-        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
+        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+          {summaryData !== undefined && (
+            <SummarySection callId={callId} summary={summaryData} />
+          )}
+
+          <div className="space-y-3">
           {!utterances?.length && (
             <div className="text-center py-8 text-[var(--text-muted)]">אין תמליל לשיחה זו</div>
           )}
@@ -125,8 +141,65 @@ export default function CallDetailModal({ callId, onClose }: Props) {
               </div>
             </div>
           ))}
+          </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function SummarySection({ callId, summary }: { callId: string; summary: any }) {
+  const qc = useQueryClient();
+
+  const retry = useMutation({
+    mutationFn: () => api.post(`/calls/${callId}/summary/webhook-retry`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['call-summary', callId] }),
+  });
+
+  const WEBHOOK_BADGES: Record<string, { label: string; variant: 'success' | 'danger' | 'warning' | 'neutral' }> = {
+    SENT: { label: 'Webhook נשלח', variant: 'success' },
+    FAILED: { label: 'Webhook נכשל', variant: 'danger' },
+    PENDING: { label: 'Webhook ממתין', variant: 'warning' },
+    NONE: { label: '', variant: 'neutral' },
+  };
+
+  return (
+    <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-primary)]/40 p-4 space-y-3">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          {summary === null ? (
+            <span className="text-xs text-[var(--text-muted)]">לא נוצר סיכום לשיחה זו</span>
+          ) : (
+            <>
+              {summary.webhookStatus && summary.webhookStatus !== 'NONE' && (
+                <Badge variant={WEBHOOK_BADGES[summary.webhookStatus]?.variant ?? 'neutral'}>
+                  {WEBHOOK_BADGES[summary.webhookStatus]?.label}
+                </Badge>
+              )}
+              {summary.webhookStatus === 'FAILED' && (
+                <button
+                  onClick={() => retry.mutate()}
+                  disabled={retry.isPending}
+                  className="flex items-center gap-1 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+                >
+                  <RefreshCw className={cn('w-3 h-3', retry.isPending && 'animate-spin')} />
+                  שלח שנית
+                </button>
+              )}
+            </>
+          )}
+        </div>
+        <div className="flex items-center gap-1.5">
+          <FileText className="w-3.5 h-3.5 text-[var(--text-muted)]" />
+          <span className="text-xs font-medium text-[var(--text-secondary)]">סיכום</span>
+        </div>
+      </div>
+
+      {summary?.summaryText && (
+        <p className="text-sm text-[var(--text-primary)] leading-relaxed" dir="rtl">
+          {summary.summaryText}
+        </p>
+      )}
     </div>
   );
 }

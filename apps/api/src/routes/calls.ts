@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { prisma } from '@voice/db';
 import { AppError } from '../middleware/error-handler';
+import { enqueueWebhookRetry } from '../services/summary/webhook.service';
 
 const router = Router();
 
@@ -51,6 +52,19 @@ router.get('/calls/:id/utterances', async (req, res) => {
 router.delete('/calls/:id', async (req, res) => {
   await prisma.call.delete({ where: { id: req.params.id } });
   res.json({ data: { success: true } });
+});
+
+router.get('/calls/:id/summary', async (req, res) => {
+  const summary = await prisma.callSummary.findUnique({ where: { callId: req.params.id } });
+  res.json({ data: summary ?? null });
+});
+
+router.post('/calls/:id/summary/webhook-retry', async (req, res) => {
+  const summary = await prisma.callSummary.findUnique({ where: { callId: req.params.id } });
+  if (!summary) throw new AppError(404, 'NOT_FOUND', 'No summary for this call');
+  if (summary.webhookStatus === 'SENT') throw new AppError(400, 'ALREADY_SENT', 'Webhook already sent');
+  await enqueueWebhookRetry(summary.id);
+  res.json({ data: { queued: true } });
 });
 
 export default router;

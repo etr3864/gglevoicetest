@@ -60,6 +60,28 @@ router.post('/:id/regenerate-key', async (req, res) => {
   res.json({ data: { apiKey: agent.apiKey } });
 });
 
+router.post('/:id/webhook-test', async (req, res) => {
+  const agent = await prisma.agent.findUnique({ where: { id: req.params.id }, select: { webhookUrl: true, webhookSecret: true } });
+  if (!agent?.webhookUrl) throw new AppError(400, 'NO_WEBHOOK', 'No webhook URL configured');
+
+  const payload = JSON.stringify({ event: 'webhook_test', agent_id: req.params.id, timestamp: new Date().toISOString() });
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+
+  if (agent.webhookSecret) {
+    const { createHmac } = await import('crypto');
+    const sig = createHmac('sha256', agent.webhookSecret).update(payload).digest('hex');
+    headers['X-Signature'] = `sha256=${sig}`;
+  }
+
+  const t0 = Date.now();
+  try {
+    const r = await fetch(agent.webhookUrl, { method: 'POST', headers, body: payload, signal: AbortSignal.timeout(10_000) });
+    res.json({ data: { success: r.ok, statusCode: r.status, latencyMs: Date.now() - t0 } });
+  } catch (err) {
+    res.json({ data: { success: false, statusCode: null, latencyMs: Date.now() - t0, error: err instanceof Error ? err.message : 'error' } });
+  }
+});
+
 router.patch('/:id/status', async (req, res) => {
   const { status } = req.body;
   if (!['active', 'inactive'].includes(status)) {

@@ -1,6 +1,7 @@
 import { prisma } from '@voice/db';
 import { createLogger } from '../../lib/logger';
 import { redis } from '../../lib/redis';
+import { summaryQueue } from '../../lib/queue';
 import type { TranscriptEntry } from '../providers/types';
 import { publishCallEvent } from '../events/pubsub';
 
@@ -108,6 +109,10 @@ export async function endSession(callControlId: string): Promise<void> {
   await finalizeCallRecord(session, durationSec);
   await persistUtterances(session, transcripts);
   await updateContactStats(session, durationSec);
+
+  summaryQueue
+    .add('generate', { callId: session.callId }, { jobId: `summary-${session.callId}`, attempts: 3, backoff: { type: 'exponential', delay: 5000 } })
+    .catch((err) => log.error('Failed to enqueue summary', err, { callId: session.callId }));
 
   const customerUtterances = transcripts.filter(t => t.speaker === 'customer').length;
   const agentUtterances = transcripts.filter(t => t.speaker === 'agent').length;

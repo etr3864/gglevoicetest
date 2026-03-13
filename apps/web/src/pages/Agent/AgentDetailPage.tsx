@@ -21,13 +21,14 @@ import ContactDrawer from './ContactDrawer';
 import OutboundCallDialog from './OutboundCallDialog';
 import CalendarTab from './CalendarTab';
 
-type Tab = 'prompt' | 'calls' | 'contacts' | 'calendar' | 'settings';
+type Tab = 'prompt' | 'calls' | 'contacts' | 'calendar' | 'summaries' | 'settings';
 
 const tabs: { key: Tab; label: string; icon: typeof FileText }[] = [
   { key: 'prompt', label: 'System Prompt', icon: FileText },
   { key: 'calls', label: 'שיחות', icon: Phone },
   { key: 'contacts', label: 'אנשי קשר', icon: Users },
   { key: 'calendar', label: 'יומן', icon: Calendar },
+  { key: 'summaries', label: 'סיכומים', icon: MessageSquare },
   { key: 'settings', label: 'הגדרות', icon: Settings },
 ];
 
@@ -75,6 +76,16 @@ export default function AgentDetailPage() {
   const [openingMessage, setOpeningMessage] = useState('');
   const [inboundPrompt, setInboundPrompt] = useState('');
   const [inboundOpeningMessage, setInboundOpeningMessage] = useState('');
+  const [summaryForm, setSummaryForm] = useState({
+    summaryEnabled: false,
+    summaryMinDuration: 30,
+    summaryPrompt: '',
+    webhookUrl: '',
+    webhookSecret: '',
+    webhookRetryCount: 3,
+    webhookRetryDelay: 60,
+  });
+  const [webhookTestResult, setWebhookTestResult] = useState<{ success: boolean; statusCode: number | null; latencyMs: number } | null>(null);
   const [form, setForm] = useState({
     name: '',
     voice: 'Aoede',
@@ -96,6 +107,15 @@ export default function AgentDetailPage() {
       setOpeningMessage(agent.openingMessage || '');
       setInboundPrompt(agent.inboundSystemPrompt || '');
       setInboundOpeningMessage(agent.inboundOpeningMessage || '');
+      setSummaryForm({
+        summaryEnabled: agent.summaryEnabled ?? false,
+        summaryMinDuration: agent.summaryMinDuration ?? 30,
+        summaryPrompt: agent.summaryPrompt || '',
+        webhookUrl: agent.webhookUrl || '',
+        webhookSecret: agent.webhookSecret || '',
+        webhookRetryCount: agent.webhookRetryCount ?? 3,
+        webhookRetryDelay: agent.webhookRetryDelay ?? 60,
+      });
       setForm({
         name: agent.name,
         voice: agent.voice || 'Aoede',
@@ -373,6 +393,19 @@ export default function AgentDetailPage() {
       {/* ===== Calendar ===== */}
       {tab === 'calendar' && id && (
         <CalendarTab agentId={id} agent={agent} />
+      )}
+
+      {/* ===== Summaries ===== */}
+      {tab === 'summaries' && id && (
+        <SummariesTab
+          agentId={id}
+          form={summaryForm}
+          setForm={setSummaryForm}
+          webhookTestResult={webhookTestResult}
+          setWebhookTestResult={setWebhookTestResult}
+          onSave={(data) => updateSettings.mutate(data)}
+          isSaving={updateSettings.isPending}
+        />
       )}
 
       {/* ===== Settings ===== */}
@@ -930,6 +963,193 @@ function ApiReferenceCard({ agentId, apiKey: initialKey }: { agentId: string; ap
         </details>
       </CardContent>
     </Card>
+  );
+}
+
+const SAMPLE_WEBHOOK_PAYLOAD = JSON.stringify({
+  event: 'call_summary',
+  timestamp: '2026-03-13T14:30:00Z',
+  agent_id: '<agent_id>',
+  agent_name: 'שם הסוכן',
+  call_id: '<call_id>',
+  direction: 'outbound',
+  duration_sec: 245,
+  started_at: '2026-03-13T14:25:00Z',
+  ended_at: '2026-03-13T14:29:05Z',
+  customer_name: 'יוסי כהן',
+  customer_phone: '+972501234567',
+  recording_url: 'https://storage.googleapis.com/...',
+  utterance_count: 23,
+  call_context: null,
+  summary: 'תוכן הסיכום שנוצר על ידי ה-AI...',
+}, null, 2);
+
+function SummariesTab({ agentId, form, setForm, webhookTestResult, setWebhookTestResult, onSave, isSaving }: {
+  agentId: string;
+  form: any;
+  setForm: (fn: (f: any) => any) => void;
+  webhookTestResult: any;
+  setWebhookTestResult: (r: any) => void;
+  onSave: (data: Record<string, unknown>) => void;
+  isSaving: boolean;
+}) {
+  const [testingWebhook, setTestingWebhook] = useState(false);
+  const { toast } = useToast();
+
+  const testWebhook = async () => {
+    if (!form.webhookUrl) return;
+    setTestingWebhook(true);
+    try {
+      const res = await api.post(`/agents/${agentId}/webhook-test`);
+      setWebhookTestResult(res.data.data);
+    } catch {
+      setWebhookTestResult({ success: false, statusCode: null, latencyMs: 0 });
+    } finally {
+      setTestingWebhook(false);
+    }
+  };
+
+  const saveSummaryConfig = () => {
+    onSave({
+      summaryEnabled: form.summaryEnabled,
+      summaryMinDuration: form.summaryMinDuration,
+      summaryPrompt: form.summaryPrompt || null,
+      webhookUrl: form.webhookUrl || null,
+      webhookSecret: form.webhookSecret || null,
+      webhookRetryCount: form.webhookRetryCount,
+      webhookRetryDelay: form.webhookRetryDelay,
+    });
+  };
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <div className="px-5 pt-4 pb-2">
+          <h3 className="font-semibold text-[var(--text-primary)]">הגדרות סיכום</h3>
+        </div>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between">
+            <Toggle
+              checked={form.summaryEnabled}
+              onChange={(v) => setForm((f: any) => ({ ...f, summaryEnabled: v }))}
+            />
+            <span className="text-sm text-[var(--text-secondary)]">סיכומים מופעלים</span>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5 text-right">
+              מינימום אורך שיחה לסיכום (שניות)
+            </label>
+            <input
+              type="number"
+              min={0}
+              max={3600}
+              value={form.summaryMinDuration}
+              onChange={(e) => setForm((f: any) => ({ ...f, summaryMinDuration: parseInt(e.target.value) || 0 }))}
+              className="w-full rounded-lg bg-[var(--bg-primary)] border border-[var(--border)] px-4 py-2.5 text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]/30 transition-colors"
+              dir="ltr"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5 text-right">
+              הנחיות לסיכום (ריק = ברירת מחדל)
+            </label>
+            <textarea
+              value={form.summaryPrompt}
+              onChange={(e) => setForm((f: any) => ({ ...f, summaryPrompt: e.target.value }))}
+              rows={4}
+              className="w-full rounded-lg bg-[var(--bg-primary)] border border-[var(--border)] px-4 py-3 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]/30 resize-none transition-colors"
+              placeholder="לדוגמה: זהה אם הלקוח מעוניין לקנות, מה עלה בשיחה, ומה הצעד הבא."
+              dir="rtl"
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <div className="px-5 pt-4 pb-2">
+          <h3 className="font-semibold text-[var(--text-primary)]">Webhook</h3>
+        </div>
+        <CardContent className="space-y-4">
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              {form.webhookUrl && (
+                <button
+                  onClick={testWebhook}
+                  disabled={testingWebhook}
+                  className="flex items-center gap-1.5 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+                >
+                  <RefreshCw className={cn('w-3 h-3', testingWebhook && 'animate-spin')} />
+                  בדוק חיבור
+                </button>
+              )}
+              {webhookTestResult && (
+                <span className={`text-xs ${webhookTestResult.success ? 'text-emerald-400' : 'text-red-400'}`}>
+                  {webhookTestResult.success ? `${webhookTestResult.statusCode} OK (${webhookTestResult.latencyMs}ms)` : `נכשל (${webhookTestResult.statusCode ?? 'timeout'})`}
+                </span>
+              )}
+              <label className="text-sm font-medium text-[var(--text-secondary)]">Webhook URL</label>
+            </div>
+            <input
+              type="url"
+              value={form.webhookUrl}
+              onChange={(e) => { setForm((f: any) => ({ ...f, webhookUrl: e.target.value })); setWebhookTestResult(null); }}
+              className="w-full rounded-lg bg-[var(--bg-primary)] border border-[var(--border)] px-4 py-2.5 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]/30 transition-colors"
+              placeholder="https://hooks.yourapp.com/call-summary"
+              dir="ltr"
+            />
+          </div>
+
+          <Input
+            label="Webhook Secret (HMAC)"
+            value={form.webhookSecret}
+            onChange={(e) => setForm((f: any) => ({ ...f, webhookSecret: e.target.value }))}
+            dir="ltr"
+            placeholder="אופציונלי — לאימות חתימה"
+          />
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5 text-right">ניסיונות חוזרים</label>
+              <input
+                type="number" min={0} max={10}
+                value={form.webhookRetryCount}
+                onChange={(e) => setForm((f: any) => ({ ...f, webhookRetryCount: parseInt(e.target.value) || 0 }))}
+                className="w-full rounded-lg bg-[var(--bg-primary)] border border-[var(--border)] px-4 py-2.5 text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)] transition-colors"
+                dir="ltr"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5 text-right">השהייה בין ניסיונות (שניות)</label>
+              <input
+                type="number" min={1} max={3600}
+                value={form.webhookRetryDelay}
+                onChange={(e) => setForm((f: any) => ({ ...f, webhookRetryDelay: parseInt(e.target.value) || 60 }))}
+                className="w-full rounded-lg bg-[var(--bg-primary)] border border-[var(--border)] px-4 py-2.5 text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)] transition-colors"
+                dir="ltr"
+              />
+            </div>
+          </div>
+
+          <details className="group">
+            <summary className="text-xs text-[var(--text-muted)] cursor-pointer hover:text-[var(--text-secondary)] transition-colors">
+              דוגמת payload
+            </summary>
+            <pre className="mt-2 bg-[var(--bg-primary)] border border-[var(--border)] rounded-lg p-3 text-xs font-mono text-[var(--text-primary)] overflow-x-auto" dir="ltr">
+              {SAMPLE_WEBHOOK_PAYLOAD}
+            </pre>
+          </details>
+        </CardContent>
+      </Card>
+
+      <div className="flex justify-start">
+        <Button onClick={saveSummaryConfig} disabled={isSaving}>
+          <Save className="w-4 h-4" />
+          {isSaving ? 'שומר...' : 'שמור'}
+        </Button>
+      </div>
+    </div>
   );
 }
 

@@ -32,6 +32,13 @@ model Agent {
   openingMessage           String?       @map("opening_message") @db.Text
   inboundSystemPrompt      String?       @map("inbound_system_prompt") @db.Text
   inboundOpeningMessage    String?       @map("inbound_opening_message") @db.Text
+  summaryEnabled           Boolean       @default(false) @map("summary_enabled")
+  summaryPrompt            String?       @map("summary_prompt") @db.Text
+  summaryMinDuration       Int           @default(30) @map("summary_min_duration")
+  webhookUrl               String?       @map("webhook_url")
+  webhookSecret            String?       @map("webhook_secret")
+  webhookRetryCount        Int           @default(3) @map("webhook_retry_count")
+  webhookRetryDelay        Int           @default(60) @map("webhook_retry_delay")
   modelConfig          Json?         @map("model_config")
   activeHours          Json?         @map("active_hours")
   calendarConfig       Json?         @map("calendar_config")
@@ -41,6 +48,7 @@ model Agent {
   user                 User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
   calls                Call[]
   appointments         Appointment[]
+  summaries            CallSummary[]
 
   @@map("agents")
 }
@@ -85,6 +93,7 @@ model Call {
   contact            Contact?      @relation(fields: [contactId], references: [id])
   utterances         Utterance[]
   appointments       Appointment[]
+  summary            CallSummary?
 
   @@index([agentId, createdAt])
   @@index([callControlId])
@@ -125,4 +134,24 @@ model Appointment {
   @@index([agentId, startTime])
   @@index([contactId])
   @@map("appointments")
+}
+
+model CallSummary {
+  id               String    @id @default(uuid())
+  callId           String    @unique @map("call_id")
+  agentId          String    @map("agent_id")
+  summaryText      String    @map("summary_text") @db.Text
+  utteranceCount   Int       @map("utterance_count")
+  callDurationSec  Int       @map("call_duration_sec")
+  tokenCount       Int?      @map("token_count")
+  webhookStatus    String    @default("NONE") @map("webhook_status")
+  webhookAttempts  Int       @default(0) @map("webhook_attempts")
+  webhookLastError String?   @map("webhook_last_error") @db.Text
+  webhookSentAt    DateTime? @map("webhook_sent_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  call             Call      @relation(fields: [callId], references: [id], onDelete: Cascade)
+  agent            Agent     @relation(fields: [agentId], references: [id])
+
+  @@index([agentId, webhookStatus])
+  @@map("call_summaries")
 }

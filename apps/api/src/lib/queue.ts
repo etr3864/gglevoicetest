@@ -27,3 +27,8 @@ export function createWorker<T>(name: string, processor: Processor<T>, opts?: Pa
 
 export const outboundQueue = createQueue('outbound-calls');
 export const recordingQueue = createQueue('recordings');
+export const summaryQueue = createQueue('call-summaries');
+export const webhookQueue = new Queue('webhook-delivery', {
+  connection,
+  defaultJobOptions: { removeOnComplete: 1000, removeOnFail: 2000 },
+});

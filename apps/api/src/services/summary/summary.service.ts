@@ -1,0 +1,161 @@
+import { prisma, Prisma } from '@voice/db';
+import { createLogger } from '../../lib/logger';
+import { generateText } from '../../lib/gemini-text';
+import { webhookQueue } from '../../lib/queue';
+
+const log = createLogger('summary');
+
+const DEFAULT_SUMMARY_PROMPT = `You are summarizing a phone call for a business manager.
+Write a short, clear, and informative summary.
+Focus on: what the customer wanted, what was discussed, and the next step.
+Be concise. No formatting, no bullet points — plain text only.`;
+
+const MAX_TRANSCRIPT_CHARS = 80_000;
+
+export async function generateCallSummary(callId: string): Promise<void> {
+  const data = await fetchCallData(callId);
+  if (!data) return;
+
+  const { call, agent, utterances } = data;
+
+  if (!isEligible(call, agent, utterances.length)) return;
+
+  const prompt = buildPrompt(call, agent, utterances);
+  const t0 = Date.now();
+
+  let result;
+  try {
+    result = await generateText(agent.summaryPrompt || DEFAULT_SUMMARY_PROMPT, prompt);
+  } catch (err) {
+    log.error('Gemini summary failed', err, { callId });
+    throw err;
+  }
+
+  log.info('Summary generated', { callId, tokenCount: result.tokenCount, latencyMs: Date.now() - t0 });
+
+  const hasWebhook = !!agent.webhookUrl;
+  const summary = await saveSummary({
+    callId,
+    agentId: agent.id,
+    summaryText: result.text,
+    tokenCount: result.tokenCount,
+    utteranceCount: utterances.length,
+    callDurationSec: call.durationSec ?? 0,
+    webhookStatus: hasWebhook ? 'PENDING' : 'NONE',
+  });
+
+  if (hasWebhook && summary) {
+    await webhookQueue.add('deliver', { summaryId: summary.id }, { jobId: `webhook-${summary.id}` });
+  }
+}
+
+async function fetchCallData(callId: string) {
+  const call = await prisma.call.findUnique({
+    where: { id: callId },
+    include: {
+      agent: true,
+      contact: { select: { name: true, phone: true } },
+      utterances: { orderBy: { startMs: 'asc' } },
+    },
+  });
+
+  if (!call) {
+    log.warn('Call not found for summary', { callId });
+    return null;
+  }
+
+  return { call, agent: call.agent, utterances: call.utterances };
+}
+
+function isEligible(
+  call: { durationSec: number | null; status: string },
+  agent: { summaryEnabled: boolean; summaryMinDuration: number },
+  utteranceCount: number,
+): boolean {
+  if (!agent.summaryEnabled) return false;
+
+  const duration = call.durationSec ?? 0;
+  if (duration < agent.summaryMinDuration) return false;
+
+  if (utteranceCount === 0) {
+    log.warn('No utterances found for summary', { durationSec: duration });
+    return false;
+  }
+
+  return true;
+}
+
+function buildPrompt(
+  call: { direction: string; durationSec: number | null; startedAt: Date | null; context: unknown },
+  agent: { name: string },
+  utterances: { speaker: string; text: string; startMs: number }[],
+): string {
+  const duration = formatDuration(call.durationSec ?? 0);
+  const date = call.startedAt ? new Date(call.startedAt).toISOString() : 'unknown';
+
+  const lines: string[] = [
+    `Direction: ${call.direction}`,
+    `Duration: ${duration}`,
+    `Date: ${date}`,
+    `Agent: ${agent.name}`,
+  ];
+
+  if (call.context && typeof call.context === 'object' && Object.keys(call.context).length > 0) {
+    lines.push(`Call Context: ${JSON.stringify(call.context)}`);
+  }
+
+  lines.push('', 'Transcript:');
+
+  const transcriptLines = utterances.map(u => `[${u.speaker}]: ${u.text}`);
+  const transcriptStr = transcriptLines.join('\n');
+
+  if (transcriptStr.length > MAX_TRANSCRIPT_CHARS) {
+    const truncated = truncateTranscript(utterances);
+    lines.push(`[Transcript truncated — showing last ${truncated.length} utterances]`);
+    lines.push(...truncated.map(u => `[${u.speaker}]: ${u.text}`));
+  } else {
+    lines.push(transcriptStr);
+  }
+
+  return lines.join('\n');
+}
+
+function truncateTranscript(
+  utterances: { speaker: string; text: string; startMs: number }[],
+): typeof utterances {
+  let chars = 0;
+  const result: typeof utterances = [];
+  for (let i = utterances.length - 1; i >= 0; i--) {
+    chars += utterances[i].text.length + 12;
+    if (chars > MAX_TRANSCRIPT_CHARS) break;
+    result.unshift(utterances[i]);
+  }
+  return result;
+}
+
+async function saveSummary(params: {
+  callId: string;
+  agentId: string;
+  summaryText: string;
+  tokenCount: number | null;
+  utteranceCount: number;
+  callDurationSec: number;
+  webhookStatus: string;
+}) {
+  try {
+    return await prisma.callSummary.create({ data: params });
+  } catch (err) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+      log.info('Summary already exists (dedup)', { callId: params.callId });
+      return null;
+    }
+    throw err;
+  }
+}
+
+function formatDuration(sec: number): string {
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
