@@ -2,7 +2,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowRight, Save, Trash2, Settings, Phone, MessageSquare,
-  FileText, Users, PhoneCall, PhoneOutgoing, PhoneIncoming, Loader2, Calendar,
+  FileText, Users, PhoneCall, PhoneOutgoing, PhoneIncoming, PhoneMissed, Loader2, Calendar,
   Copy, Check, RefreshCw, Eye, EyeOff, Activity, Play, Pause,
   Download, Search, X as XIcon
 } from 'lucide-react';
@@ -434,12 +434,13 @@ export default function AgentDetailPage() {
   );
 }
 
-type DirectionFilter = 'all' | 'inbound' | 'outbound';
+type DirectionFilter = 'all' | 'inbound' | 'outbound' | 'no_answer';
 
 const DIRECTION_FILTERS: { key: DirectionFilter; label: string }[] = [
   { key: 'all', label: 'הכל' },
   { key: 'outbound', label: 'יוצאות' },
   { key: 'inbound', label: 'נכנסות' },
+  { key: 'no_answer', label: '📵 לא נענו' },
 ];
 
 function CallsTab({
@@ -460,7 +461,9 @@ function CallsTab({
   const [directionFilter, setDirectionFilter] = useState<DirectionFilter>('all');
   const searchLower = callSearch.toLowerCase();
   const filtered = (callsData?.data ?? []).filter((c: any) => {
-    if (directionFilter !== 'all' && c.direction !== directionFilter) return false;
+    if (directionFilter === 'no_answer') {
+      if (!(c.direction === 'outbound' && c.status === 'no_answer')) return false;
+    } else if (directionFilter !== 'all' && c.direction !== directionFilter) return false;
     if (!callSearch || callSearch.length < 3) return true;
     return (
       c.contact?.phone?.includes(callSearch) ||
@@ -577,6 +580,7 @@ function CallsTab({
                 <Badge variant={
                   call.status === 'completed' ? 'success' :
                   call.status === 'failed' ? 'danger' :
+                  call.status === 'no_answer' ? 'neutral' :
                   call.status === 'in_call' ? 'warning' :
                   call.status === 'ringing' ? 'warning' : 'info'
                 }>
@@ -587,12 +591,18 @@ function CallsTab({
                    call.status === 'in_call' ? 'בשיחה' :
                    call.status === 'completed' ? 'הושלמה' :
                    call.status === 'failed' ? 'נכשלה' :
+                   call.status === 'no_answer' ? 'לא נענתה' :
                    call.status === 'queued' ? 'ממתין' : call.status}
                 </Badge>
-                <span title={call.direction === 'inbound' ? 'שיחה נכנסת' : 'שיחה יוצאת'}>
-                  {call.direction === 'inbound'
-                    ? <PhoneIncoming className="w-3.5 h-3.5 text-blue-400 shrink-0" />
-                    : <PhoneOutgoing className="w-3.5 h-3.5 text-emerald-400 shrink-0" />}
+                <span title={
+                  call.status === 'no_answer' ? 'יוצאת — לא נענתה' :
+                  call.direction === 'inbound' ? 'שיחה נכנסת' : 'שיחה יוצאת'
+                }>
+                  {call.status === 'no_answer'
+                    ? <PhoneMissed className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                    : call.direction === 'inbound'
+                      ? <PhoneIncoming className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                      : <PhoneOutgoing className="w-3.5 h-3.5 text-emerald-400 shrink-0" />}
                 </span>
                 {call.retryCount > 0 && <Badge variant="warning">חויג שנית</Badge>}
                 {call.durationSec != null && (

@@ -133,9 +133,12 @@ export async function activeSessionCount(): Promise<number> {
 
 async function finalizeCallRecord(session: CallSession, durationSec: number): Promise<void> {
   try {
+    const current = await prisma.call.findUnique({ where: { id: session.callId }, select: { status: true } });
+    if (!current) return;
+    const finalStatus = current.status === 'in_call' ? 'completed' : current.status;
     const call = await prisma.call.update({
       where: { id: session.callId },
-      data: { status: 'completed', endedAt: new Date(), durationSec },
+      data: { status: finalStatus, endedAt: new Date(), durationSec },
     });
     await publishCallEvent(session.agentId, 'call_updated', { call });
   } catch (err) {

@@ -91,6 +91,7 @@ router.post('/telnyx', async (req, res) => {
             ...(payload.hangup_source && { hangupSource: payload.hangup_source }),
           });
         }
+        await markNoAnswerIfUnanswered(callControlId);
         await endSession(callControlId);
         break;
       }
@@ -176,6 +177,20 @@ async function handleIncomingCall(
   warmup(call.id, agent.id, phone, undefined, 'inbound').catch(() => {});
 
   await answerCall(callControlId, getStreamUrl());
+}
+
+async function markNoAnswerIfUnanswered(callControlId: string): Promise<void> {
+  const session = await getSession(callControlId);
+  if (!session) return;
+  const { count } = await prisma.call.updateMany({
+    where: { id: session.callId, status: { in: ['calling', 'ringing'] } },
+    data: { status: 'no_answer' },
+  });
+  if (count > 0) {
+    await publishCallEvent(session.agentId, 'call_updated', {
+      call: { id: session.callId, status: 'no_answer' },
+    });
+  }
 }
 
 export default router;
