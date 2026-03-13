@@ -2,7 +2,7 @@ import { GoogleAuth } from 'google-auth-library';
 
 const auth = new GoogleAuth({ scopes: ['https://www.googleapis.com/auth/cloud-platform'] });
 
-const SUMMARY_MODEL = 'gemini-2.0-flash-001';
+const SUMMARY_MODEL = 'gemini-2.0-flash';
 const REQUEST_TIMEOUT_MS = 30_000;
 
 export interface TextGenerationResult {
