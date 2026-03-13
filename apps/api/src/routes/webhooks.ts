@@ -173,7 +173,7 @@ async function handleIncomingCall(
     contactPhone: phone,
   });
 
-  warmup(call.id, agent.id, phone).catch(() => {});
+  warmup(call.id, agent.id, phone, undefined, 'inbound').catch(() => {});
 
   await answerCall(callControlId, getStreamUrl());
 }

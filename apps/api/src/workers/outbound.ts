@@ -38,14 +38,17 @@ export function startOutboundWorker() {
     await markCalling(callId, agentId, isRetry);
     log.info('Call queued', { callId, to: phone, agentId, attempt: job.attemptsMade + 1 });
 
-    warmup(callId, agentId, phone, context).catch((err) => {
+    warmup(callId, agentId, phone, context, 'outbound').catch((err) => {
       log.error('Warmup failed', err, { callId });
     });
 
-    const callControlId = await resolveCallControlId(agent, phone, callId, agentId);
+    const { callControlId, alreadyDialed } = await resolveCallControlId(agent, phone, callId, agentId);
     log.info('Call dialing', { callId, elapsed: Date.now() - t0 });
 
-    await createSession({ callId, agentId, callControlId, contactPhone: phone, direction: 'outbound', callContext: context });
+    await Promise.all([
+      createSession({ callId, agentId, callControlId, contactPhone: phone, direction: 'outbound', callContext: context }),
+      alreadyDialed ? Promise.resolve() : prisma.call.update({ where: { id: callId }, data: { callControlId } }),
+    ]);
   }, { concurrency: parseInt(process.env.OUTBOUND_CONCURRENCY || '20') });
 
   worker.on('failed', (job, err) => {
@@ -89,13 +92,12 @@ async function resolveCallControlId(
   phone: string,
   callId: string,
   agentId: string,
-): Promise<string> {
+): Promise<{ callControlId: string; alreadyDialed: boolean }> {
   const existing = await prisma.call.findUnique({ where: { id: callId }, select: { callControlId: true } });
-  if (existing?.callControlId) return existing.callControlId;
+  if (existing?.callControlId) return { callControlId: existing.callControlId, alreadyDialed: true };
 
   const { callControlId } = await dialOutbound(agent, phone, callId, agentId);
-  await prisma.call.update({ where: { id: callId }, data: { callControlId } });
-  return callControlId;
+  return { callControlId, alreadyDialed: false };
 }
 
 async function dialOutbound(

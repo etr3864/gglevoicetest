@@ -24,6 +24,8 @@ export const updateAgentSchema = z.object({
   name: z.string().min(1).max(100).optional(),
   basePrompt: z.string().max(25000).nullable().optional(),
   openingMessage: z.string().max(2000).nullable().optional(),
+  inboundSystemPrompt: z.string().max(25000).nullable().optional(),
+  inboundOpeningMessage: z.string().max(2000).nullable().optional(),
   status: z.enum(['active', 'inactive']).optional(),
   voice: z.string().max(50).optional(),
   phoneNumber: z.string().max(20).nullable().optional(),

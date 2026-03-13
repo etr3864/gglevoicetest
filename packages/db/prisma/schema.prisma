@@ -28,8 +28,10 @@ model Agent {
   telnyxAppId          String?       @map("telnyx_app_id")
   status               String        @default("active")
   voice                String        @default("Aoede")
-  basePrompt           String?       @map("base_prompt") @db.Text
-  openingMessage       String?       @map("opening_message") @db.Text
+  basePrompt               String?       @map("base_prompt") @db.Text
+  openingMessage           String?       @map("opening_message") @db.Text
+  inboundSystemPrompt      String?       @map("inbound_system_prompt") @db.Text
+  inboundOpeningMessage    String?       @map("inbound_opening_message") @db.Text
   modelConfig          Json?         @map("model_config")
   activeHours          Json?         @map("active_hours")
   calendarConfig       Json?         @map("calendar_config")

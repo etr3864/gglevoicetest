@@ -1,5 +1,30 @@
 import type { BusinessHours } from '@voice/shared';
 
+interface AgentPromptData {
+  basePrompt: string | null;
+  openingMessage: string | null;
+  inboundSystemPrompt?: string | null;
+  inboundOpeningMessage?: string | null;
+}
+
+const DIRECTION_SECTION: Record<'inbound' | 'outbound', string> = {
+  outbound: '\n\n--- Direction ---\nThis is an outbound call you are making. You initiated contact — begin the conversation proactively.',
+  inbound: '\n\n--- Direction ---\nThis is an inbound call. The customer called you — greet them warmly.',
+};
+
+export function resolveDirectionalPrompts(
+  agent: AgentPromptData,
+  direction: 'inbound' | 'outbound',
+): { baseSystemPrompt: string; openingMessage?: string } {
+  const isInbound = direction === 'inbound';
+  const baseSystemPrompt =
+    ((isInbound ? agent.inboundSystemPrompt || agent.basePrompt : agent.basePrompt) || 'You are a helpful voice assistant.') +
+    DIRECTION_SECTION[direction];
+  const openingMessage =
+    (isInbound ? agent.inboundOpeningMessage || agent.openingMessage : agent.openingMessage) ?? undefined;
+  return { baseSystemPrompt, openingMessage };
+}
+
 const TIMEZONE = 'Asia/Jerusalem';
 
 const DAY_NAMES_HE: Record<string, string> = {

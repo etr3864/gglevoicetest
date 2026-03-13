@@ -2,7 +2,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowRight, Save, Trash2, Settings, Phone, MessageSquare,
-  FileText, Users, PhoneCall, PhoneOutgoing, Loader2, Calendar,
+  FileText, Users, PhoneCall, PhoneOutgoing, PhoneIncoming, Loader2, Calendar,
   Copy, Check, RefreshCw, Eye, EyeOff, Activity, Play, Pause,
   Download, Search, X as XIcon
 } from 'lucide-react';
@@ -73,6 +73,8 @@ export default function AgentDetailPage() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [prompt, setPrompt] = useState('');
   const [openingMessage, setOpeningMessage] = useState('');
+  const [inboundPrompt, setInboundPrompt] = useState('');
+  const [inboundOpeningMessage, setInboundOpeningMessage] = useState('');
   const [form, setForm] = useState({
     name: '',
     voice: 'Aoede',
@@ -92,6 +94,8 @@ export default function AgentDetailPage() {
     if (agent) {
       setPrompt(agent.basePrompt || '');
       setOpeningMessage(agent.openingMessage || '');
+      setInboundPrompt(agent.inboundSystemPrompt || '');
+      setInboundOpeningMessage(agent.inboundOpeningMessage || '');
       setForm({
         name: agent.name,
         voice: agent.voice || 'Aoede',
@@ -104,7 +108,12 @@ export default function AgentDetailPage() {
   }, [agent]);
 
   const updatePrompt = useMutation({
-    mutationFn: () => api.patch(`/agents/${id}`, { basePrompt: prompt, openingMessage: openingMessage || null }),
+    mutationFn: () => api.patch(`/agents/${id}`, {
+      basePrompt: prompt,
+      openingMessage: openingMessage || null,
+      inboundSystemPrompt: inboundPrompt || null,
+      inboundOpeningMessage: inboundOpeningMessage || null,
+    }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['agent', id] });
       toast('פרומפט נשמר', 'success');
@@ -198,66 +207,108 @@ export default function AgentDetailPage() {
 
       {/* ===== System Prompt ===== */}
       {tab === 'prompt' && (
-        <>
-        <Card>
-          <div className="p-1">
-            <div className="flex items-center justify-between px-5 pt-4 pb-2">
-              <span className="text-xs text-[var(--text-muted)]">
-                {charCount} תווים &bull; {wordCount} מילים
-              </span>
-              <h3 className="font-semibold text-[var(--text-primary)]">System Prompt</h3>
+        <div className="space-y-4">
+          {/* Two-column layout: outbound | inbound */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Outbound */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 px-1">
+                <PhoneOutgoing className="w-4 h-4 text-emerald-400" />
+                <span className="text-sm font-semibold text-[var(--text-primary)]">שיחות יוצאות</span>
+              </div>
+              <Card>
+                <div className="p-1">
+                  <div className="flex items-center justify-between px-5 pt-4 pb-2">
+                    <span className="text-xs text-[var(--text-muted)]">{charCount} תווים &bull; {wordCount} מילים</span>
+                    <h3 className="font-semibold text-[var(--text-primary)] text-sm">System Prompt</h3>
+                  </div>
+                  <div className="px-3 pb-3">
+                    <textarea
+                      value={prompt}
+                      onChange={(e) => setPrompt(e.target.value)}
+                      rows={12}
+                      className="w-full rounded-lg bg-[var(--bg-primary)] border border-[var(--border)] px-4 py-3 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]/30 resize-none leading-relaxed transition-colors"
+                      placeholder="כתוב כאן את ההנחיות לסוכן לשיחות יוצאות..."
+                      dir="rtl"
+                    />
+                  </div>
+                </div>
+              </Card>
+              <Card>
+                <div className="p-1">
+                  <div className="flex items-center justify-between px-5 pt-4 pb-1">
+                    <span className="text-xs text-[var(--text-muted)]">{openingMessage.length} / 2000</span>
+                    <h3 className="font-semibold text-[var(--text-primary)] text-sm">הודעת פתיחה</h3>
+                  </div>
+                  <div className="px-3 pb-3">
+                    <textarea
+                      value={openingMessage}
+                      onChange={(e) => setOpeningMessage(e.target.value)}
+                      maxLength={2000}
+                      rows={3}
+                      className="w-full rounded-lg bg-[var(--bg-primary)] border border-[var(--border)] px-4 py-3 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]/30 resize-none leading-relaxed transition-colors"
+                      placeholder='לדוגמה: "Introduce yourself and explain why you are calling."'
+                      dir="ltr"
+                    />
+                  </div>
+                </div>
+              </Card>
             </div>
-            <div className="px-3 pb-3">
-              <textarea
-                value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
-                rows={14}
-                className="w-full rounded-lg bg-[var(--bg-primary)] border border-[var(--border)] px-4 py-3 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]/30 resize-none leading-relaxed transition-colors"
-                placeholder="כתוב כאן את ההנחיות לסוכן..."
-                dir="rtl"
-              />
-            </div>
-            <div className="px-5 pb-4 flex items-center justify-between">
-              <span className="text-xs text-[var(--text-muted)]">
-                הפרומפט הזה יתווסף לכל שיחה
-              </span>
-              <Button onClick={() => updatePrompt.mutate()} disabled={updatePrompt.isPending}>
-                <Save className="w-4 h-4" />
-                {updatePrompt.isPending ? 'שומר...' : 'שמור'}
-              </Button>
-            </div>
-          </div>
-        </Card>
 
-        <Card>
-          <div className="p-1">
-            <div className="flex items-center justify-between px-5 pt-4 pb-1">
-              <span className="text-xs text-[var(--text-muted)]">{openingMessage.length} / 2000</span>
-              <h3 className="font-semibold text-[var(--text-primary)]">הודעת פתיחה</h3>
-            </div>
-            <div className="px-5 pb-2">
-              <p className="text-xs text-[var(--text-muted)] text-right leading-relaxed">
-                הטקסט שנשלח לסוכן ברגע שהלקוח מחובר לשיחה — גורם לו להתחיל לדבר.
-                <br />
-                משפיע על: <strong className="text-[var(--text-secondary)]">מה הסוכן אומר ראשון</strong>, טון הפתיחה, שפה.
-                <br />
-                אם ריק, ברירת המחדל היא: <em>"The customer is now on the line. Greet them according to your system instructions."</em>
-              </p>
-            </div>
-            <div className="px-3 pb-3">
-              <textarea
-                value={openingMessage}
-                onChange={(e) => setOpeningMessage(e.target.value)}
-                maxLength={2000}
-                rows={3}
-                className="w-full rounded-lg bg-[var(--bg-primary)] border border-[var(--border)] px-4 py-3 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]/30 resize-none leading-relaxed transition-colors"
-                placeholder='לדוגמה: "The customer is now on the line. Introduce yourself and ask how you can help."'
-                dir="ltr"
-              />
+            {/* Inbound */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 px-1">
+                <PhoneIncoming className="w-4 h-4 text-blue-400" />
+                <span className="text-sm font-semibold text-[var(--text-primary)]">שיחות נכנסות</span>
+                <span className="text-xs text-[var(--text-muted)]">(ריק = fallback ליוצאות)</span>
+              </div>
+              <Card>
+                <div className="p-1">
+                  <div className="flex items-center justify-between px-5 pt-4 pb-2">
+                    <span className="text-xs text-[var(--text-muted)]">{inboundPrompt.length} תווים</span>
+                    <h3 className="font-semibold text-[var(--text-primary)] text-sm">System Prompt</h3>
+                  </div>
+                  <div className="px-3 pb-3">
+                    <textarea
+                      value={inboundPrompt}
+                      onChange={(e) => setInboundPrompt(e.target.value)}
+                      rows={12}
+                      className="w-full rounded-lg bg-[var(--bg-primary)] border border-[var(--border)] px-4 py-3 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]/30 resize-none leading-relaxed transition-colors"
+                      placeholder="אם ריק, ישתמש ב-System Prompt של שיחות יוצאות..."
+                      dir="rtl"
+                    />
+                  </div>
+                </div>
+              </Card>
+              <Card>
+                <div className="p-1">
+                  <div className="flex items-center justify-between px-5 pt-4 pb-1">
+                    <span className="text-xs text-[var(--text-muted)]">{inboundOpeningMessage.length} / 2000</span>
+                    <h3 className="font-semibold text-[var(--text-primary)] text-sm">הודעת פתיחה</h3>
+                  </div>
+                  <div className="px-3 pb-3">
+                    <textarea
+                      value={inboundOpeningMessage}
+                      onChange={(e) => setInboundOpeningMessage(e.target.value)}
+                      maxLength={2000}
+                      rows={3}
+                      className="w-full rounded-lg bg-[var(--bg-primary)] border border-[var(--border)] px-4 py-3 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]/30 resize-none leading-relaxed transition-colors"
+                      placeholder='אם ריק, ישתמש בהודעת הפתיחה של שיחות יוצאות...'
+                      dir="ltr"
+                    />
+                  </div>
+                </div>
+              </Card>
             </div>
           </div>
-        </Card>
-        </>
+
+          <div className="flex justify-end">
+            <Button onClick={() => updatePrompt.mutate()} disabled={updatePrompt.isPending}>
+              <Save className="w-4 h-4" />
+              {updatePrompt.isPending ? 'שומר...' : 'שמור'}
+            </Button>
+          </div>
+        </div>
       )}
 
       {/* ===== Calls ===== */}
@@ -350,6 +401,14 @@ export default function AgentDetailPage() {
   );
 }
 
+type DirectionFilter = 'all' | 'inbound' | 'outbound';
+
+const DIRECTION_FILTERS: { key: DirectionFilter; label: string }[] = [
+  { key: 'all', label: 'הכל' },
+  { key: 'outbound', label: 'יוצאות' },
+  { key: 'inbound', label: 'נכנסות' },
+];
+
 function CallsTab({
   agentId, callsData, callSearch, setCallSearch,
   playingCallId, setPlayingCallId, audioRef,
@@ -365,8 +424,10 @@ function CallsTab({
   onShowOutbound: () => void;
   onSelectCall: (id: string) => void;
 }) {
+  const [directionFilter, setDirectionFilter] = useState<DirectionFilter>('all');
   const searchLower = callSearch.toLowerCase();
   const filtered = (callsData?.data ?? []).filter((c: any) => {
+    if (directionFilter !== 'all' && c.direction !== directionFilter) return false;
     if (!callSearch || callSearch.length < 3) return true;
     return (
       c.contact?.phone?.includes(callSearch) ||
@@ -420,8 +481,8 @@ function CallsTab({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3">
-        <div className="relative flex-1 max-w-xs">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="relative flex-1 min-w-[160px] max-w-xs">
           <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-muted)]" />
           <input
             type="text"
@@ -437,6 +498,25 @@ function CallsTab({
             </button>
           )}
         </div>
+
+        {/* Direction segmented filter */}
+        <div className="flex rounded-lg border border-[var(--border)] overflow-hidden shrink-0">
+          {DIRECTION_FILTERS.map(({ key, label }) => (
+            <button
+              key={key}
+              onClick={() => setDirectionFilter(key)}
+              className={cn(
+                'px-3 py-1.5 text-xs font-medium transition-colors',
+                directionFilter === key
+                  ? 'bg-[var(--accent)] text-white'
+                  : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
         <span className="text-sm text-[var(--text-muted)] shrink-0">
           {filtered.length} שיחות
         </span>
@@ -476,11 +556,15 @@ function CallsTab({
                    call.status === 'failed' ? 'נכשלה' :
                    call.status === 'queued' ? 'ממתין' : call.status}
                 </Badge>
+                <span title={call.direction === 'inbound' ? 'שיחה נכנסת' : 'שיחה יוצאת'}>
+                  {call.direction === 'inbound'
+                    ? <PhoneIncoming className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                    : <PhoneOutgoing className="w-3.5 h-3.5 text-emerald-400 shrink-0" />}
+                </span>
                 {call.retryCount > 0 && <Badge variant="warning">חויג שנית</Badge>}
                 {call.durationSec != null && (
                   <span className="text-xs text-[var(--text-muted)]">{formatDuration(call.durationSec)}</span>
                 )}
-                <Badge variant="neutral">{call.direction === 'inbound' ? 'נכנסת' : 'יוצאת'}</Badge>
                 {call.status === 'completed' && (
                   <span className="text-xs text-[var(--text-muted)]">
                     {call.transcriptSaved ? 'תמלול זמין' : 'מעבד...'}

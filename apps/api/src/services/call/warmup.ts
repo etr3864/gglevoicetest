@@ -5,7 +5,7 @@ import { GeminiProvider, geminiKeyPool } from '../providers';
 import { globalRegistry } from '../tools';
 import type { DeepgramTranscriber } from '../transcription';
 import { buildContactContext } from '../contact-context';
-import { buildSchedulingPrompt } from './prompt-builder';
+import { buildSchedulingPrompt, resolveDirectionalPrompts } from './prompt-builder';
 import type { VoiceProvider, ProviderConfig, ProviderEvents } from '../providers/types';
 import { mergeModelConfig, type ModelConfig } from '../providers/types';
 
@@ -31,18 +31,22 @@ const BASE_NO_OP_EVENTS: Omit<ProviderEvents, 'onReady' | 'onAudio'> = {
   onClose: () => {},
 };
 
-export async function warmup(callId: string, agentId: string, contactPhone: string | null, callContext?: Record<string, unknown>): Promise<void> {
+export async function warmup(
+  callId: string,
+  agentId: string,
+  contactPhone: string | null,
+  callContext?: Record<string, unknown>,
+  direction: 'inbound' | 'outbound' = 'outbound',
+): Promise<void> {
   if (pending.has(callId) || ready.has(callId)) return;
 
-  const promise = doWarmup(callId, agentId, contactPhone, callContext);
+  const promise = doWarmup(callId, agentId, contactPhone, callContext, direction);
   pending.set(callId, promise);
 
   try {
     const entry = await promise;
     pending.delete(callId);
-    if (entry) {
-      ready.set(callId, entry);
-    }
+    if (entry) ready.set(callId, entry);
   } catch {
     pending.delete(callId);
   }
@@ -92,8 +96,9 @@ async function doWarmup(
   agentId: string,
   contactPhone: string | null,
   callContext?: Record<string, unknown>,
+  direction: 'inbound' | 'outbound' = 'outbound',
 ): Promise<WarmEntry | null> {
-  const config = await buildProviderConfig(agentId, contactPhone, callContext);
+  const config = await buildProviderConfig(agentId, contactPhone, callContext, direction);
   if (!config) return null;
 
   const preloadedAudio: Buffer[] = [];
@@ -128,6 +133,7 @@ async function buildProviderConfig(
   agentId: string,
   contactPhone: string | null,
   callContext?: Record<string, unknown>,
+  direction: 'inbound' | 'outbound' = 'outbound',
 ): Promise<ProviderConfig | null> {
   const [agent, contactCtx] = await Promise.all([
     prisma.agent.findUnique({ where: { id: agentId } }),
@@ -139,7 +145,9 @@ async function buildProviderConfig(
     return null;
   }
 
-  let systemPrompt = agent.basePrompt || 'You are a helpful voice assistant.';
+  const { baseSystemPrompt, openingMessage } = resolveDirectionalPrompts(agent as any, direction);
+
+  let systemPrompt = baseSystemPrompt;
   if (contactCtx) systemPrompt += `\n\n${contactCtx.promptSection}`;
   if (callContext && Object.keys(callContext).length > 0) {
     systemPrompt += '\n\n--- Call Context ---\n';
@@ -154,7 +162,7 @@ async function buildProviderConfig(
     model: GEMINI_MODEL,
     voice: agent.voice || DEFAULT_VOICE,
     systemPrompt,
-    openingMessage: (agent as Record<string, unknown>).openingMessage as string | undefined ?? undefined,
+    openingMessage,
     modelConfig: mergeModelConfig((agent as Record<string, unknown>).modelConfig as Partial<ModelConfig> | undefined),
     tools: globalRegistry.getDefinitions(),
   };

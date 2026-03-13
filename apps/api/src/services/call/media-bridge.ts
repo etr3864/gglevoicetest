@@ -12,7 +12,7 @@ import { DeepgramTranscriber } from '../transcription';
 import type { VoiceProvider, ProviderEvents, ProviderConfig } from '../providers/types';
 import { mergeModelConfig, type ModelConfig } from '../providers/types';
 import { buildContactContext } from '../contact-context';
-import { buildSchedulingPrompt } from './prompt-builder';
+import { buildSchedulingPrompt, resolveDirectionalPrompts } from './prompt-builder';
 import { redis } from '../../lib/redis';
 import { audioWorkerPool } from '../../lib/audio';
 import {
@@ -247,7 +247,9 @@ async function connectProvider(
     return null;
   }
 
-  let systemPrompt = agent.basePrompt || 'You are a helpful voice assistant.';
+  const { baseSystemPrompt, openingMessage } = resolveDirectionalPrompts(agent as any, session.direction);
+
+  let systemPrompt = baseSystemPrompt;
   if (contactCtx) systemPrompt += `\n\n${contactCtx.promptSection}`;
   if (session.callContext && Object.keys(session.callContext).length > 0) {
     systemPrompt += '\n\n--- Call Context ---\n';
@@ -262,7 +264,7 @@ async function connectProvider(
     model: GEMINI_MODEL,
     voice: agent.voice || DEFAULT_VOICE,
     systemPrompt,
-    openingMessage: (agent as Record<string, unknown>).openingMessage as string | undefined ?? undefined,
+    openingMessage,
     modelConfig: mergeModelConfig((agent as Record<string, unknown>).modelConfig as Partial<ModelConfig> | undefined),
     tools: globalRegistry.getDefinitions(),
   };
