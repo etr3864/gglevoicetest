@@ -1,3 +1,5 @@
+# Set TZ=Asia/Jerusalem in your shell before running the API locally:
+#   export TZ=Asia/Jerusalem && pnpm dev
 services:
   postgres:
     image: postgres:16-alpine
