@@ -158,19 +158,19 @@ export default function CalendarTab({ agentId, agent }: Props) {
             const active = !!hours[day];
             const inputCls = "rounded-lg bg-[var(--bg-primary)] border border-[var(--border)] px-3 py-1.5 text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)]";
             return (
-              <div key={day} className="flex items-center justify-between">
-                {/* RIGHT: day name + toggle */}
+              <div key={day} className="flex items-center gap-4">
+                {/* Day name + toggle (rightmost in RTL) */}
                 <div className="flex items-center gap-3">
                   <span className="text-sm text-[var(--text-primary)] w-12">{DAY_LABELS[day]}</span>
                   <Toggle checked={active} onChange={() => toggleDay(day)} />
                 </div>
-                {/* LEFT: hours */}
+                {/* Hours — adjacent to toggle, reading RTL: מ [start] עד [end] */}
                 {active ? (
-                  <div className="flex items-center gap-2 text-sm" dir="ltr">
+                  <div className="flex items-center gap-2 text-sm">
                     <span className="text-[var(--text-muted)]">מ</span>
-                    <input type="time" value={hours[day]!.start} onChange={(e) => updateDayTime(day, 'start', e.target.value)} className={inputCls} />
+                    <input dir="ltr" type="time" value={hours[day]!.start} onChange={(e) => updateDayTime(day, 'start', e.target.value)} className={inputCls} />
                     <span className="text-[var(--text-muted)]">עד</span>
-                    <input type="time" value={hours[day]!.end} onChange={(e) => updateDayTime(day, 'end', e.target.value)} className={inputCls} />
+                    <input dir="ltr" type="time" value={hours[day]!.end} onChange={(e) => updateDayTime(day, 'end', e.target.value)} className={inputCls} />
                   </div>
                 ) : (
                   <span className="text-xs text-[var(--text-muted)]">סגור</span>
