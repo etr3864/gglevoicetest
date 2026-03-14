@@ -60,6 +60,13 @@ export function buildSchedulingPrompt(agent: AgentScheduleData): string {
     sections.push(formatBusinessHours(hours));
   }
 
+  sections.push(
+    'Scheduling flow:\n' +
+    '- To book: call check_availability → present up to 3 options clearly (e.g. "10:00, 11:30, or 14:00") → wait for the customer to choose → call book_appointment.\n' +
+    '- To reschedule or cancel: call get_contact_appointments first to get the appointmentId, confirm with the customer which appointment, then call reschedule_appointment or cancel_appointment.\n' +
+    '- Never book or cancel without explicit customer confirmation.',
+  );
+
   if (agent.calendarInstructions) {
     sections.push(agent.calendarInstructions);
   }

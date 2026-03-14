@@ -13,55 +13,45 @@ import {
 import type { BusinessHours, CalendarConfig } from '@voice/shared';
 
 const SLOT_DURATION_MIN = 30;
+const MAX_VOICE_SLOTS = 5;
 
 export function registerCalendarTools(): void {
   globalRegistry.register(
     {
+      name: 'get_contact_appointments',
+      description: 'Get the upcoming appointments for the current customer. Call this FIRST when a customer wants to reschedule or cancel — you need the appointmentId before calling reschedule_appointment or cancel_appointment.',
+      parameters: {},
+    },
+    async (_args, ctx) => getContactAppointments(ctx),
+  );
+
+  globalRegistry.register(
+    {
       name: 'check_availability',
-      description: 'Check available appointment slots for a specific date. Returns a list of available time windows.',
+      description: 'Check available appointment slots for a specific date. Call this FIRST before booking — present up to 3 options to the customer and wait for their confirmation before calling book_appointment.',
       parameters: {
-        date: {
-          type: 'string',
-          description: 'The date to check availability for, in YYYY-MM-DD format',
-        },
+        date: { type: 'string', description: 'Date to check in YYYY-MM-DD format' },
       },
       required: ['date'],
     },
-    async (args, ctx) => {
-      return checkAvailability(args.date as string, ctx);
-    },
+    async (args, ctx) => checkAvailability(args.date as string, ctx),
   );
 
   globalRegistry.register(
     {
       name: 'book_appointment',
-      description: 'Book an appointment at a specific date and time. Validates the slot is available before booking.',
+      description: 'Book an appointment. Only call AFTER the customer has verbally confirmed a specific date and time from check_availability results.',
       parameters: {
-        date: {
-          type: 'string',
-          description: 'Appointment date in YYYY-MM-DD format',
-        },
-        time: {
-          type: 'string',
-          description: 'Appointment start time in HH:MM format (24h)',
-        },
-        duration: {
-          type: 'number',
-          description: 'Duration in minutes (default 30)',
-        },
-        title: {
-          type: 'string',
-          description: 'Appointment title/purpose',
-        },
-        description: {
-          type: 'string',
-          description: 'Optional additional details',
-        },
+        date: { type: 'string', description: 'Appointment date in YYYY-MM-DD format' },
+        time: { type: 'string', description: 'Start time in HH:MM format (24h)' },
+        duration: { type: 'number', description: 'Duration in minutes (default 30)' },
+        title: { type: 'string', description: 'Appointment title/purpose' },
+        description: { type: 'string', description: 'Optional additional details' },
       },
       required: ['date', 'time', 'title'],
     },
-    async (args, ctx) => {
-      return bookAppointment(
+    async (args, ctx) =>
+      bookAppointment(
         {
           date: args.date as string,
           time: args.time as string,
@@ -70,59 +60,66 @@ export function registerCalendarTools(): void {
           description: args.description as string | undefined,
         },
         ctx,
-      );
-    },
+      ),
   );
 
   globalRegistry.register(
     {
       name: 'reschedule_appointment',
-      description: 'Reschedule an existing appointment to a new date/time. Finds the appointment by the contact phone and moves it.',
+      description: 'Reschedule an existing appointment. Requires appointmentId from get_contact_appointments. Check availability on the new date first.',
       parameters: {
-        appointmentId: {
-          type: 'string',
-          description: 'The appointment ID to reschedule',
-        },
-        newDate: {
-          type: 'string',
-          description: 'New date in YYYY-MM-DD format',
-        },
-        newTime: {
-          type: 'string',
-          description: 'New start time in HH:MM format (24h)',
-        },
+        appointmentId: { type: 'string', description: 'The appointment ID to reschedule' },
+        newDate: { type: 'string', description: 'New date in YYYY-MM-DD format' },
+        newTime: { type: 'string', description: 'New start time in HH:MM format (24h)' },
       },
       required: ['appointmentId', 'newDate', 'newTime'],
     },
-    async (args, ctx) => {
-      return rescheduleAppointment(
-        args.appointmentId as string,
-        args.newDate as string,
-        args.newTime as string,
-        ctx,
-      );
-    },
+    async (args, ctx) =>
+      rescheduleAppointment(args.appointmentId as string, args.newDate as string, args.newTime as string, ctx),
   );
 
   globalRegistry.register(
     {
       name: 'cancel_appointment',
-      description: 'Cancel an existing appointment. Removes it from Google Calendar and marks it as cancelled.',
+      description: 'Cancel an existing appointment. Requires appointmentId from get_contact_appointments. Always confirm with the customer before cancelling.',
       parameters: {
-        appointmentId: {
-          type: 'string',
-          description: 'The appointment ID to cancel',
-        },
+        appointmentId: { type: 'string', description: 'The appointment ID to cancel' },
       },
       required: ['appointmentId'],
     },
-    async (args, ctx) => {
-      return cancelAppointment(args.appointmentId as string, ctx);
-    },
+    async (args, ctx) => cancelAppointment(args.appointmentId as string, ctx),
   );
 }
 
 // --- Handlers ---
+
+async function getContactAppointments(ctx: ToolContext) {
+  if (!ctx.contactPhone) return { found: false, appointments: [] };
+  const now = new Date();
+  const appointments = await prisma.appointment.findMany({
+    where: {
+      agentId: ctx.agentId,
+      phone: ctx.contactPhone,
+      status: 'scheduled',
+      startTime: { gte: now },
+    },
+    orderBy: { startTime: 'asc' },
+    take: 5,
+  });
+
+  if (appointments.length === 0) return { found: false, appointments: [] };
+
+  return {
+    found: true,
+    appointments: appointments.map(a => ({
+      appointmentId: a.id,
+      title: a.title,
+      date: a.startTime.toLocaleDateString('he-IL', { timeZone: TIMEZONE }),
+      time: a.startTime.toLocaleTimeString('he-IL', { timeZone: TIMEZONE, hour: '2-digit', minute: '2-digit' }),
+      duration: a.duration,
+    })),
+  };
+}
 
 async function checkAvailability(date: string, ctx: ToolContext) {
   const agent = await prisma.agent.findUnique({ where: { id: ctx.agentId } });
@@ -153,9 +150,10 @@ async function checkAvailability(date: string, ctx: ToolContext) {
   ]);
 
   const allBusy = mergeBusySlots(busySlots, localAppointments);
-  const available = computeAvailableSlots(dayHours.start, dayHours.end, allBusy, date);
+  const allSlots = computeAvailableSlots(dayHours.start, dayHours.end, allBusy, date);
+  const slots = allSlots.slice(0, MAX_VOICE_SLOTS);
 
-  return { available: available.length > 0, slots: available, date, timezone: TIMEZONE };
+  return { available: slots.length > 0, slots, date, timezone: TIMEZONE };
 }
 
 async function bookAppointment(
@@ -308,21 +306,16 @@ function getDayHours(
 }
 
 function toISOWithTZ(date: string, time: string): string {
-  const dt = new Date(`${date}T${time}:00`);
-  const formatter = new Intl.DateTimeFormat('en-CA', {
+  // Probe with UTC+2 (Israel winter); if Jerusalem local time disagrees, we're in DST (UTC+3)
+  const probeDate = new Date(`${date}T${time}:00+02:00`);
+  const jeruTime = probeDate.toLocaleString('en-GB', {
     timeZone: TIMEZONE,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
     hour: '2-digit',
     minute: '2-digit',
-    second: '2-digit',
     hour12: false,
   });
-
-  const parts = formatter.formatToParts(dt);
-  const get = (type: string) => parts.find(p => p.type === type)?.value ?? '';
-  return `${get('year')}-${get('month')}-${get('day')}T${time}:00+02:00`;
+  const offset = jeruTime === time ? '+02:00' : '+03:00';
+  return `${date}T${time}:00${offset}`;
 }
 
 function mergeBusySlots(
