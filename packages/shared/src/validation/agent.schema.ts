@@ -43,5 +43,6 @@ export const updateAgentSchema = z.object({
   activeHours: z.record(timeSlotSchema).nullable().optional(),
   calendarInstructions: z.string().max(5000).nullable().optional(),
   businessHours: z.record(timeSlotSchema).nullable().optional(),
+  calendarConfig: z.record(z.unknown()).nullable().optional(),
   modelConfig: modelConfigSchema,
 });

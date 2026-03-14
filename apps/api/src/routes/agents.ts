@@ -43,6 +43,11 @@ router.patch('/:id', async (req, res) => {
   if (data.activeHours === null) data.activeHours = Prisma.DbNull;
   if (data.businessHours === null) data.businessHours = Prisma.DbNull;
 
+  if (data.calendarConfig !== undefined) {
+    const existing = await prisma.agent.findUnique({ where: { id: req.params.id }, select: { calendarConfig: true } });
+    data.calendarConfig = { ...(existing?.calendarConfig as Record<string, unknown> ?? {}), ...(data.calendarConfig as Record<string, unknown>) };
+  }
+
   const agent = await prisma.agent.update({ where: { id: req.params.id }, data });
   res.json({ data: agent });
 });
