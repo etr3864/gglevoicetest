@@ -2,7 +2,7 @@ import crypto from 'crypto';
 import { prisma } from '@voice/db';
 import { createLogger } from '../../lib/logger';
 import { appointmentWebhookQueue } from '../../lib/queue';
-import { TIMEZONE } from './google';
+import { formatDateISO, formatTime } from '../../lib/date';
 
 const log = createLogger('appointment-webhook');
 const SEND_TIMEOUT_MS = 10_000;
@@ -80,8 +80,8 @@ function buildPayload(
     customer_name: appointment.contact?.name ?? null,
     customer_phone: appointment.phone,
     title: appointment.title,
-    date: appointment.startTime.toLocaleDateString('en-CA', { timeZone: TIMEZONE }),
-    time: appointment.startTime.toLocaleTimeString('en-GB', { timeZone: TIMEZONE, hour: '2-digit', minute: '2-digit', hour12: false }),
+    date: formatDateISO(appointment.startTime),
+    time: formatTime(appointment.startTime),
     duration_min: appointment.duration,
     call_id: appointment.callId ?? null,
   };

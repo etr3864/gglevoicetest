@@ -76,12 +76,15 @@ COPY --from=builder /app/apps/api/dist         ./apps/api/dist
 COPY packages/db/prisma ./packages/db/prisma
 RUN pnpm dlx prisma@6 generate --schema=packages/db/prisma/schema.prisma
 
+RUN apk add --no-cache tzdata
+
 RUN chown -R nodejs:nodejs /app
 USER nodejs
 
 WORKDIR /app/apps/api
 
 ENV NODE_ENV=production
+ENV TZ=Asia/Jerusalem
 EXPOSE 3000
 
 CMD ["node", "dist/index.js"]

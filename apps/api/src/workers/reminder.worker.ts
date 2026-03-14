@@ -4,7 +4,7 @@ import { createWorker, outboundQueue, scheduleReminderSafetyScan } from '../lib/
 import { runSafetyScan } from '../services/reminders/reminder.service';
 import { normalizePhone } from '../lib/phone';
 import { publishCallEvent } from '../services/events/pubsub';
-import { TIMEZONE } from '../services/calendar/google';
+import { formatDateLong, formatTime } from '../lib/date';
 
 const log = createLogger('reminder-worker');
 
@@ -136,8 +136,8 @@ function buildAiReminderPrompt(reminder: {
 }): string {
   const { appointment, contact, agent } = reminder;
   const startTime = appointment.startTime;
-  const date = startTime.toLocaleDateString('he-IL', { timeZone: TIMEZONE, day: 'numeric', month: 'long', year: 'numeric' });
-  const time = startTime.toLocaleTimeString('he-IL', { timeZone: TIMEZONE, hour: '2-digit', minute: '2-digit' });
+  const date = formatDateLong(startTime);
+  const time = formatTime(startTime);
 
   const base = agent.basePrompt || 'You are a helpful voice assistant.';
 

@@ -2,7 +2,7 @@ import { prisma } from '@voice/db';
 import { createLogger } from '../../lib/logger';
 import { reminderQueue } from '../../lib/queue';
 import type { CalendarConfig, ReminderConfig, ReminderRule } from '@voice/shared';
-import { TIMEZONE } from '../calendar/google';
+import { formatDateLong, formatTime, formatWeekday } from '../../lib/date';
 
 const log = createLogger('reminder-service');
 
@@ -204,9 +204,9 @@ function interpolateTemplate(
   const { appointment, contact, agentName } = ctx;
   const startTime = appointment.startTime;
 
-  const date = startTime.toLocaleDateString('he-IL', { timeZone: TIMEZONE, day: 'numeric', month: 'long', year: 'numeric' });
-  const time = startTime.toLocaleTimeString('he-IL', { timeZone: TIMEZONE, hour: '2-digit', minute: '2-digit' });
-  const day = startTime.toLocaleDateString('he-IL', { timeZone: TIMEZONE, weekday: 'long' });
+  const date = formatDateLong(startTime);
+  const time = formatTime(startTime);
+  const day = formatWeekday(startTime);
 
   return template
     .replace(/{customer_name}/g, contact?.name ?? appointment.phone)

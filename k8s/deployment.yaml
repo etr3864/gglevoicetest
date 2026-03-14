@@ -41,6 +41,8 @@ spec:
           env:
             - name: NODE_ENV
               value: "production"
+            - name: TZ
+              value: "Asia/Jerusalem"
             - name: PORT
               value: "3000"
             - name: API_URL

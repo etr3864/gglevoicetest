@@ -2,6 +2,7 @@ import { prisma } from '@voice/db';
 import { globalRegistry } from './registry';
 import type { ToolContext } from './registry';
 import { registerCalendarTools } from './calendar';
+import { formatTimestamp } from '../../lib/date';
 
 export function registerBuiltinTools(): void {
   registerCalendarTools();
@@ -60,7 +61,7 @@ export function registerBuiltinTools(): void {
         const contact = await prisma.contact.findUnique({ where: { phone: ctx.contactPhone } });
         if (contact) {
           const existing = contact.notes || '';
-          const timestamp = new Date().toLocaleString('he-IL');
+          const timestamp = formatTimestamp(new Date());
           const newNotes = `${existing}\n[${timestamp}] ${args.content}`.trim();
           await prisma.contact.update({
             where: { id: contact.id },

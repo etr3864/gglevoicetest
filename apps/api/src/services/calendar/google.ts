@@ -1,6 +1,9 @@
 import { prisma } from '@voice/db';
 import { createLogger } from '../../lib/logger';
 import type { CalendarConfig } from '@voice/shared';
+import { TIMEZONE } from '../../lib/date';
+
+export { TIMEZONE };
 
 const log = createLogger('google-calendar');
 
@@ -8,8 +11,6 @@ const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const GOOGLE_CALENDAR_BASE = 'https://www.googleapis.com/calendar/v3';
 const API_TIMEOUT_MS = 8_000;
 const TOKEN_REFRESH_BUFFER_MS = 5 * 60 * 1000;
-
-export const TIMEZONE = 'Asia/Jerusalem';
 
 function getClientCredentials() {
   const clientId = process.env.GOOGLE_CLIENT_ID;

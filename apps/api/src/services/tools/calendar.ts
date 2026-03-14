@@ -7,9 +7,9 @@ import {
   createEvent,
   updateEvent,
   deleteEvent,
-  TIMEZONE,
   type FreeBusySlot,
 } from '../calendar/google';
+import { TIMEZONE, formatDate, formatTime, toISOWithTimezone } from '../../lib/date';
 import { appointmentWebhookQueue } from '../../lib/queue';
 import type { BusinessHours, CalendarConfig } from '@voice/shared';
 import {
@@ -120,8 +120,8 @@ async function getContactAppointments(ctx: ToolContext) {
     appointments: appointments.map(a => ({
       appointmentId: a.id,
       title: a.title,
-      date: a.startTime.toLocaleDateString('he-IL', { timeZone: TIMEZONE }),
-      time: a.startTime.toLocaleTimeString('he-IL', { timeZone: TIMEZONE, hour: '2-digit', minute: '2-digit' }),
+      date: formatDate(a.startTime),
+      time: formatTime(a.startTime),
       duration: a.duration,
     })),
   };
@@ -140,8 +140,8 @@ async function checkAvailability(date: string, ctx: ToolContext) {
   }
 
   const { token, calendarId } = await getValidToken(ctx.agentId);
-  const timeMin = toISOWithTZ(date, dayHours.start);
-  const timeMax = toISOWithTZ(date, dayHours.end);
+  const timeMin = toISOWithTimezone(date, dayHours.start);
+  const timeMax = toISOWithTimezone(date, dayHours.end);
 
   const [busySlots, localAppointments] = await Promise.all([
     getFreeBusy(token, calendarId, timeMin, timeMax),
@@ -171,7 +171,7 @@ async function bookAppointment(
     return { error: 'Calendar not connected for this agent' };
   }
 
-  const startISO = toISOWithTZ(params.date, params.time);
+  const startISO = toISOWithTimezone(params.date, params.time);
   const endDate = new Date(startISO);
   endDate.setMinutes(endDate.getMinutes() + params.duration);
   const endISO = endDate.toISOString();
@@ -244,7 +244,7 @@ async function rescheduleAppointment(
 
   const { token, calendarId } = await getValidToken(ctx.agentId);
 
-  const newStartISO = toISOWithTZ(newDate, newTime);
+  const newStartISO = toISOWithTimezone(newDate, newTime);
   const newEnd = new Date(newStartISO);
   newEnd.setMinutes(newEnd.getMinutes() + appointment.duration);
   const newEndISO = newEnd.toISOString();
@@ -332,18 +332,6 @@ function getDayHours(
   return hours ?? null;
 }
 
-function toISOWithTZ(date: string, time: string): string {
-  // Probe with UTC+2 (Israel winter); if Jerusalem local time disagrees, we're in DST (UTC+3)
-  const probeDate = new Date(`${date}T${time}:00+02:00`);
-  const jeruTime = probeDate.toLocaleString('en-GB', {
-    timeZone: TIMEZONE,
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  });
-  const offset = jeruTime === time ? '+02:00' : '+03:00';
-  return `${date}T${time}:00${offset}`;
-}
 
 function mergeBusySlots(
   googleBusy: FreeBusySlot[],
@@ -362,8 +350,8 @@ function computeAvailableSlots(
   busy: { start: number; end: number }[],
   dateStr: string,
 ): { start: string; end: string }[] {
-  const dayStartMs = new Date(toISOWithTZ(dateStr, dayStart)).getTime();
-  const dayEndMs = new Date(toISOWithTZ(dateStr, dayEnd)).getTime();
+  const dayStartMs = new Date(toISOWithTimezone(dateStr, dayStart)).getTime();
+  const dayEndMs = new Date(toISOWithTimezone(dateStr, dayEnd)).getTime();
   const slotMs = SLOT_DURATION_MIN * 60 * 1000;
   const slots: { start: string; end: string }[] = [];
 
@@ -385,5 +373,5 @@ function computeAvailableSlots(
 }
 
 function fmtTime(ms: number): string {
-  return new Date(ms).toLocaleTimeString('en-GB', { timeZone: TIMEZONE, hour: '2-digit', minute: '2-digit' });
+  return formatTime(new Date(ms));
 }

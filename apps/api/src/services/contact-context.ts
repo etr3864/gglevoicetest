@@ -1,5 +1,6 @@
 import { prisma } from '@voice/db';
 import { normalizePhone } from '../lib/phone';
+import { formatDate, formatTime } from '../lib/date';
 
 const MAX_CALLS = 3;
 const MAX_UTTERANCES_PER_CALL = 30;
@@ -33,7 +34,7 @@ export async function buildContactContext(rawPhone: string): Promise<ContactCont
   parts.push(`Total calls: ${contact.totalCalls}`);
 
   if (contact.lastCallAt) {
-    parts.push(`Last call: ${contact.lastCallAt.toLocaleDateString('he-IL')}`);
+    parts.push(`Last call: ${formatDate(contact.lastCallAt)}`);
   }
 
   if (contact.notes) {
@@ -79,9 +80,9 @@ function formatAppointment(apt: {
   endTime: Date;
   duration: number;
 }): string {
-  const date = apt.startTime.toLocaleDateString('he-IL');
-  const start = apt.startTime.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
-  const end = apt.endTime.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
+  const date = formatDate(apt.startTime);
+  const start = formatTime(apt.startTime);
+  const end = formatTime(apt.endTime);
   return `- [ID: ${apt.id}] "${apt.title}" on ${date} ${start}-${end} (${apt.duration}min)`;
 }
 
@@ -91,7 +92,7 @@ function formatCallTranscript(call: {
   durationSec: number | null;
   utterances: { speaker: string; text: string }[];
 }): string {
-  const date = call.createdAt.toLocaleDateString('he-IL');
+  const date = formatDate(call.createdAt);
   const dir = call.direction === 'inbound' ? 'incoming' : 'outgoing';
   const dur = call.durationSec ? `${Math.round(call.durationSec / 60)}min` : '';
 

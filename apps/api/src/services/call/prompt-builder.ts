@@ -1,4 +1,5 @@
 import type { BusinessHours } from '@voice/shared';
+import { formatNow } from '../../lib/date';
 
 interface AgentPromptData {
   basePrompt: string | null;
@@ -24,8 +25,6 @@ export function resolveDirectionalPrompts(
     (isInbound ? agent.inboundOpeningMessage || agent.openingMessage : agent.openingMessage) ?? undefined;
   return { baseSystemPrompt, openingMessage };
 }
-
-const TIMEZONE = 'Asia/Jerusalem';
 
 const DAY_NAMES_HE: Record<string, string> = {
   sunday: 'ראשון',
@@ -76,18 +75,6 @@ export function buildSchedulingPrompt(agent: AgentScheduleData): string {
   }
 
   return '\n\n--- Scheduling Context ---\n' + sections.join('\n\n');
-}
-
-function formatNow(): string {
-  return new Date().toLocaleString('he-IL', {
-    timeZone: TIMEZONE,
-    weekday: 'long',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
 }
 
 function formatBusinessHours(hours: BusinessHours): string {
