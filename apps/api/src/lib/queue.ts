@@ -36,3 +36,15 @@ export const appointmentWebhookQueue = new Queue('appointment-webhooks', {
   connection,
   defaultJobOptions: { removeOnComplete: 1000, removeOnFail: 2000 },
 });
+export const reminderQueue = new Queue('reminder-calls', {
+  connection,
+  defaultJobOptions: { removeOnComplete: 500, removeOnFail: 1000 },
+});
+
+export async function scheduleReminderSafetyScan(): Promise<void> {
+  await reminderQueue.add(
+    'safety-scan',
+    {},
+    { repeat: { every: 3_600_000 }, jobId: 'reminder-safety-scan' },
+  );
+}

@@ -51,6 +51,7 @@ model Agent {
   calls                Call[]
   appointments         Appointment[]
   summaries            CallSummary[]
+  scheduledReminders   ScheduledReminder[]
 
   @@map("agents")
 }
@@ -67,8 +68,9 @@ model Contact {
   totalDurationSec Int           @default(0) @map("total_duration_sec")
   lastCallAt       DateTime?     @map("last_call_at")
   createdAt        DateTime      @default(now()) @map("created_at")
-  calls            Call[]
-  appointments     Appointment[]
+  calls              Call[]
+  appointments       Appointment[]
+  scheduledReminders ScheduledReminder[]
 
   @@map("contacts")
 }
@@ -79,6 +81,7 @@ model Call {
   contactId          String?       @map("contact_id")
   callControlId      String?       @map("call_control_id")
   direction          String
+  callType           String        @default("regular") @map("call_type")
   status             String        @default("queued")
   context            Json?
   recordingUrl       String?       @map("recording_url")
@@ -96,6 +99,7 @@ model Call {
   utterances         Utterance[]
   appointments       Appointment[]
   summary            CallSummary?
+  scheduledReminders ScheduledReminder[]
 
   @@index([agentId, createdAt])
   @@index([callControlId])
@@ -133,13 +137,41 @@ model Appointment {
   webhookLastError String?   @map("webhook_last_error") @db.Text
   webhookSentAt    DateTime? @map("webhook_sent_at")
   createdAt        DateTime  @default(now()) @map("created_at")
-  agent            Agent     @relation(fields: [agentId], references: [id])
-  contact          Contact?  @relation(fields: [contactId], references: [id])
-  call             Call?     @relation(fields: [callId], references: [id])
+  agent             Agent               @relation(fields: [agentId], references: [id])
+  contact           Contact?            @relation(fields: [contactId], references: [id])
+  call              Call?               @relation(fields: [callId], references: [id])
+  scheduledReminders ScheduledReminder[]
 
   @@index([agentId, startTime])
   @@index([contactId])
   @@map("appointments")
+}
+
+model ScheduledReminder {
+  id              String    @id @default(uuid())
+  appointmentId   String    @map("appointment_id")
+  agentId         String    @map("agent_id")
+  contactId       String?   @map("contact_id")
+  callId          String?   @map("call_id")
+  ruleIndex       Int       @map("rule_index")
+  scheduledFor    DateTime  @map("scheduled_for")
+  status          String    @default("PENDING")
+  contentType     String    @map("content_type")
+  resolvedContent String?   @map("resolved_content") @db.Text
+  attempts        Int       @default(0)
+  lastAttemptAt   DateTime? @map("last_attempt_at")
+  lastError       String?   @map("last_error") @db.Text
+  bullmqJobId     String?   @map("bullmq_job_id")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  appointment     Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  agent           Agent       @relation(fields: [agentId], references: [id])
+  contact         Contact?    @relation(fields: [contactId], references: [id])
+  call            Call?       @relation(fields: [callId], references: [id])
+
+  @@unique([appointmentId, ruleIndex])
+  @@index([agentId, status])
+  @@index([scheduledFor, status])
+  @@map("scheduled_reminders")
 }
 
 model CallSummary {

@@ -11,7 +11,7 @@ const log = createLogger('outbound-worker');
 interface OutboundJob {
   callId: string;
   agentId: string;
-  contactId: string;
+  contactId?: string;
   phone: string;
   context?: Record<string, unknown>;
 }

@@ -20,14 +20,16 @@ import CallDetailModal from './CallDetailModal';
 import ContactDrawer from './ContactDrawer';
 import OutboundCallDialog from './OutboundCallDialog';
 import CalendarTab from './CalendarTab';
+import RemindersTab from './RemindersTab';
 
-type Tab = 'prompt' | 'calls' | 'contacts' | 'calendar' | 'summaries' | 'settings';
+type Tab = 'prompt' | 'calls' | 'contacts' | 'calendar' | 'reminders' | 'summaries' | 'settings';
 
 const tabs: { key: Tab; label: string; icon: typeof FileText }[] = [
   { key: 'prompt', label: 'System Prompt', icon: FileText },
   { key: 'calls', label: 'שיחות', icon: Phone },
   { key: 'contacts', label: 'אנשי קשר', icon: Users },
   { key: 'calendar', label: 'יומן', icon: Calendar },
+  { key: 'reminders', label: 'תזכורות', icon: PhoneOutgoing },
   { key: 'summaries', label: 'סיכומים', icon: MessageSquare },
   { key: 'settings', label: 'הגדרות', icon: Settings },
 ];
@@ -397,6 +399,11 @@ export default function AgentDetailPage() {
       {/* ===== Calendar ===== */}
       {tab === 'calendar' && id && (
         <CalendarTab agentId={id} agent={agent} />
+      )}
+
+      {/* ===== Reminders ===== */}
+      {tab === 'reminders' && id && (
+        <RemindersTab agentId={id} agent={agent} />
       )}
 
       {/* ===== Summaries ===== */}

@@ -1,0 +1,153 @@
+import { prisma } from '@voice/db';
+import { createLogger } from '../lib/logger';
+import { createWorker, outboundQueue, scheduleReminderSafetyScan } from '../lib/queue';
+import { runSafetyScan } from '../services/reminders/reminder.service';
+import { normalizePhone } from '../lib/phone';
+import { publishCallEvent } from '../services/events/pubsub';
+import { TIMEZONE } from '../services/calendar/google';
+
+const log = createLogger('reminder-worker');
+
+const DIRECTION_REMINDER = '\n\n--- Direction ---\nThis is an outbound reminder call. Your goal is to deliver the reminder to the customer and answer any questions they may have.';
+
+interface ReminderJob {
+  reminderId: string;
+}
+
+export function startReminderWorker() {
+  const worker = createWorker<ReminderJob | Record<string, never>>(
+    'reminder-calls',
+    async (job) => {
+      if (job.name === 'safety-scan') {
+        await runSafetyScan();
+        return;
+      }
+      await executeReminder((job.data as ReminderJob).reminderId);
+    },
+    { concurrency: 5 },
+  );
+
+  worker.on('failed', (job, err) => {
+    log.error('Reminder job failed', undefined, { jobId: job?.id, reason: err?.message?.slice(0, 150) });
+  });
+
+  scheduleReminderSafetyScan().catch((err) => {
+    log.error('Failed to schedule safety scan', err);
+  });
+
+  return worker;
+}
+
+async function executeReminder(reminderId: string): Promise<void> {
+  const reminder = await prisma.scheduledReminder.findUnique({
+    where: { id: reminderId },
+    include: { appointment: true, agent: true, contact: true },
+  });
+
+  if (!reminder) {
+    log.warn('Reminder not found', { reminderId });
+    return;
+  }
+
+  if (reminder.status !== 'PENDING') {
+    log.info('Reminder already processed', { reminderId, status: reminder.status });
+    return;
+  }
+
+  if (reminder.appointment.status !== 'scheduled') {
+    await prisma.scheduledReminder.update({
+      where: { id: reminderId },
+      data: { status: 'CANCELLED' },
+    });
+    return;
+  }
+
+  await prisma.scheduledReminder.update({
+    where: { id: reminderId },
+    data: { status: 'CALLING', attempts: { increment: 1 }, lastAttemptAt: new Date() },
+  });
+
+  const callContext = buildCallContext(reminder);
+  const phone = normalizePhone(reminder.appointment.phone);
+
+  try {
+    const call = await prisma.call.create({
+      data: {
+        agentId: reminder.agentId,
+        contactId: reminder.contactId,
+        direction: 'outbound',
+        callType: 'reminder',
+        status: 'queued',
+        startedAt: new Date(),
+      },
+    });
+
+    await prisma.scheduledReminder.update({
+      where: { id: reminderId },
+      data: { callId: call.id },
+    });
+
+    await publishCallEvent(reminder.agentId, 'call_created', { call });
+
+    const delay = Math.round(Math.random() * 30_000);
+    await outboundQueue.add(
+      'dial',
+      { callId: call.id, agentId: reminder.agentId, phone, context: callContext },
+      { attempts: 1, delay },
+    );
+  } catch (err) {
+    log.error('Failed to launch reminder call', err, { reminderId });
+    await prisma.scheduledReminder.update({
+      where: { id: reminderId },
+      data: { status: 'PENDING', lastError: err instanceof Error ? err.message : String(err) },
+    });
+    throw err;
+  }
+}
+
+function buildCallContext(reminder: {
+  id: string;
+  contentType: string;
+  resolvedContent: string | null;
+  agent: { name: string; basePrompt: string | null };
+  appointment: { title: string; startTime: Date; duration: number; description: string | null };
+  contact: { name: string | null } | null;
+}): Record<string, unknown> {
+  const base: Record<string, unknown> = {
+    callType: 'reminder',
+    reminderId: reminder.id,
+  };
+
+  if (reminder.contentType === 'template' && reminder.resolvedContent) {
+    const agentBase = reminder.agent.basePrompt || 'You are a helpful voice assistant.';
+    base.__systemPrompt = agentBase + DIRECTION_REMINDER;
+    base.__openingMessage = reminder.resolvedContent;
+  } else {
+    base.__systemPrompt = buildAiReminderPrompt(reminder);
+  }
+
+  return base;
+}
+
+function buildAiReminderPrompt(reminder: {
+  agent: { name: string; basePrompt: string | null };
+  appointment: { title: string; startTime: Date; duration: number; description: string | null };
+  contact: { name: string | null } | null;
+}): string {
+  const { appointment, contact, agent } = reminder;
+  const startTime = appointment.startTime;
+  const date = startTime.toLocaleDateString('he-IL', { timeZone: TIMEZONE, day: 'numeric', month: 'long', year: 'numeric' });
+  const time = startTime.toLocaleTimeString('he-IL', { timeZone: TIMEZONE, hour: '2-digit', minute: '2-digit' });
+
+  const base = agent.basePrompt || 'You are a helpful voice assistant.';
+
+  return `${base}${DIRECTION_REMINDER}
+
+--- Reminder Context ---
+Customer name: ${contact?.name ?? 'Unknown'}
+Appointment title: ${appointment.title}
+Date: ${date}
+Time: ${time}
+Duration: ${appointment.duration} minutes
+${appointment.description ? `Details: ${appointment.description}` : ''}`.trim();
+}

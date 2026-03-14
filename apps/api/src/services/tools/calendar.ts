@@ -12,6 +12,11 @@ import {
 } from '../calendar/google';
 import { appointmentWebhookQueue } from '../../lib/queue';
 import type { BusinessHours, CalendarConfig } from '@voice/shared';
+import {
+  createRemindersForAppointment,
+  cancelRemindersForAppointment,
+  rescheduleReminders,
+} from '../reminders/reminder.service';
 
 const SLOT_DURATION_MIN = 30;
 const MAX_VOICE_SLOTS = 5;
@@ -211,6 +216,8 @@ async function bookAppointment(
     .add('deliver', { appointmentId: appointment.id, event: 'appointment_booked' }, { jobId: `appt-webhook-${appointment.id}-booked` })
     .catch(() => {});
 
+  createRemindersForAppointment(appointment, agent).catch(() => {});
+
   return {
     booked: true,
     appointmentId: appointment.id,
@@ -266,6 +273,11 @@ async function rescheduleAppointment(
     .add('deliver', { appointmentId, event: 'appointment_rescheduled' }, { jobId: `appt-webhook-${appointmentId}-rescheduled` })
     .catch(() => {});
 
+  const updatedAgent = await prisma.agent.findUnique({ where: { id: ctx.agentId } });
+  if (updatedAgent) {
+    rescheduleReminders(appointmentId, new Date(newStartISO), updatedAgent).catch(() => {});
+  }
+
   return {
     rescheduled: true,
     appointmentId,
@@ -297,6 +309,8 @@ async function cancelAppointment(appointmentId: string, ctx: ToolContext) {
   appointmentWebhookQueue
     .add('deliver', { appointmentId, event: 'appointment_cancelled' }, { jobId: `appt-webhook-${appointmentId}-cancelled` })
     .catch(() => {});
+
+  cancelRemindersForAppointment(appointmentId).catch(() => {});
 
   return { cancelled: true, appointmentId };
 }

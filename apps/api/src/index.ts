@@ -15,6 +15,7 @@ import contactRoutes from './routes/contacts';
 import outboundRoutes from './routes/outbound';
 import adminRoutes from './routes/admin';
 import calendarRoutes from './routes/calendar';
+import reminderRoutes from './routes/reminders';
 import webhookRoutes from './routes/webhooks';
 import recordingRoutes from './routes/recordings';
 import eventsRouter from './routes/events';
@@ -26,6 +27,7 @@ import { startRecordingWorker } from './services/recording/recording.worker';
 import { startSummaryWorker } from './workers/summary.worker';
 import { startWebhookWorker } from './workers/webhook.worker';
 import { startAppointmentWebhookWorker } from './workers/appointment-webhook.worker';
+import { startReminderWorker } from './workers/reminder.worker';
 import { startRecordingCrons } from './services/recording/recording.cron';
 import { initPubSub, closePubSub } from './services/events/pubsub';
 import { sseManager } from './services/events/sse.manager';
@@ -84,6 +86,7 @@ app.use('/', outboundRoutes);
 app.use('/webhooks', webhookRoutes);
 
 app.use('/agents', calendarRoutes);
+app.use('/agents', authMiddleware, reminderRoutes);
 app.use('/', eventsRouter);
 app.use('/agents', authMiddleware, agentRoutes);
 app.use('/', authMiddleware, callRoutes);
@@ -114,6 +117,7 @@ async function start() {
     const summaryWorker = startSummaryWorker();
     const webhookWorker = startWebhookWorker();
     const appointmentWebhookWorker = startAppointmentWebhookWorker();
+    const reminderWorker = startReminderWorker();
     startRecordingCrons();
     attachWebSocket(server);
 
@@ -130,7 +134,7 @@ async function start() {
 
       log.info('All calls finished, shutting down');
       sseManager.shutdown();
-      await Promise.all([outboundWorker.close(), recordingWorker.close(), summaryWorker.close(), webhookWorker.close(), appointmentWebhookWorker.close()]);
+      await Promise.all([outboundWorker.close(), recordingWorker.close(), summaryWorker.close(), webhookWorker.close(), appointmentWebhookWorker.close(), reminderWorker.close()]);
       await closePubSub();
       server.close(() => process.exit(0));
     };

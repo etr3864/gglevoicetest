@@ -131,9 +131,12 @@ async function buildProviderConfig(
   callContext?: Record<string, unknown>,
   direction: 'inbound' | 'outbound' = 'outbound',
 ): Promise<ProviderConfig | null> {
+  const systemPromptOverride = callContext?.__systemPrompt as string | undefined;
+  const openingMessageOverride = callContext?.__openingMessage as string | undefined;
+
   const [agent, contactCtx] = await Promise.all([
     prisma.agent.findUnique({ where: { id: agentId } }),
-    contactPhone ? buildContactContext(contactPhone) : null,
+    contactPhone && !systemPromptOverride ? buildContactContext(contactPhone) : null,
   ]);
 
   if (!agent) {
@@ -141,17 +144,29 @@ async function buildProviderConfig(
     return null;
   }
 
-  const { baseSystemPrompt, openingMessage } = resolveDirectionalPrompts(agent as any, direction);
+  let systemPrompt: string;
+  let openingMessage: string | undefined;
 
-  let systemPrompt = baseSystemPrompt;
-  if (contactCtx) systemPrompt += `\n\n${contactCtx.promptSection}`;
-  if (callContext && Object.keys(callContext).length > 0) {
-    systemPrompt += '\n\n--- Call Context ---\n';
-    systemPrompt += Object.entries(callContext)
-      .map(([k, v]) => `${k}: ${typeof v === 'object' ? JSON.stringify(v) : v}`)
-      .join('\n');
+  if (systemPromptOverride) {
+    systemPrompt = systemPromptOverride;
+    openingMessage = openingMessageOverride;
+  } else {
+    const resolved = resolveDirectionalPrompts(agent as any, direction);
+    systemPrompt = resolved.baseSystemPrompt;
+    openingMessage = resolved.openingMessage;
+
+    if (contactCtx) systemPrompt += `\n\n${contactCtx.promptSection}`;
+    if (callContext) {
+      const publicEntries = Object.entries(callContext).filter(([k]) => !k.startsWith('__'));
+      if (publicEntries.length > 0) {
+        systemPrompt += '\n\n--- Call Context ---\n';
+        systemPrompt += publicEntries
+          .map(([k, v]) => `${k}: ${typeof v === 'object' ? JSON.stringify(v) : v}`)
+          .join('\n');
+      }
+    }
+    systemPrompt += buildSchedulingPrompt(agent as any);
   }
-  systemPrompt += buildSchedulingPrompt(agent as any);
 
   return {
     apiKey: geminiKeyPool.next(),
