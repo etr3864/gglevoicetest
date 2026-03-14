@@ -180,6 +180,9 @@ async function resolveConnection(
       const totalBytes = claimed.preloadedAudio.reduce((s, b) => s + b.length, 0);
       const durationMs = Math.ceil((totalBytes / 2 / OUTBOUND.sampleRate) * 1000) + 300;
       setTimeout(() => { interruptRef.enabled = true; }, durationMs);
+    } else {
+      // Warmup connected but generated no audio — enable interrupt immediately
+      interruptRef.enabled = true;
     }
 
     log.info('Connection ready', {

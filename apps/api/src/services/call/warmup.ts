@@ -6,7 +6,7 @@ import { globalRegistry } from '../tools';
 import type { DeepgramTranscriber } from '../transcription';
 import { buildContactContext } from '../contact-context';
 import { buildSchedulingPrompt, resolveDirectionalPrompts } from './prompt-builder';
-import type { VoiceProvider, ProviderConfig, ProviderEvents } from '../providers/types';
+import type { VoiceProvider, ProviderConfig, ProviderEvents, ToolResult } from '../providers/types';
 import { mergeModelConfig, type ModelConfig } from '../providers/types';
 
 const log = createLogger('warmup');
@@ -24,9 +24,8 @@ interface WarmEntry {
 const pending = new Map<string, Promise<WarmEntry | null>>();
 const ready = new Map<string, WarmEntry>();
 
-const BASE_NO_OP_EVENTS: Omit<ProviderEvents, 'onReady' | 'onAudio'> = {
+const BASE_NO_OP_EVENTS: Omit<ProviderEvents, 'onReady' | 'onAudio' | 'onToolCall'> = {
   onTranscript: () => {},
-  onToolCall: async (call) => ({ callId: call.id, result: null, error: 'Not connected yet' }),
   onError: () => {},
   onClose: () => {},
 };
@@ -106,12 +105,9 @@ async function doWarmup(
 
   const warmupEvents: ProviderEvents = {
     ...BASE_NO_OP_EVENTS,
-    onReady: () => {
-      provider.startConversation();
-    },
-    onAudio: (chunk) => {
-      preloadedAudio.push(chunk.data);
-    },
+    onReady: () => { provider.startConversation(); },
+    onAudio: (chunk) => { preloadedAudio.push(chunk.data); },
+    onToolCall: (call) => fetchContactForWarmup(call.id, contactPhone),
   };
 
   try {
@@ -166,6 +162,20 @@ async function buildProviderConfig(
     modelConfig: mergeModelConfig((agent as Record<string, unknown>).modelConfig as Partial<ModelConfig> | undefined),
     tools: globalRegistry.getDefinitions(),
   };
+}
+
+async function fetchContactForWarmup(toolCallId: string, contactPhone: string | null): Promise<ToolResult> {
+  if (!contactPhone) return { callId: toolCallId, result: { found: false } };
+  try {
+    const contact = await prisma.contact.findUnique({ where: { phone: contactPhone } });
+    if (!contact) return { callId: toolCallId, result: { found: false } };
+    return {
+      callId: toolCallId,
+      result: { found: true, name: contact.name, email: contact.email, totalCalls: contact.totalCalls, notes: contact.notes },
+    };
+  } catch {
+    return { callId: toolCallId, result: null, error: 'Failed to fetch contact' };
+  }
 }
 
 function cleanupEntry(entry: WarmEntry): void {
