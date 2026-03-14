@@ -1,54 +1,52 @@
-// All functions rely on TZ=Asia/Jerusalem in the process environment.
-// In production this is set in k8s/deployment.yaml + tzdata in Dockerfile.
+// All functions use Date local-time methods (getHours, getDate, etc.)
+// which rely on TZ=Asia/Jerusalem + tzdata — NOT on ICU.
+// ICU (used by toLocaleString) may ignore TZ on Alpine's small-icu build.
 export const TIMEZONE = 'Asia/Jerusalem';
 
+const DAYS_HE = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
+const MONTHS_HE = ['ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני', 'יולי', 'אוגוסט', 'ספטמבר', 'אוקטובר', 'נובמבר', 'דצמבר'];
+
+const pad = (n: number) => String(n).padStart(2, '0');
+
 export function formatNow(): string {
-  return new Date().toLocaleString('he-IL', {
-    weekday: 'long',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+  const d = new Date();
+  return `יום ${DAYS_HE[d.getDay()]}, ${d.getDate()} ב${MONTHS_HE[d.getMonth()]} ${d.getFullYear()}, ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 export function formatDate(date: Date): string {
-  return date.toLocaleDateString('he-IL');
+  return `${date.getDate()}.${date.getMonth() + 1}.${date.getFullYear()}`;
 }
 
 export function formatDateLong(date: Date): string {
-  return date.toLocaleDateString('he-IL', { day: 'numeric', month: 'long', year: 'numeric' });
+  return `${date.getDate()} ב${MONTHS_HE[date.getMonth()]} ${date.getFullYear()}`;
 }
 
 export function formatDateISO(date: Date): string {
-  return date.toLocaleDateString('en-CA');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
 export function formatTime(date: Date): string {
-  return date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
+  return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
 export function formatWeekday(date: Date): string {
-  return date.toLocaleDateString('he-IL', { weekday: 'long' });
+  return `יום ${DAYS_HE[date.getDay()]}`;
 }
 
 export function formatTimestamp(date: Date): string {
-  return date.toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' });
+  return `${formatDate(date)}, ${formatTime(date)}`;
 }
 
 /**
- * Converts a date string (YYYY-MM-DD) + time string (HH:MM) to an ISO string
- * with the correct Israel offset, accounting for DST.
- * Relies on TZ=Asia/Jerusalem — parses the input as local time and reads
- * getTimezoneOffset() which correctly reflects DST without needing ICU.
+ * Converts YYYY-MM-DD + HH:MM to an ISO string with the correct Israel offset.
+ * Parses as local time (TZ=Asia/Jerusalem) then reads getTimezoneOffset() for DST.
  */
 export function toISOWithTimezone(date: string, time: string): string {
   const local = new Date(`${date}T${time}`);
   const offsetMinutes = local.getTimezoneOffset(); // −120 (UTC+2) or −180 (UTC+3)
   const sign = offsetMinutes <= 0 ? '+' : '-';
   const abs = Math.abs(offsetMinutes);
-  const hh = String(Math.floor(abs / 60)).padStart(2, '0');
-  const mm = String(abs % 60).padStart(2, '0');
+  const hh = pad(Math.floor(abs / 60));
+  const mm = pad(abs % 60);
   return `${date}T${time}:00${sign}${hh}:${mm}`;
 }
