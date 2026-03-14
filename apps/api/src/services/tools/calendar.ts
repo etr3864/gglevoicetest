@@ -171,6 +171,9 @@ async function bookAppointment(
     return { error: 'Calendar not connected for this agent' };
   }
 
+  const businessHoursError = validateBusinessHours(params.date, params.time, params.duration, agent.businessHours as BusinessHours | null);
+  if (businessHoursError) return { error: businessHoursError };
+
   const startISO = toISOWithTimezone(params.date, params.time);
   const endDate = new Date(startISO);
   endDate.setMinutes(endDate.getMinutes() + params.duration);
@@ -316,6 +319,27 @@ async function cancelAppointment(appointmentId: string, ctx: ToolContext) {
 }
 
 // --- Helpers ---
+
+function validateBusinessHours(date: string, time: string, duration: number, businessHours: BusinessHours | null): string | null {
+  const dayHours = getDayHours(date, businessHours);
+  if (!dayHours) return 'This day is not a business day';
+
+  const toMinutes = (t: string) => {
+    const [h, m] = t.split(':').map(Number);
+    return h * 60 + m;
+  };
+
+  const start = toMinutes(time);
+  const end = start + duration;
+  const open = toMinutes(dayHours.start);
+  const close = toMinutes(dayHours.end);
+
+  if (start < open || end > close) {
+    return `Time is outside business hours (${dayHours.start}–${dayHours.end})`;
+  }
+
+  return null;
+}
 
 function getDayHours(
   dateStr: string,

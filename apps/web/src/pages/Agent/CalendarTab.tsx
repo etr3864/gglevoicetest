@@ -157,28 +157,34 @@ export default function CalendarTab({ agentId, agent }: Props) {
           {DAY_KEYS.map(day => {
             const active = !!hours[day];
             return (
-              <div key={day} className="flex items-center gap-3">
-                <span className="text-sm text-[var(--text-primary)] w-16">
-                  {DAY_LABELS[day]}
-                </span>
-                <Toggle checked={active} onChange={() => toggleDay(day)} />
-                {active && (
-                  <div className="flex items-center gap-2" dir="ltr">
-                    <input
-                      type="time"
-                      value={hours[day]!.start}
-                      onChange={(e) => updateDayTime(day, 'start', e.target.value)}
-                      className="rounded-lg bg-[var(--bg-primary)] border border-[var(--border)] px-3 py-1.5 text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)]"
-                    />
-                    <span className="text-[var(--text-muted)] text-sm">-</span>
-                    <input
-                      type="time"
-                      value={hours[day]!.end}
-                      onChange={(e) => updateDayTime(day, 'end', e.target.value)}
-                      className="rounded-lg bg-[var(--bg-primary)] border border-[var(--border)] px-3 py-1.5 text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)]"
-                    />
-                  </div>
-                )}
+              <div key={day} className="flex items-center justify-between">
+                <div className="flex items-center gap-2" dir="ltr">
+                  {active ? (
+                    <>
+                      <input
+                        type="time"
+                        value={hours[day]!.start}
+                        onChange={(e) => updateDayTime(day, 'start', e.target.value)}
+                        className="rounded-lg bg-[var(--bg-primary)] border border-[var(--border)] px-3 py-1.5 text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)]"
+                      />
+                      <span className="text-[var(--text-muted)] text-sm">–</span>
+                      <input
+                        type="time"
+                        value={hours[day]!.end}
+                        onChange={(e) => updateDayTime(day, 'end', e.target.value)}
+                        className="rounded-lg bg-[var(--bg-primary)] border border-[var(--border)] px-3 py-1.5 text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)]"
+                      />
+                    </>
+                  ) : (
+                    <span className="text-xs text-[var(--text-muted)]">סגור</span>
+                  )}
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-sm text-[var(--text-primary)] w-12 text-right">
+                    {DAY_LABELS[day]}
+                  </span>
+                  <Toggle checked={active} onChange={() => toggleDay(day)} />
+                </div>
               </div>
             );
           })}
