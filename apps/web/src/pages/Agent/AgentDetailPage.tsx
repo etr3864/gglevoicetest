@@ -84,6 +84,8 @@ export default function AgentDetailPage() {
     webhookSecret: '',
     webhookRetryCount: 3,
     webhookRetryDelay: 60,
+    appointmentWebhookUrl: '',
+    appointmentWebhookSecret: '',
   });
   const [webhookTestResult, setWebhookTestResult] = useState<{ success: boolean; statusCode: number | null; latencyMs: number } | null>(null);
   const [form, setForm] = useState({
@@ -115,6 +117,8 @@ export default function AgentDetailPage() {
         webhookSecret: agent.webhookSecret || '',
         webhookRetryCount: agent.webhookRetryCount ?? 3,
         webhookRetryDelay: agent.webhookRetryDelay ?? 60,
+        appointmentWebhookUrl: agent.appointmentWebhookUrl || '',
+        appointmentWebhookSecret: agent.appointmentWebhookSecret || '',
       });
       setForm({
         name: agent.name,
@@ -976,6 +980,21 @@ function ApiReferenceCard({ agentId, apiKey: initialKey }: { agentId: string; ap
   );
 }
 
+const SAMPLE_APPOINTMENT_WEBHOOK_PAYLOAD = JSON.stringify({
+  event: 'appointment_booked',
+  timestamp: '2026-03-14T10:00:00Z',
+  appointment_id: '<appointment_id>',
+  agent_id: '<agent_id>',
+  agent_name: 'שם הסוכן',
+  customer_name: 'יוסי כהן',
+  customer_phone: '+972501234567',
+  title: 'פגישת ייעוץ',
+  date: '2026-03-20',
+  time: '10:00',
+  duration_min: 30,
+  call_id: '<call_id>',
+}, null, 2);
+
 const SAMPLE_WEBHOOK_PAYLOAD = JSON.stringify({
   event: 'call_summary',
   timestamp: '2026-03-13T14:30:00Z',
@@ -1028,6 +1047,8 @@ function SummariesTab({ agentId, form, setForm, webhookTestResult, setWebhookTes
       webhookSecret: form.webhookSecret || null,
       webhookRetryCount: form.webhookRetryCount,
       webhookRetryDelay: form.webhookRetryDelay,
+      appointmentWebhookUrl: form.appointmentWebhookUrl || null,
+      appointmentWebhookSecret: form.appointmentWebhookSecret || null,
     });
   };
 
@@ -1148,6 +1169,41 @@ function SummariesTab({ agentId, form, setForm, webhookTestResult, setWebhookTes
             </summary>
             <pre className="mt-2 bg-[var(--bg-primary)] border border-[var(--border)] rounded-lg p-3 text-xs font-mono text-[var(--text-primary)] overflow-x-auto" dir="ltr">
               {SAMPLE_WEBHOOK_PAYLOAD}
+            </pre>
+          </details>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <div className="px-5 pt-4 pb-2">
+          <h3 className="font-semibold text-[var(--text-primary)]">Webhook פגישות</h3>
+          <p className="text-xs text-[var(--text-muted)] mt-0.5">שליחת אירועי יומן (קביעה / שינוי / ביטול) לכתובת חיצונית</p>
+        </div>
+        <CardContent className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5 text-right">Webhook URL</label>
+            <input
+              type="url"
+              value={form.appointmentWebhookUrl}
+              onChange={(e) => setForm((f: any) => ({ ...f, appointmentWebhookUrl: e.target.value }))}
+              className="w-full rounded-lg bg-[var(--bg-primary)] border border-[var(--border)] px-4 py-2.5 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]/30 transition-colors"
+              placeholder="https://hooks.yourapp.com/appointments"
+              dir="ltr"
+            />
+          </div>
+          <Input
+            label="Webhook Secret (HMAC)"
+            value={form.appointmentWebhookSecret}
+            onChange={(e) => setForm((f: any) => ({ ...f, appointmentWebhookSecret: e.target.value }))}
+            dir="ltr"
+            placeholder="אופציונלי — לאימות חתימה"
+          />
+          <details className="group">
+            <summary className="text-xs text-[var(--text-muted)] cursor-pointer hover:text-[var(--text-secondary)] transition-colors">
+              דוגמת payload
+            </summary>
+            <pre className="mt-2 bg-[var(--bg-primary)] border border-[var(--border)] rounded-lg p-3 text-xs font-mono text-[var(--text-primary)] overflow-x-auto" dir="ltr">
+              {SAMPLE_APPOINTMENT_WEBHOOK_PAYLOAD}
             </pre>
           </details>
         </CardContent>

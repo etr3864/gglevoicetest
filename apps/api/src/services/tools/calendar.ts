@@ -10,6 +10,7 @@ import {
   TIMEZONE,
   type FreeBusySlot,
 } from '../calendar/google';
+import { appointmentWebhookQueue } from '../../lib/queue';
 import type { BusinessHours, CalendarConfig } from '@voice/shared';
 
 const SLOT_DURATION_MIN = 30;
@@ -206,6 +207,10 @@ async function bookAppointment(
     },
   });
 
+  appointmentWebhookQueue
+    .add('deliver', { appointmentId: appointment.id, event: 'appointment_booked' }, { jobId: `appt-webhook-${appointment.id}-booked` })
+    .catch(() => {});
+
   return {
     booked: true,
     appointmentId: appointment.id,
@@ -257,6 +262,10 @@ async function rescheduleAppointment(
     },
   });
 
+  appointmentWebhookQueue
+    .add('deliver', { appointmentId, event: 'appointment_rescheduled' }, { jobId: `appt-webhook-${appointmentId}-rescheduled` })
+    .catch(() => {});
+
   return {
     rescheduled: true,
     appointmentId,
@@ -284,6 +293,10 @@ async function cancelAppointment(appointmentId: string, ctx: ToolContext) {
     where: { id: appointmentId },
     data: { status: 'cancelled' },
   });
+
+  appointmentWebhookQueue
+    .add('deliver', { appointmentId, event: 'appointment_cancelled' }, { jobId: `appt-webhook-${appointmentId}-cancelled` })
+    .catch(() => {});
 
   return { cancelled: true, appointmentId };
 }

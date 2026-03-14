@@ -33,6 +33,8 @@ export const updateAgentSchema = z.object({
   webhookSecret: z.string().max(200).nullable().optional(),
   webhookRetryCount: z.number().int().min(0).max(10).optional(),
   webhookRetryDelay: z.number().int().min(1).max(3600).optional(),
+  appointmentWebhookUrl: z.string().url().max(500).nullable().optional(),
+  appointmentWebhookSecret: z.string().max(200).nullable().optional(),
   status: z.enum(['active', 'inactive']).optional(),
   voice: z.string().max(50).optional(),
   phoneNumber: z.string().max(20).nullable().optional(),

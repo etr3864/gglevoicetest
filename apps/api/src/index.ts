@@ -25,6 +25,7 @@ import { startOutboundWorker } from './workers/outbound';
 import { startRecordingWorker } from './services/recording/recording.worker';
 import { startSummaryWorker } from './workers/summary.worker';
 import { startWebhookWorker } from './workers/webhook.worker';
+import { startAppointmentWebhookWorker } from './workers/appointment-webhook.worker';
 import { startRecordingCrons } from './services/recording/recording.cron';
 import { initPubSub, closePubSub } from './services/events/pubsub';
 import { sseManager } from './services/events/sse.manager';
@@ -112,6 +113,7 @@ async function start() {
     const recordingWorker = startRecordingWorker();
     const summaryWorker = startSummaryWorker();
     const webhookWorker = startWebhookWorker();
+    const appointmentWebhookWorker = startAppointmentWebhookWorker();
     startRecordingCrons();
     attachWebSocket(server);
 
@@ -128,7 +130,7 @@ async function start() {
 
       log.info('All calls finished, shutting down');
       sseManager.shutdown();
-      await Promise.all([outboundWorker.close(), recordingWorker.close(), summaryWorker.close(), webhookWorker.close()]);
+      await Promise.all([outboundWorker.close(), recordingWorker.close(), summaryWorker.close(), webhookWorker.close(), appointmentWebhookWorker.close()]);
       await closePubSub();
       server.close(() => process.exit(0));
     };

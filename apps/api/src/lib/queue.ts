@@ -32,3 +32,7 @@ export const webhookQueue = new Queue('webhook-delivery', {
   connection,
   defaultJobOptions: { removeOnComplete: 1000, removeOnFail: 2000 },
 });
+export const appointmentWebhookQueue = new Queue('appointment-webhooks', {
+  connection,
+  defaultJobOptions: { removeOnComplete: 1000, removeOnFail: 2000 },
+});
