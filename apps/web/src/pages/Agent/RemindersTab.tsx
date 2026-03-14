@@ -121,15 +121,20 @@ export default function RemindersTab({ agentId, agent }: Props) {
   }
 
   function getPresetValue(rule: ReminderRule, idx: number): number {
-    const preset = PRESET_OPTIONS.find(p => p.value === rule.minutesBefore);
-    if (preset) return preset.value;
-    return customMinutes[idx] !== undefined ? -1 : -1;
+    if (customMinutes[idx] !== undefined) return -1;
+    const preset = PRESET_OPTIONS.find(p => p.value !== -1 && p.value === rule.minutesBefore);
+    return preset ? preset.value : -1;
   }
 
   function handlePresetChange(idx: number, value: number) {
     if (value === -1) {
       setCustomMinutes(prev => ({ ...prev, [idx]: config.rules[idx].minutesBefore }));
     } else {
+      setCustomMinutes(prev => {
+        const next = { ...prev };
+        delete next[idx];
+        return next;
+      });
       updateRule(idx, { minutesBefore: value });
     }
   }
