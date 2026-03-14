@@ -1222,7 +1222,7 @@ function SummariesTab({ agentId, form, setForm, webhookTestResult, setWebhookTes
           />
           {form.appointmentWebhookUrl && (
             <div className="flex items-center gap-3">
-              <Button variant="outline" size="sm" onClick={testApptWebhook} disabled={testingApptWebhook}>
+              <Button variant="secondary" size="sm" onClick={testApptWebhook} disabled={testingApptWebhook}>
                 {testingApptWebhook ? 'בודק...' : 'בדוק חיבור'}
               </Button>
               {apptWebhookTestResult && (
