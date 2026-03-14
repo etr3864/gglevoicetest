@@ -8,7 +8,12 @@ import { formatDateLong, formatTime } from '../lib/date';
 
 const log = createLogger('reminder-worker');
 
-const DIRECTION_REMINDER = '\n\n--- Direction ---\nThis is an outbound reminder call. Your goal is to deliver the reminder to the customer and answer any questions they may have.';
+// Used for template mode: opening message already contains the reminder text,
+// so the system prompt must NOT instruct Gemini to deliver it again.
+const DIRECTION_TEMPLATE_REMINDER = '\n\n--- Direction ---\nThis is an outbound reminder call. You have already delivered your reminder message as the opening. Now listen to the customer\'s response and handle any follow-up questions naturally. Do not repeat the reminder unless asked.';
+
+// Used for AI mode: no opening message — Gemini delivers the reminder from context.
+const DIRECTION_AI_REMINDER = '\n\n--- Direction ---\nThis is an outbound reminder call. Deliver the appointment reminder in a warm, friendly, and natural tone — as if you are a helpful assistant calling a client. Be concise and conversational. After delivering the reminder, listen and handle any questions or requests.';
 
 interface ReminderJob {
   reminderId: string;
@@ -120,7 +125,7 @@ function buildCallContext(reminder: {
 
   if (reminder.contentType === 'template' && reminder.resolvedContent) {
     const agentBase = reminder.agent.basePrompt || 'You are a helpful voice assistant.';
-    base.__systemPrompt = agentBase + DIRECTION_REMINDER;
+    base.__systemPrompt = agentBase + DIRECTION_TEMPLATE_REMINDER;
     base.__openingMessage = reminder.resolvedContent;
   } else {
     base.__systemPrompt = buildAiReminderPrompt(reminder);
@@ -141,13 +146,13 @@ function buildAiReminderPrompt(reminder: {
 
   const base = agent.basePrompt || 'You are a helpful voice assistant.';
 
-  return `${base}${DIRECTION_REMINDER}
+  return `${base}${DIRECTION_AI_REMINDER}
 
---- Reminder Context ---
-Customer name: ${contact?.name ?? 'Unknown'}
-Appointment title: ${appointment.title}
+--- Reminder Details ---
+Customer: ${contact?.name ?? 'the customer'}
+Appointment: ${appointment.title}
 Date: ${date}
 Time: ${time}
 Duration: ${appointment.duration} minutes
-${appointment.description ? `Details: ${appointment.description}` : ''}`.trim();
+${appointment.description ? `Notes: ${appointment.description}` : ''}`.trim();
 }
