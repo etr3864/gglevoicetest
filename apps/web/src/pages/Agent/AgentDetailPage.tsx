@@ -1023,6 +1023,8 @@ function SummariesTab({ agentId, form, setForm, webhookTestResult, setWebhookTes
   isSaving: boolean;
 }) {
   const [testingWebhook, setTestingWebhook] = useState(false);
+  const [testingApptWebhook, setTestingApptWebhook] = useState(false);
+  const [apptWebhookTestResult, setApptWebhookTestResult] = useState<{ success: boolean; statusCode: number | null; latencyMs: number } | null>(null);
   const { toast } = useToast();
 
   const testWebhook = async () => {
@@ -1035,6 +1037,19 @@ function SummariesTab({ agentId, form, setForm, webhookTestResult, setWebhookTes
       setWebhookTestResult({ success: false, statusCode: null, latencyMs: 0 });
     } finally {
       setTestingWebhook(false);
+    }
+  };
+
+  const testApptWebhook = async () => {
+    if (!form.appointmentWebhookUrl) return;
+    setTestingApptWebhook(true);
+    try {
+      const res = await api.post(`/agents/${agentId}/appointment-webhook-test`);
+      setApptWebhookTestResult(res.data.data);
+    } catch {
+      setApptWebhookTestResult({ success: false, statusCode: null, latencyMs: 0 });
+    } finally {
+      setTestingApptWebhook(false);
     }
   };
 
@@ -1198,6 +1213,20 @@ function SummariesTab({ agentId, form, setForm, webhookTestResult, setWebhookTes
             dir="ltr"
             placeholder="אופציונלי — לאימות חתימה"
           />
+          {form.appointmentWebhookUrl && (
+            <div className="flex items-center gap-3">
+              <Button variant="outline" size="sm" onClick={testApptWebhook} disabled={testingApptWebhook}>
+                {testingApptWebhook ? 'בודק...' : 'בדוק חיבור'}
+              </Button>
+              {apptWebhookTestResult && (
+                <span className={`text-xs font-medium ${apptWebhookTestResult.success ? 'text-green-500' : 'text-red-500'}`}>
+                  {apptWebhookTestResult.success
+                    ? `✓ ${apptWebhookTestResult.statusCode} · ${apptWebhookTestResult.latencyMs}ms`
+                    : `✗ ${apptWebhookTestResult.statusCode ?? 'error'} · ${apptWebhookTestResult.latencyMs}ms`}
+                </span>
+              )}
+            </div>
+          )}
           <details className="group">
             <summary className="text-xs text-[var(--text-muted)] cursor-pointer hover:text-[var(--text-secondary)] transition-colors">
               דוגמת payload

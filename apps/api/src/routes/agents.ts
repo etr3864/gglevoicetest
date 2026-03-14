@@ -64,22 +64,14 @@ router.post('/:id/webhook-test', async (req, res) => {
   const agent = await prisma.agent.findUnique({ where: { id: req.params.id }, select: { webhookUrl: true, webhookSecret: true } });
   if (!agent?.webhookUrl) throw new AppError(400, 'NO_WEBHOOK', 'No webhook URL configured');
 
-  const payload = JSON.stringify({ event: 'webhook_test', agent_id: req.params.id, timestamp: new Date().toISOString() });
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  res.json({ data: await sendWebhookTest(agent.webhookUrl, agent.webhookSecret, req.params.id) });
+});
 
-  if (agent.webhookSecret) {
-    const { createHmac } = await import('crypto');
-    const sig = createHmac('sha256', agent.webhookSecret).update(payload).digest('hex');
-    headers['X-Signature'] = `sha256=${sig}`;
-  }
+router.post('/:id/appointment-webhook-test', async (req, res) => {
+  const agent = await prisma.agent.findUnique({ where: { id: req.params.id }, select: { appointmentWebhookUrl: true, appointmentWebhookSecret: true } });
+  if (!agent?.appointmentWebhookUrl) throw new AppError(400, 'NO_WEBHOOK', 'No appointment webhook URL configured');
 
-  const t0 = Date.now();
-  try {
-    const r = await fetch(agent.webhookUrl, { method: 'POST', headers, body: payload, signal: AbortSignal.timeout(10_000) });
-    res.json({ data: { success: r.ok, statusCode: r.status, latencyMs: Date.now() - t0 } });
-  } catch (err) {
-    res.json({ data: { success: false, statusCode: null, latencyMs: Date.now() - t0, error: err instanceof Error ? err.message : 'error' } });
-  }
+  res.json({ data: await sendWebhookTest(agent.appointmentWebhookUrl, agent.appointmentWebhookSecret, req.params.id) });
 });
 
 router.patch('/:id/status', async (req, res) => {
@@ -131,5 +123,23 @@ router.post('/:id/outbound', async (req, res) => {
 
   res.status(201).json({ data: { callId: call.id, status: 'queued' } });
 });
+
+async function sendWebhookTest(url: string, secret: string | null, agentId: string) {
+  const payload = JSON.stringify({ event: 'webhook_test', agent_id: agentId, timestamp: new Date().toISOString() });
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+
+  if (secret) {
+    const { createHmac } = await import('crypto');
+    headers['X-Signature'] = `sha256=${createHmac('sha256', secret).update(payload).digest('hex')}`;
+  }
+
+  const t0 = Date.now();
+  try {
+    const r = await fetch(url, { method: 'POST', headers, body: payload, signal: AbortSignal.timeout(10_000) });
+    return { success: r.ok, statusCode: r.status, latencyMs: Date.now() - t0 };
+  } catch (err) {
+    return { success: false, statusCode: null, latencyMs: Date.now() - t0, error: err instanceof Error ? err.message : 'error' };
+  }
+}
 
 export default router;
