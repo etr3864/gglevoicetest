@@ -5,7 +5,7 @@ export const TELNYX_STREAM = {
   codec: 'L16',
   bidirectionalMode: 'rtp',
   bidirectionalCodec: 'L16',
-  bidirectionalSamplingRate: 16_000,
+  bidirectionalSamplingRate: 24_000,
 } as const;
 
 export const TELNYX_SIP = {
@@ -15,14 +15,14 @@ export const TELNYX_SIP = {
 // ─── Section 2: Inbound (Telnyx → us) ──────────────────────────────────────
 
 export const INBOUND = {
-  sampleRate: 16_000 as const,
+  sampleRate: 24_000 as const,
   endian: 'little' as 'big' | 'little',
 };
 
 // ─── Section 3: Outbound (us → Telnyx) ─────────────────────────────────────
 
 export const OUTBOUND = {
-  sampleRate: 16_000,
+  sampleRate: 24_000,
   gain: 1.5,
 } as const;
 
@@ -40,7 +40,7 @@ export function applyGain(buf: Buffer, gain: number): Buffer {
 
 export const GEMINI = {
   inputRate: 16_000,
-  outputRate: 16_000,
+  outputRate: 24_000,
   mimeType: (rate: number) => `audio/pcm;rate=${rate}`,
 } as const;
 
@@ -84,6 +84,29 @@ export function diagnoseChunk(buf: Buffer): { peak: number; status: 'OK' | 'SUSP
   if (peak === 0) return { peak, status: 'SILENT' };
   if (peak < 500) return { peak, status: 'SUSPECT' };
   return { peak, status: 'OK' };
+}
+
+export function downsample24kTo16k(input: Buffer, carry: Buffer = Buffer.alloc(0)): { out: Buffer, carry: Buffer } {
+  const buf = carry.length > 0 ? Buffer.concat([carry, input]) : input;
+  const inSamples = buf.length >> 1;
+  const usable = inSamples - (inSamples % 3);
+  const outSamples = (usable * 2) / 3;
+  const out = Buffer.allocUnsafe(outSamples * 2);
+
+  for (let o = 0; o < outSamples; o++) {
+    const inPos = (o * 3) / 2;
+    const i0 = Math.floor(inPos);
+    const frac = inPos - i0;
+
+    const s0 = buf.readInt16LE(i0 * 2);
+    const s1 = buf.readInt16LE((i0 + 1) * 2);
+
+    const v = Math.round(s0 + frac * (s1 - s0));
+    out.writeInt16LE(Math.max(-32768, Math.min(32767, v)), o * 2);
+  }
+
+  const nextCarry = usable < inSamples ? Buffer.from(buf.subarray(usable * 2)) : Buffer.alloc(0);
+  return { out, carry: nextCarry };
 }
 
 // ─── Section 7: Telnyx param builders ──────────────────────────────────────

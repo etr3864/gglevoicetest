@@ -16,7 +16,7 @@ import { buildSchedulingPrompt, resolveDirectionalPrompts } from './prompt-build
 import { redis } from '../../lib/redis';
 import {
   INBOUND, OUTBOUND, DEEPGRAM, NEEDS_ENDIAN_SWAP, GEMINI,
-  swapEndian16, diagnoseChunk, applyGain,
+  swapEndian16, diagnoseChunk, applyGain, downsample24kTo16k,
 } from '../../lib/audio-config';
 
 const log = createLogger('bridge');
@@ -27,6 +27,7 @@ interface ActiveConnection {
   agentTranscriber: DeepgramTranscriber | null;
   greetingPreloaded: boolean;
   interruptRef: { enabled: boolean };
+  downsampleCarry: Buffer;
 }
 
 const activeConnections = new Map<string, ActiveConnection>();
@@ -103,8 +104,11 @@ function handleMedia(callControlId: string, pcm: Buffer, chunk: number): void {
   const audio = NEEDS_ENDIAN_SWAP ? swapEndian16(pcm) : pcm;
 
   if (conn.provider && conn.interruptRef.enabled) {
+    const { out, carry } = downsample24kTo16k(audio, conn.downsampleCarry);
+    conn.downsampleCarry = carry;
+    
     conn.provider.sendAudio({
-      data: audio,
+      data: out,
       format: 'pcm16',
       sampleRate: GEMINI.inputRate, // 16000
     });
@@ -181,7 +185,7 @@ async function resolveConnection(
       elapsed: Date.now() - streamStartTs,
       preloadedChunks: claimed.preloadedAudio.length,
     });
-    return { provider: claimed.provider, transcriber, agentTranscriber, greetingPreloaded: true, interruptRef };
+    return { provider: claimed.provider, transcriber, agentTranscriber, greetingPreloaded: true, interruptRef, downsampleCarry: Buffer.alloc(0) };
   }
 
   const transcriber = createTranscriber(callControlId);
@@ -199,7 +203,7 @@ async function resolveConnection(
     return null;
   }
 
-  return { provider, transcriber, agentTranscriber, greetingPreloaded: false, interruptRef };
+  return { provider, transcriber, agentTranscriber, greetingPreloaded: false, interruptRef, downsampleCarry: Buffer.alloc(0) };
 }
 
 function teardown(callControlId: string | null): void {
