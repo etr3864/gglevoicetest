@@ -14,6 +14,23 @@ const log = createLogger('warmup');
 const WARMUP_TTL_MS = 60_000;
 const CLAIM_WAIT_MS = 5_000;
 
+// Gemini Live API system instruction limit is ~8192 tokens.
+// Hebrew text uses ~1 token per 2-3 chars, so 18K chars ≈ 6-9K tokens.
+// We strip the transcript history section first as it's least critical.
+const MAX_SYSTEM_PROMPT_CHARS = 18_000;
+
+function capSystemPrompt(prompt: string): string {
+  if (prompt.length <= MAX_SYSTEM_PROMPT_CHARS) return prompt;
+  const sectionStart = prompt.indexOf('--- Recent Conversations ---');
+  if (sectionStart !== -1) {
+    const sectionEnd = prompt.indexOf('\n\n---', sectionStart + 10);
+    const trimmed = prompt.slice(0, sectionStart) + (sectionEnd !== -1 ? prompt.slice(sectionEnd) : '');
+    if (trimmed.length <= MAX_SYSTEM_PROMPT_CHARS) return trimmed;
+    return trimmed.slice(0, MAX_SYSTEM_PROMPT_CHARS);
+  }
+  return prompt.slice(0, MAX_SYSTEM_PROMPT_CHARS);
+}
+
 interface WarmEntry {
   provider: VoiceProvider;
   transcriber: DeepgramTranscriber | null;
@@ -172,7 +189,7 @@ async function buildProviderConfig(
     apiKey: geminiKeyPool.next(),
     model: GEMINI_MODEL,
     voice: agent.voice || DEFAULT_VOICE,
-    systemPrompt,
+    systemPrompt: capSystemPrompt(systemPrompt),
     openingMessage,
     modelConfig: mergeModelConfig((agent as Record<string, unknown>).modelConfig as Partial<ModelConfig> | undefined),
     tools: globalRegistry.getDefinitions(),

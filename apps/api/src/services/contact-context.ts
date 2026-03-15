@@ -2,9 +2,9 @@ import { prisma } from '@voice/db';
 import { normalizePhone } from '../lib/phone';
 import { formatDate, formatTime } from '../lib/date';
 
-const MAX_CALLS = 3;
-const MAX_UTTERANCES_PER_CALL = 30;
-const MAX_CHARS_PER_CALL = 1500;
+const MAX_CALLS = 2;
+const MAX_UTTERANCES_PER_CALL = 10;
+const MAX_CHARS_PER_CALL = 600;
 
 interface ContactContext {
   contactId: string;
