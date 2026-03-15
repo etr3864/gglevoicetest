@@ -18,8 +18,9 @@ import {
 
 const log = createLogger('bridge');
 
+// provider is always non-null — connections that fail to build never reach activeConnections
 interface ActiveConnection {
-  provider: VoiceProvider | null;
+  provider: VoiceProvider;
   transcriber: DeepgramTranscriber | null;
   agentTranscriber: DeepgramTranscriber | null;
   greetingPreloaded: boolean;
@@ -38,9 +39,15 @@ interface BridgeContext {
 }
 
 const activeConnections = new Map<string, ActiveConnection>();
+let disconnectSubscriber: ReturnType<typeof redis.duplicate> | null = null;
+
 
 export function activeConnectionCount(): number {
   return activeConnections.size;
+}
+
+export function closeMediaBridge(): Promise<void> {
+  return disconnectSubscriber ? disconnectSubscriber.quit().then(() => {}) : Promise.resolve();
 }
 
 export function attachWebSocket(server: Server): void {
@@ -67,7 +74,7 @@ export function attachWebSocket(server: Server): void {
               sampleRate: msg.start?.media_format?.sample_rate,
             });
             if (callControlId) {
-              await handleStreamStart(callControlId, streamStartTs, ws);
+              await initializeCallBridge(callControlId, streamStartTs, ws);
             }
             break;
 
@@ -86,7 +93,7 @@ export function attachWebSocket(server: Server): void {
                   status: diag.status,
                 });
               }
-              handleMedia(callControlId, rawBuf, mediaChunkCount);
+              handleMedia(callControlId, rawBuf);
             }
             break;
 
@@ -104,40 +111,35 @@ export function attachWebSocket(server: Server): void {
   });
 }
 
-function handleMedia(callControlId: string, pcm: Buffer, chunk: number): void {
+function handleMedia(callControlId: string, pcm: Buffer): void {
   const conn = activeConnections.get(callControlId);
   if (!conn) return;
 
   const audio = NEEDS_ENDIAN_SWAP ? swapEndian16(pcm) : pcm;
 
-  if (conn.provider && conn.interruptRef.enabled) {
+  if (conn.interruptRef.enabled) {
     const { out, carry } = downsample24kTo16k(audio, conn.downsampleCarry);
     conn.downsampleCarry = carry;
-    
-    conn.provider.sendAudio({
-      data: out,
-      format: 'pcm16',
-      sampleRate: GEMINI.inputRate, // 16000
-    });
+    conn.provider.sendAudio({ data: out, format: 'pcm16', sampleRate: GEMINI.inputRate });
   }
-  
-  if (conn.transcriber) {
-    conn.transcriber.sendAudio(audio);
-  }
+
+  conn.transcriber?.sendAudio(audio);
 }
 
+// Delays sum to ~6.7s. First check is immediate (before first delay).
 const SESSION_RETRY_DELAYS = [200, 500, 1000, 2000, 3000];
 
-async function waitForSession(callControlId: string): Promise<CallSession | null> {
+async function waitForSession(callControlId: string): Promise<CallSession | undefined> {
   for (const delay of SESSION_RETRY_DELAYS) {
     const session = await getSession(callControlId);
     if (session) return session;
     await new Promise((r) => setTimeout(r, delay));
   }
-  return null;
+  // One final check after the last delay
+  return getSession(callControlId);
 }
 
-async function handleStreamStart(
+async function initializeCallBridge(
   callControlId: string,
   streamStartTs: number,
   telnyxWs: WebSocket,
@@ -154,38 +156,37 @@ async function handleStreamStart(
     return;
   }
 
-  const conn = await resolveConnection(session, callControlId, streamStartTs, telnyxWs);
+  const conn = await buildActiveConnection(session, callControlId, streamStartTs, telnyxWs);
   if (!conn) return;
 
   activeConnections.set(callControlId, conn);
 
-  markInCallAndRecord(session, callControlId);
+  // Fire-and-forget: call is already active, DB/recording failure shouldn't block audio
+  markInCallAndRecord(session, callControlId).catch((err) => {
+    log.error('Failed to mark in_call / start recording', err, { callId: session.callId });
+  });
 
-  if (conn.provider && !conn.greetingPreloaded) {
+  if (!conn.greetingPreloaded) {
     conn.provider.startConversation();
   }
 }
 
 async function markInCallAndRecord(session: CallSession, callControlId: string): Promise<void> {
-  try {
-    const call = await prisma.call.update({
-      where: { id: session.callId },
-      data: { status: 'in_call' },
-    });
-    await publishCallEvent(session.agentId, 'call_updated', { call });
-    await startRecording(callControlId);
-  } catch (err) {
-    log.error('Failed to mark in_call / start recording', err, { callId: session.callId });
-  }
+  const call = await prisma.call.update({
+    where: { id: session.callId },
+    data: { status: 'in_call' },
+  });
+  await publishCallEvent(session.agentId, 'call_updated', { call });
+  await startRecording(callControlId);
 }
 
-async function resolveConnection(
+async function buildActiveConnection(
   session: CallSession,
   callControlId: string,
   streamStartTs: number,
   telnyxWs: WebSocket,
 ): Promise<ActiveConnection | null> {
-  const claimed = await claim(session.callId);
+  const prewarmed = await claim(session.callId);
   const sendToTelnyx = makeSendToTelnyx(telnyxWs);
   const transcriber = createTranscriber(callControlId, 'customer');
   const agentTranscriber = createTranscriber(callControlId, 'agent');
@@ -193,16 +194,16 @@ async function resolveConnection(
   const ctx: BridgeContext = { session, callControlId, telnyxWs, hasDeepgram: !!transcriber, agentTranscriber, sendToTelnyx, interruptRef };
   const events = buildProviderEvents(ctx);
 
-  if (claimed) {
-    claimed.provider.setEvents(events);
-    claimed.provider.setCallActiveCheck?.(() => activeConnections.has(callControlId));
+  if (prewarmed) {
+    prewarmed.provider.setEvents(events);
+    prewarmed.provider.setCallActiveCheck?.(() => activeConnections.has(callControlId));
 
-    for (const chunk of claimed.preloadedAudio) {
+    for (const chunk of prewarmed.preloadedAudio) {
       sendToTelnyx(chunk);
     }
 
-    if (claimed.preloadedAudio.length > 0) {
-      const totalBytes = claimed.preloadedAudio.reduce((s, b) => s + b.length, 0);
+    if (prewarmed.preloadedAudio.length > 0) {
+      const totalBytes = prewarmed.preloadedAudio.reduce((s, b) => s + b.length, 0);
       const durationMs = Math.ceil((totalBytes / 2 / OUTBOUND.sampleRate) * 1000) + 300;
       setTimeout(() => { interruptRef.enabled = true; }, durationMs);
     } else {
@@ -213,23 +214,33 @@ async function resolveConnection(
       callId: session.callId,
       type: 'warm',
       elapsed: Date.now() - streamStartTs,
-      preloadedChunks: claimed.preloadedAudio.length,
+      preloadedChunks: prewarmed.preloadedAudio.length,
     });
-    return { provider: claimed.provider, transcriber, agentTranscriber, greetingPreloaded: true, interruptRef, downsampleCarry: Buffer.alloc(0) };
+    return { provider: prewarmed.provider, transcriber, agentTranscriber, greetingPreloaded: true, interruptRef, downsampleCarry: Buffer.alloc(0) };
   }
 
   const provider = await connectProvider(session, events);
-  provider?.setCallActiveCheck?.(() => activeConnections.has(callControlId));
-  log.info('Connection ready', { callId: session.callId, type: 'cold', elapsed: Date.now() - streamStartTs });
-
-  if (telnyxWs.readyState !== WebSocket.OPEN) {
-    log.warn('Telnyx disconnected during provider setup', { callControlId });
-    provider?.disconnect();
+  if (!provider) {
+    log.error('Provider failed to connect — aborting call setup', undefined, { callId: session.callId });
     transcriber?.close();
     agentTranscriber?.close();
     return null;
   }
 
+  provider.setCallActiveCheck?.(() => activeConnections.has(callControlId));
+
+  if (telnyxWs.readyState !== WebSocket.OPEN) {
+    log.warn('Telnyx disconnected during provider setup', { callControlId });
+    provider.disconnect();
+    transcriber?.close();
+    agentTranscriber?.close();
+    return null;
+  }
+
+  // Cold path has no preloaded greeting — user can speak immediately
+  interruptRef.enabled = true;
+
+  log.info('Connection ready', { callId: session.callId, type: 'cold', elapsed: Date.now() - streamStartTs });
   return { provider, transcriber, agentTranscriber, greetingPreloaded: false, interruptRef, downsampleCarry: Buffer.alloc(0) };
 }
 
@@ -242,7 +253,11 @@ function teardown(callControlId: string | null): void {
   activeConnections.delete(callControlId);
   conn.transcriber?.close();
   conn.agentTranscriber?.close();
-  try { conn.provider?.disconnect(); } catch {}
+  try {
+    conn.provider.disconnect();
+  } catch (err) {
+    log.warn('Provider disconnect error during teardown', { callControlId });
+  }
 
   getSession(callControlId).then((session) => {
     if (session) expire(session.callId);
@@ -295,10 +310,10 @@ function createTranscriber(
 function makeSendToTelnyx(telnyxWs: WebSocket): (payload: Buffer) => void {
   return (payload: Buffer) => {
     if (telnyxWs.readyState !== WebSocket.OPEN) return;
-    const amplified = applyGain(payload, OUTBOUND.gain);
+    const buf = applyGain(payload, OUTBOUND.gain);
     telnyxWs.send(JSON.stringify({
       event: 'media',
-      media: { payload: amplified.toString('base64') },
+      media: { payload: buf.toString('base64') },
     }));
   };
 }
@@ -328,9 +343,14 @@ function buildProviderEvents(ctx: BridgeContext): ProviderEvents {
     },
 
     onToolCall: async (call) => {
-      const result = await globalRegistry.execute(call, toolContext);
-      handleToolAction(result.result, callControlId);
-      return result;
+      try {
+        const result = await globalRegistry.execute(call, toolContext);
+        handleToolAction(result.result, callControlId);
+        return result;
+      } catch (err) {
+        log.error('Tool execution failed', err, { callId: session.callId, tool: call.name });
+        return { callId: call.id, result: null, error: 'Tool execution failed' };
+      }
     },
 
     onError: (err) => {
@@ -377,12 +397,12 @@ export function simulateCrashForTesting(): boolean {
 }
 
 function subscribeToDisconnects(): void {
-  const subscriber = redis.duplicate();
-  subscriber.subscribe('call:disconnect', (err) => {
+  disconnectSubscriber = redis.duplicate();
+  disconnectSubscriber.subscribe('call:disconnect', (err) => {
     if (err) log.error('Failed to subscribe to call:disconnect', err);
   });
 
-  subscriber.on('message', (channel, message) => {
+  disconnectSubscriber.on('message', (channel, message) => {
     if (channel === 'call:disconnect') {
       teardown(message);
     }
