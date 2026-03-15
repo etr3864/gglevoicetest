@@ -3,7 +3,7 @@ import { prisma } from '@voice/db';
 import { createLogger } from '../lib/logger';
 import { normalizePhone } from '../lib/phone';
 import { getStreamUrl } from '../lib/audio-config';
-import { answerCall, hangupCall, startStream, startRecording } from '../services/telnyx';
+import { answerCall, hangupCall, startRecording } from '../services/telnyx';
 import { createSession, endSession, getSession, warmup } from '../services/call';
 import { publishCallEvent } from '../services/events/pubsub';
 import { handleRecordingWebhook } from '../services/recording/recording.service';
@@ -65,14 +65,13 @@ router.post('/telnyx', async (req, res) => {
           log.warn('call.answered no session after retry', { callControlId: callControlId.slice(-12) });
           break;
         }
-        // Start stream immediately for all calls.
-        // AMD runs in parallel — if machine is detected, we hang up mid-greeting.
         const updatedCall = await prisma.call.update({
           where: { id: session.callId },
           data: { status: 'in_call' },
         });
         await publishCallEvent(session.agentId, 'call_updated', { call: updatedCall });
-        await startStream(callControlId, getStreamUrl());
+        // Streaming is already started via stream params in Dial (outbound) / Answer (inbound).
+        // Calling streaming_start again would fail with Telnyx error 90045 and block recording.
         await startRecording(callControlId);
         break;
       }
