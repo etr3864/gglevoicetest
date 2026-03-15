@@ -132,6 +132,7 @@ export async function createOutboundCall(params: {
     client_state: params.clientState
       ? Buffer.from(params.clientState).toString('base64')
       : undefined,
+    ...buildDialStreamParams(streamUrl)
   });
 
   return {
