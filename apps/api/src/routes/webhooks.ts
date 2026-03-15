@@ -3,7 +3,7 @@ import { prisma } from '@voice/db';
 import { createLogger } from '../lib/logger';
 import { normalizePhone } from '../lib/phone';
 import { getStreamUrl } from '../lib/audio-config';
-import { answerCall, hangupCall } from '../services/telnyx';
+import { answerCall, hangupCall, startRecording } from '../services/telnyx';
 import { createSession, endSession, getSession, warmup } from '../services/call';
 import { publishCallEvent } from '../services/events/pubsub';
 import { handleRecordingWebhook } from '../services/recording/recording.service';
@@ -52,9 +52,9 @@ router.post('/telnyx', async (req, res) => {
       }
 
       case 'call.answered': {
-        // Status update + recording are handled by the WebSocket start event
-        // in media-bridge (markInCallAndRecord). This webhook is a fallback
-        // for cases where the stream event arrives late.
+        // Primary path: status + recording handled by WebSocket start event
+        // in media-bridge. This is a fallback for cases where the stream
+        // event hasn't fired yet.
         if (!callControlId) break;
         const session = await getSession(callControlId);
         if (!session) break;
@@ -66,6 +66,7 @@ router.post('/telnyx', async (req, res) => {
           });
           await publishCallEvent(session.agentId, 'call_updated', { call: updatedCall });
         }
+        startRecording(callControlId).catch(() => {});
         break;
       }
 
