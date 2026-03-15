@@ -7,12 +7,13 @@ import { GeminiProvider, geminiKeyPool } from '../providers';
 import { globalRegistry, type ToolContext } from '../tools';
 import { getSession, endSession, addTranscript, type CallSession } from './session';
 import { claim, expire } from './warmup';
-import { hangupCall } from '../telnyx';
+import { hangupCall, startRecording } from '../telnyx';
 import { DeepgramTranscriber } from '../transcription';
 import type { VoiceProvider, ProviderEvents, ProviderConfig } from '../providers/types';
 import { mergeModelConfig, type ModelConfig } from '../providers/types';
 import { buildContactContext } from '../contact-context';
 import { buildSchedulingPrompt, resolveDirectionalPrompts } from './prompt-builder';
+import { publishCallEvent } from '../events/pubsub';
 import { redis } from '../../lib/redis';
 import {
   INBOUND, OUTBOUND, DEEPGRAM, NEEDS_ENDIAN_SWAP, GEMINI,
@@ -121,14 +122,25 @@ function handleMedia(callControlId: string, pcm: Buffer, chunk: number): void {
 
 // --- Stream Lifecycle ---
 
+const SESSION_RETRY_DELAYS = [200, 500, 1000, 2000, 3000];
+
+async function waitForSession(callControlId: string): Promise<CallSession | null> {
+  for (const delay of SESSION_RETRY_DELAYS) {
+    const session = await getSession(callControlId);
+    if (session) return session;
+    await new Promise((r) => setTimeout(r, delay));
+  }
+  return null;
+}
+
 async function handleStreamStart(
   callControlId: string,
   streamStartTs: number,
   telnyxWs: WebSocket,
 ): Promise<void> {
-  const session = await getSession(callControlId);
+  const session = await waitForSession(callControlId);
   if (!session) {
-    log.warn('No session for stream', { callControlId });
+    log.warn('No session for stream after retries', { callControlId });
     return;
   }
 
@@ -142,8 +154,23 @@ async function handleStreamStart(
 
   activeConnections.set(callControlId, conn);
 
+  markInCallAndRecord(session, callControlId);
+
   if (conn.provider && !conn.greetingPreloaded) {
     conn.provider.startConversation();
+  }
+}
+
+async function markInCallAndRecord(session: CallSession, callControlId: string): Promise<void> {
+  try {
+    const call = await prisma.call.update({
+      where: { id: session.callId },
+      data: { status: 'in_call' },
+    });
+    await publishCallEvent(session.agentId, 'call_updated', { call });
+    await startRecording(callControlId);
+  } catch (err) {
+    log.error('Failed to mark in_call / start recording', err, { callId: session.callId });
   }
 }
 

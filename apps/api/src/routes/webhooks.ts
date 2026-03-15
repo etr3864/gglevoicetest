@@ -3,7 +3,7 @@ import { prisma } from '@voice/db';
 import { createLogger } from '../lib/logger';
 import { normalizePhone } from '../lib/phone';
 import { getStreamUrl } from '../lib/audio-config';
-import { answerCall, hangupCall, startRecording } from '../services/telnyx';
+import { answerCall, hangupCall } from '../services/telnyx';
 import { createSession, endSession, getSession, warmup } from '../services/call';
 import { publishCallEvent } from '../services/events/pubsub';
 import { handleRecordingWebhook } from '../services/recording/recording.service';
@@ -52,27 +52,20 @@ router.post('/telnyx', async (req, res) => {
       }
 
       case 'call.answered': {
-        if (!callControlId) {
-          log.warn('call.answered missing call_control_id');
-          break;
+        // Status update + recording are handled by the WebSocket start event
+        // in media-bridge (markInCallAndRecord). This webhook is a fallback
+        // for cases where the stream event arrives late.
+        if (!callControlId) break;
+        const session = await getSession(callControlId);
+        if (!session) break;
+        const existing = await prisma.call.findUnique({ where: { id: session.callId }, select: { status: true } });
+        if (existing?.status !== 'in_call') {
+          const updatedCall = await prisma.call.update({
+            where: { id: session.callId },
+            data: { status: 'in_call' },
+          });
+          await publishCallEvent(session.agentId, 'call_updated', { call: updatedCall });
         }
-        let session = await getSession(callControlId);
-        if (!session) {
-          await new Promise((r) => setTimeout(r, 500));
-          session = await getSession(callControlId);
-        }
-        if (!session) {
-          log.warn('call.answered no session after retry', { callControlId: callControlId.slice(-12) });
-          break;
-        }
-        const updatedCall = await prisma.call.update({
-          where: { id: session.callId },
-          data: { status: 'in_call' },
-        });
-        await publishCallEvent(session.agentId, 'call_updated', { call: updatedCall });
-        // Streaming is already started via stream params in Dial (outbound) / Answer (inbound).
-        // Calling streaming_start again would fail with Telnyx error 90045 and block recording.
-        await startRecording(callControlId);
         break;
       }
 
@@ -122,8 +115,13 @@ router.post('/telnyx', async (req, res) => {
       }
 
       case 'streaming.started':
-      case 'streaming.stopped': {
-        log.info('Streaming event', { eventType, callControlId: callControlId?.slice(-12) });
+      case 'streaming.stopped':
+      case 'streaming.failed': {
+        log.info('Streaming event', {
+          eventType,
+          callControlId: callControlId?.slice(-12),
+          ...(eventType === 'streaming.failed' && { payload: JSON.stringify(event.payload).slice(0, 300) }),
+        });
         break;
       }
     }
