@@ -54,7 +54,7 @@ export const DEFAULT_MODEL_CONFIG: ModelConfig = {
     endOfSpeechSensitivity: 'END_SENSITIVITY_HIGH',
     startOfSpeechSensitivity: 'START_SENSITIVITY_HIGH',
     activityHandling: 'START_OF_ACTIVITY_INTERRUPTS',
-    turnCoverage: 'TURN_INCLUDES_ONLY_ACTIVITY',
+    turnCoverage: 'TURN_INCLUDES_ALL_INPUT',
   },
   contextCompression: {
     slidingWindowSize: 3072,

@@ -5,7 +5,7 @@ export const TELNYX_STREAM = {
   codec: 'L16',
   bidirectionalMode: 'rtp',
   bidirectionalCodec: 'L16',
-  bidirectionalSamplingRate: 24_000,
+  bidirectionalSamplingRate: 16_000,
 } as const;
 
 export const TELNYX_SIP = {
@@ -15,14 +15,14 @@ export const TELNYX_SIP = {
 // ─── Section 2: Inbound (Telnyx → us) ──────────────────────────────────────
 
 export const INBOUND = {
-  sampleRate: 24_000 as const,
+  sampleRate: 16_000 as const,
   endian: 'little' as 'big' | 'little',
 };
 
 // ─── Section 3: Outbound (us → Telnyx) ─────────────────────────────────────
 
 export const OUTBOUND = {
-  sampleRate: 24_000,
+  sampleRate: 16_000,
   gain: 1.5,
 } as const;
 
@@ -40,7 +40,7 @@ export function applyGain(buf: Buffer, gain: number): Buffer {
 
 export const GEMINI = {
   inputRate: 16_000,
-  outputRate: 24_000,
+  outputRate: 16_000,
   mimeType: (rate: number) => `audio/pcm;rate=${rate}`,
 } as const;
 
