@@ -18,11 +18,16 @@ export function resolveDirectionalPrompts(
   direction: 'inbound' | 'outbound',
 ): { baseSystemPrompt: string; openingMessage?: string } {
   const isInbound = direction === 'inbound';
-  const baseSystemPrompt =
-    ((isInbound ? agent.inboundSystemPrompt || agent.basePrompt : agent.basePrompt) || 'You are a helpful voice assistant.') +
-    DIRECTION_SECTION[direction];
-  const openingMessage =
-    (isInbound ? agent.inboundOpeningMessage || agent.openingMessage : agent.openingMessage) ?? undefined;
+
+  const rawPrompt = isInbound
+    ? agent.inboundSystemPrompt || agent.basePrompt
+    : agent.basePrompt;
+  const baseSystemPrompt = (rawPrompt || 'You are a helpful voice assistant.') + DIRECTION_SECTION[direction];
+
+  const openingMessage = (isInbound
+    ? agent.inboundOpeningMessage || agent.openingMessage
+    : agent.openingMessage) ?? undefined;
+
   return { baseSystemPrompt, openingMessage };
 }
 
@@ -44,8 +49,12 @@ interface AgentScheduleData {
   businessHours: unknown;
 }
 
+function isBusinessHours(val: unknown): val is BusinessHours {
+  return typeof val === 'object' && val !== null;
+}
+
 export function buildSchedulingPrompt(agent: AgentScheduleData): string {
-  const hours = agent.businessHours as BusinessHours | null;
+  const hours = isBusinessHours(agent.businessHours) ? agent.businessHours : null;
   const hasCalendar = !!agent.calendarConfig;
   const hasHours = hours && DAY_ORDER.some(d => hours[d] !== null);
 

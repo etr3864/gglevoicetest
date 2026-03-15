@@ -1,3 +1,6 @@
+// Warmup state is per-process (in-memory). Telnyx must route both the
+// outbound-call webhook and the subsequent WebSocket stream to the same pod.
+// Requires sticky load balancing (IP hash or session affinity on the LB).
 import { prisma } from '@voice/db';
 import { createLogger } from '../../lib/logger';
 import { GEMINI_MODEL, DEFAULT_VOICE } from '../../lib/constants';
@@ -61,6 +64,11 @@ export async function warmup(
 
   try {
     const entry = await promise;
+    if (!pending.has(callId)) {
+      // expire() was called while warmup was in progress — discard to avoid leak
+      if (entry) cleanupEntry(entry);
+      return;
+    }
     pending.delete(callId);
     if (entry) ready.set(callId, entry);
   } catch {
@@ -94,6 +102,13 @@ export async function claim(callId: string): Promise<WarmEntry | null> {
   return null;
 }
 
+export async function drainWarmups(): Promise<void> {
+  await Promise.allSettled([...pending.values()]);
+  for (const entry of ready.values()) cleanupEntry(entry);
+  ready.clear();
+  pending.clear();
+}
+
 export function expire(callId: string): void {
   const entry = ready.get(callId);
   if (entry) {
@@ -122,7 +137,13 @@ async function doWarmup(
     ...BASE_NO_OP_EVENTS,
     onReady: () => { provider.startConversation(); },
     onAudio: (chunk) => { preloadedAudio.push(chunk.data); },
-    onToolCall: (call) => fetchContactForWarmup(call.id, contactPhone),
+    onToolCall: (call) => {
+      if (call.name === 'get_contact_info') {
+        return fetchContactForWarmup(call.id, contactPhone);
+      }
+      log.warn('Unexpected tool call during warmup — ignoring', { tool: call.name });
+      return Promise.resolve({ callId: call.id, result: null, error: 'Tool unavailable during warmup' });
+    },
   };
 
   try {
@@ -150,7 +171,20 @@ export async function buildProviderConfig(
   const openingMessageOverride = callContext?.__openingMessage as string | undefined;
 
   const [agent, contactCtx] = await Promise.all([
-    prisma.agent.findUnique({ where: { id: agentId } }),
+    prisma.agent.findUnique({
+      where: { id: agentId },
+      select: {
+        voice: true,
+        basePrompt: true,
+        openingMessage: true,
+        inboundSystemPrompt: true,
+        inboundOpeningMessage: true,
+        calendarConfig: true,
+        calendarInstructions: true,
+        businessHours: true,
+        modelConfig: true,
+      },
+    }),
     contactPhone && !systemPromptOverride ? buildContactContext(contactPhone) : null,
   ]);
 
@@ -166,7 +200,7 @@ export async function buildProviderConfig(
     systemPrompt = systemPromptOverride;
     openingMessage = openingMessageOverride;
   } else {
-    const resolved = resolveDirectionalPrompts(agent as any, direction);
+    const resolved = resolveDirectionalPrompts(agent, direction);
     systemPrompt = resolved.baseSystemPrompt;
     openingMessage = resolved.openingMessage;
 
@@ -180,16 +214,22 @@ export async function buildProviderConfig(
           .join('\n');
       }
     }
-    systemPrompt += buildSchedulingPrompt(agent as any);
+    systemPrompt += buildSchedulingPrompt(agent);
+  }
+
+  const apiKey = geminiKeyPool.next();
+  if (!apiKey) {
+    log.error('No Gemini API keys available', undefined, { agentId });
+    return null;
   }
 
   return {
-    apiKey: geminiKeyPool.next(),
+    apiKey,
     model: GEMINI_MODEL,
     voice: agent.voice || DEFAULT_VOICE,
     systemPrompt: capSystemPrompt(systemPrompt),
     openingMessage,
-    modelConfig: mergeModelConfig((agent as Record<string, unknown>).modelConfig as Partial<ModelConfig> | undefined),
+    modelConfig: mergeModelConfig(agent.modelConfig as Partial<ModelConfig> | undefined),
     tools: globalRegistry.getDefinitions(),
   };
 }
@@ -209,6 +249,10 @@ async function fetchContactForWarmup(toolCallId: string, contactPhone: string | 
 }
 
 function cleanupEntry(entry: WarmEntry): void {
-  try { entry.provider.disconnect(); } catch {}
+  try {
+    entry.provider.disconnect();
+  } catch (err) {
+    log.warn('Provider disconnect failed during warmup cleanup', { err: String(err) });
+  }
   entry.transcriber?.close();
 }

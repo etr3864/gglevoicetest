@@ -8,6 +8,7 @@ import { handleReminderCallEnded } from '../reminders/reminder.service';
 
 const log = createLogger('session');
 const SESSION_COUNT_KEY = 'call:session_count';
+const SESSION_TTL_SEC = 7200;
 
 export interface CallSession {
   callId: string;
@@ -41,7 +42,7 @@ export async function addTranscript(callControlId: string, entry: TranscriptEntr
     timestamp: entry.timestamp.toISOString(),
   });
   await redis.rpush(transcriptsKey, data);
-  await redis.expire(transcriptsKey, 7200); // 2 hours TTL
+  await redis.expire(transcriptsKey, SESSION_TTL_SEC);
 }
 
 export async function getTranscripts(callControlId: string): Promise<TranscriptEntry[]> {
@@ -69,8 +70,8 @@ export async function createSession(params: {
     startedAt: new Date().toISOString(),
   };
 
-  await redis.set(`call:session:${params.callControlId}`, JSON.stringify(session), 'EX', 7200);
-  await redis.set(`call:session_by_id:${params.callId}`, params.callControlId, 'EX', 7200);
+  await redis.set(`call:session:${params.callControlId}`, JSON.stringify(session), 'EX', SESSION_TTL_SEC);
+  await redis.set(`call:session_by_id:${params.callId}`, params.callControlId, 'EX', SESSION_TTL_SEC);
   await redis.incr(SESSION_COUNT_KEY);
 
   return session;
@@ -203,5 +204,7 @@ async function updateContactStats(session: CallSession, durationSec: number): Pr
         lastCallAt: new Date(),
       },
     });
-  } catch {}
+  } catch (err) {
+    log.warn('Failed to update contact stats', { phone: session.contactPhone?.slice(-4), err: String(err) });
+  }
 }

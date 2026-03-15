@@ -20,7 +20,7 @@ import webhookRoutes from './routes/webhooks';
 import recordingRoutes from './routes/recordings';
 import eventsRouter from './routes/events';
 import { registerBuiltinTools } from './services/tools';
-import { attachWebSocket, activeConnectionCount, closeMediaBridge } from './services/call';
+import { attachWebSocket, activeConnectionCount, closeMediaBridge, drainWarmups } from './services/call';
 import { geminiKeyPool } from './services/providers';
 import { startOutboundWorker } from './workers/outbound';
 import { startRecordingWorker } from './services/recording/recording.worker';
@@ -141,7 +141,7 @@ async function start() {
       log.info('All calls finished, shutting down');
       sseManager.shutdown();
       await Promise.all([outboundWorker.close(), recordingWorker.close(), summaryWorker.close(), webhookWorker.close(), appointmentWebhookWorker.close(), reminderWorker.close()]);
-      await closeMediaBridge();
+      await Promise.all([drainWarmups(), closeMediaBridge()]);
       await closePubSub();
       server.close(() => process.exit(0));
     };
