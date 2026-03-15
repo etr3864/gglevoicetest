@@ -79,7 +79,6 @@ export class GeminiMapper {
             content: r.response,
           },
         })),
-        scheduling: 'SILENT',
       },
     };
   }
