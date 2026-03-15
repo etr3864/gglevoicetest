@@ -147,7 +147,9 @@ export function mergeModelConfig(overrides?: Partial<ModelConfig>): ModelConfig 
   if (!overrides) return { ...DEFAULT_MODEL_CONFIG };
   return {
     generation: { ...DEFAULT_MODEL_CONFIG.generation, ...overrides.generation },
-    vad: overrides.vad ?? DEFAULT_MODEL_CONFIG.vad,
+    vad: overrides.vad
+      ? { ...DEFAULT_MODEL_CONFIG.vad, ...overrides.vad }
+      : DEFAULT_MODEL_CONFIG.vad,
     languageCode: overrides.languageCode ?? DEFAULT_MODEL_CONFIG.languageCode,
     contextCompression: overrides.contextCompression
       ? { ...DEFAULT_MODEL_CONFIG.contextCompression, ...overrides.contextCompression }

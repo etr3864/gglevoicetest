@@ -2,7 +2,7 @@ import { ToolDefinition, ProviderConfig } from '../types';
 import { GEMINI } from '../../../lib/audio-config';
 
 export class GeminiMapper {
-  static buildSetupPayload(config: ProviderConfig): Record<string, unknown> {
+  static buildSetupPayload(config: ProviderConfig, resumptionToken?: string): Record<string, unknown> {
     const { modelConfig, systemPrompt, voice, model, tools } = config;
     const { generation, vad, languageCode, contextCompression } = modelConfig;
 
@@ -23,6 +23,8 @@ export class GeminiMapper {
     if (contextCompression) {
       setup.contextWindowCompression = this.buildCompressionConfig(contextCompression);
     }
+
+    setup.sessionResumption = resumptionToken ? { handle: resumptionToken } : {};
 
     return setup;
   }
@@ -77,6 +79,7 @@ export class GeminiMapper {
             content: r.response,
           },
         })),
+        scheduling: 'SILENT',
       },
     };
   }

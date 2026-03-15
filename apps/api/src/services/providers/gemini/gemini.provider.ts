@@ -8,7 +8,7 @@ import { GEMINI } from '../../../lib/audio-config';
 import { GeminiMapper } from './gemini.mapper';
 import { GeminiConnection } from './gemini.connection';
 import { GeminiState } from './gemini.state';
-import { GeminiServerContent, GeminiToolCall } from './types';
+import { GeminiServerContent, GeminiToolCall, GeminiGoAway, GeminiToolCallCancellation } from './types';
 
 const log = createLogger('gemini:provider');
 
@@ -92,7 +92,7 @@ export class GeminiProvider implements VoiceProvider {
       }
 
       const location = process.env.GCP_LOCATION || 'europe-west3';
-      const project = process.env.GCP_PROJECT_ID || 'gen-lang-client-0546829339';
+      const project = process.env.GCP_PROJECT_ID;
       const model = this.config!.model;
 
       if (!project) {
@@ -126,8 +126,9 @@ export class GeminiProvider implements VoiceProvider {
 
       const fullModelPath = `projects/${project}/locations/${location}/publishers/google/models/${model}`;
       const setupConfig = { ...this.config!, model: fullModelPath };
+      const resumptionToken = isReconnect ? this.state.getResumptionToken() ?? undefined : undefined;
       
-      this.connection.setSetupPayload(GeminiMapper.buildSetupPayload(setupConfig));
+      this.connection.setSetupPayload(GeminiMapper.buildSetupPayload(setupConfig, resumptionToken));
       await connectPromise;
     } catch (err) {
       log.error('Connection failed', err);
@@ -170,11 +171,15 @@ export class GeminiProvider implements VoiceProvider {
     this.reconnectAttempts++;
 
     try {
+      const hasResumptionToken = !!this.state.getResumptionToken();
       await this.openConnection(true);
-      
-      const history = this.state.getMergedHistory();
-      if (history.length > 0) {
-        this.connection?.send(GeminiMapper.buildHistoryPayload(history));
+
+      if (!hasResumptionToken) {
+        // No session resumption — inject history so Gemini has context (best-effort fallback)
+        const history = this.state.getMergedHistory();
+        if (history.length > 0) {
+          this.connection?.send(GeminiMapper.buildHistoryPayload(history));
+        }
       }
 
       const chunks = this.state.drainAudioBuffer();
@@ -185,6 +190,7 @@ export class GeminiProvider implements VoiceProvider {
       }
 
       this.reconnecting = false;
+      log.info('Reconnect complete', { withResumption: hasResumptionToken });
     } catch (err) {
       this.reconnecting = false;
       this.state.clearAudioBuffer();
@@ -203,6 +209,20 @@ export class GeminiProvider implements VoiceProvider {
         return;
       }
 
+      if (msg.sessionResumptionUpdate?.token) {
+        this.state.setResumptionToken(msg.sessionResumptionUpdate.token);
+      }
+
+      if (msg.goAway) {
+        this.handleGoAway(msg.goAway);
+        return;
+      }
+
+      if (msg.toolCallCancellation) {
+        this.handleToolCallCancellation(msg.toolCallCancellation);
+        return;
+      }
+
       if (msg.serverContent) this.handleServerContent(msg.serverContent);
       if (msg.toolCall) this.handleToolCall(msg.toolCall);
 
@@ -211,9 +231,24 @@ export class GeminiProvider implements VoiceProvider {
     }
   }
 
+  private handleGoAway(goAway: GeminiGoAway): void {
+    const secs = goAway.timeLeft?.seconds ?? 0;
+    log.info('GoAway received — initiating preemptive reconnect', { timeLeftSec: secs });
+    this.reconnectAttempts = 0;
+    this.attemptReconnect();
+  }
+
+  private handleToolCallCancellation(cancellation: GeminiToolCallCancellation): void {
+    const ids = cancellation.ids ?? [];
+    if (ids.length > 0) {
+      log.info('Tool call cancelled by user interruption', { ids });
+      this.state.addCancelledToolIds(ids);
+    }
+  }
+
   private handleServerContent(content: GeminiServerContent): void {
     if (content.interrupted) {
-      this.state.flushOutputTranscript(null);
+      this.state.flushOutputTranscript();
       this.events?.onInterrupt?.();
       return;
     }
@@ -239,7 +274,7 @@ export class GeminiProvider implements VoiceProvider {
     }
 
     if (content.turnComplete) {
-      this.state.flushOutputTranscript(null);
+      this.state.flushOutputTranscript();
       this.events?.onTurnComplete?.();
     }
   }
@@ -249,10 +284,14 @@ export class GeminiProvider implements VoiceProvider {
 
     const responses = await Promise.all(
       toolCall.functionCalls.map(async (call) => {
-        log.info('Tool call', { name: call.name });
-
-        // Gemini's ID must be used as-is — sending a different ID crashes the connection (1008/1007)
         const id = call.id || crypto.randomUUID();
+
+        if (this.state.isToolCancelled(id)) {
+          log.info('Skipping cancelled tool call', { name: call.name, id });
+          return null;
+        }
+
+        log.info('Tool call', { name: call.name });
         
         try {
           const result = await this.events!.onToolCall!({
@@ -260,32 +299,28 @@ export class GeminiProvider implements VoiceProvider {
             name: call.name,
             arguments: call.args || {},
           });
+
+          if (this.state.isToolCancelled(id)) {
+            log.info('Discarding tool result — cancelled during execution', { name: call.name });
+            return null;
+          }
           
           if (result.error) {
             log.warn('Tool execution returned error', { name: call.name, error: result.error });
-            return {
-              id: result.callId,
-              name: call.name,
-              response: { error: result.error }
-            };
+            return { id: result.callId, name: call.name, response: { error: result.error } };
           }
 
-          return {
-            id: result.callId,
-            name: call.name,
-            response: { result: result.result }
-          };
+          return { id: result.callId, name: call.name, response: { result: result.result } };
         } catch (err) {
           log.error('Tool execution threw exception', err, { name: call.name });
-          return {
-            id,
-            name: call.name,
-            response: { error: err instanceof Error ? err.message : 'Unknown execution error' }
-          };
+          return { id, name: call.name, response: { error: err instanceof Error ? err.message : 'Unknown execution error' } };
         }
       })
     );
 
-    this.connection.send(GeminiMapper.buildToolResponsePayload(responses));
+    const validResponses = responses.filter((r): r is NonNullable<typeof r> => r !== null);
+    if (validResponses.length > 0) {
+      this.connection.send(GeminiMapper.buildToolResponsePayload(validResponses));
+    }
   }
 }

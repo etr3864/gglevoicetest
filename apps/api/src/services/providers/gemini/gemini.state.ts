@@ -1,4 +1,4 @@
-import { ProviderEvents, TranscriptEntry } from '../types';
+import { ProviderEvents } from '../types';
 
 export class GeminiState {
   // Transcript accumulation
@@ -8,8 +8,31 @@ export class GeminiState {
   // Reconnect buffer
   private reconnectBuffer: Buffer[] = [];
   
-  // Conversation History
+  // Conversation History (capped to prevent unbounded memory growth in long sessions)
+  private static readonly MAX_HISTORY = 50;
   private history: { role: string; parts: { text: string }[] }[] = [];
+
+  // Session resumption — each new token replaces the previous one
+  private resumptionToken: string | null = null;
+
+  // Tool calls cancelled by user interruption — responses for these IDs are discarded
+  private cancelledToolIds = new Set<string>();
+
+  setResumptionToken(token: string): void {
+    this.resumptionToken = token;
+  }
+
+  getResumptionToken(): string | null {
+    return this.resumptionToken;
+  }
+
+  addCancelledToolIds(ids: string[]): void {
+    for (const id of ids) this.cancelledToolIds.add(id);
+  }
+
+  isToolCancelled(id: string): boolean {
+    return this.cancelledToolIds.delete(id);
+  }
 
   pushAudioBuffer(chunk: Buffer, maxChunks: number): void {
     if (this.reconnectBuffer.length < maxChunks) {
@@ -34,25 +57,17 @@ export class GeminiState {
     this.agentTranscriptBuf += text;
   }
 
-  flushOutputTranscript(events: ProviderEvents | null): void {
+  flushOutputTranscript(): void {
     const text = this.agentTranscriptBuf.trim();
     if (text) {
-      this.history.push({ role: 'model', parts: [{ text }] });
-      // We no longer emit this to the UI to avoid showing the model's internal
-      // markdown "thoughts". Instead, we use Deepgram to transcribe the actual audio.
-      // events?.onTranscript({
-      //   speaker: 'agent',
-      //   text,
-      //   timestamp: this.agentTranscriptTs ?? new Date(),
-      //   isFinal: true,
-      // });
+      this.pushHistory({ role: 'model', parts: [{ text }] });
     }
     this.agentTranscriptBuf = '';
     this.agentTranscriptTs = null;
   }
 
   addInputTranscript(text: string, events: ProviderEvents | null): void {
-    this.history.push({ role: 'user', parts: [{ text }] });
+    this.pushHistory({ role: 'user', parts: [{ text }] });
     events?.onTranscript({
       speaker: 'customer',
       text,
@@ -78,5 +93,12 @@ export class GeminiState {
   getAgentTranscriptTs(): Date {
     if (!this.agentTranscriptTs) this.agentTranscriptTs = new Date();
     return this.agentTranscriptTs;
+  }
+
+  private pushHistory(entry: { role: string; parts: { text: string }[] }): void {
+    this.history.push(entry);
+    if (this.history.length > GeminiState.MAX_HISTORY) {
+      this.history = this.history.slice(-GeminiState.MAX_HISTORY);
+    }
   }
 }

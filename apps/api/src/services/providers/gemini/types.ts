@@ -19,6 +19,14 @@ export interface GeminiToolCall {
   }[];
 }
 
+export interface GeminiGoAway {
+  timeLeft?: { seconds?: number; nanos?: number };
+}
+
+export interface GeminiToolCallCancellation {
+  ids?: string[];
+}
+
 export interface ConnectionState {
   isReady: boolean;
   isReconnecting: boolean;

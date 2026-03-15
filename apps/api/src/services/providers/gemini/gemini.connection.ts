@@ -14,11 +14,12 @@ export interface ConnectionCallbacks {
   onError: (err: Error) => void;
 }
 
+const sharedTlsAgent = new https.Agent({ keepAlive: true, maxSockets: 50 });
+
 export class GeminiConnection {
   private ws: WebSocket | null = null;
   private keepaliveTimer: NodeJS.Timeout | null = null;
   private setupDone = false;
-  private tlsAgent = new https.Agent({ keepAlive: true, maxSockets: 50 });
   private setupPayload: Record<string, unknown> | null = null;
 
   constructor(
@@ -42,7 +43,7 @@ export class GeminiConnection {
       }, CONNECT_TIMEOUT_MS);
 
       this.ws = new WebSocket(this.url, { 
-        agent: this.tlsAgent,
+        agent: sharedTlsAgent,
         headers: this.headers 
       });
 
@@ -64,7 +65,9 @@ export class GeminiConnection {
               this.callbacks.onSetupComplete();
               return;
             }
-          } catch {}
+          } catch (err) {
+            log.warn('Failed to parse initial Gemini message', { err: String(err) });
+          }
         }
         this.callbacks.onMessage(data);
       });
