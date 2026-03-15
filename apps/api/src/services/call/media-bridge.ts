@@ -4,7 +4,7 @@ import { prisma } from '@voice/db';
 import { createLogger } from '../../lib/logger';
 import { GeminiProvider } from '../providers';
 import { globalRegistry, type ToolContext } from '../tools';
-import { getSession, endSession, addTranscript, type CallSession } from './session';
+import { getSession, endSession, addTranscript, waitForSession, type CallSession } from './session';
 import { claim, expire, buildProviderConfig } from './warmup';
 import { hangupCall, startRecording } from '../telnyx';
 import { DeepgramTranscriber } from '../transcription';
@@ -126,18 +126,6 @@ function handleMedia(callControlId: string, pcm: Buffer): void {
   conn.transcriber?.sendAudio(audio);
 }
 
-// Delays sum to ~6.7s. First check is immediate (before first delay).
-const SESSION_RETRY_DELAYS = [200, 500, 1000, 2000, 3000];
-
-async function waitForSession(callControlId: string): Promise<CallSession | undefined> {
-  for (const delay of SESSION_RETRY_DELAYS) {
-    const session = await getSession(callControlId);
-    if (session) return session;
-    await new Promise((r) => setTimeout(r, delay));
-  }
-  // One final check after the last delay
-  return getSession(callControlId);
-}
 
 async function initializeCallBridge(
   callControlId: string,

@@ -72,7 +72,9 @@ router.post('/telnyx', async (req, res) => {
           });
           await publishCallEvent(session.agentId, 'call_updated', { call: updatedCall });
         }
-        startRecording(callControlId).catch(() => {});
+        startRecording(callControlId).catch((err) =>
+          log.warn('startRecording fallback failed', { callControlId: callControlId.slice(-12), err: String(err) })
+        );
         break;
       }
 
@@ -84,8 +86,8 @@ router.post('/telnyx', async (req, res) => {
           log.warn('Call ended with non-normal cause', {
             callControlId: callControlId.slice(-12),
             cause,
-            from: payload.from,
-            to: payload.to,
+            from: payload.from ? `***${String(payload.from).slice(-4)}` : undefined,
+            to: payload.to ? `***${String(payload.to).slice(-4)}` : undefined,
             ...(payload.sip_response_code != null && { sipCode: payload.sip_response_code }),
             ...(payload.hangup_source && { hangupSource: payload.hangup_source }),
           });
@@ -99,14 +101,7 @@ router.post('/telnyx', async (req, res) => {
         const p = event.payload;
         if (!p?.call_control_id) break;
 
-        const recordingId = p.recording_id ?? p.id;
-        const downloadUrl = p.recording_urls?.mp3 ?? p.download_urls?.mp3 ?? p.public_recording_urls?.mp3 ?? '';
-        const durationMs = p.duration_millis
-          ?? (p.duration_secs ? p.duration_secs * 1000 : null)
-          ?? (p.recording_started_at && p.recording_ended_at
-            ? new Date(p.recording_ended_at).getTime() - new Date(p.recording_started_at).getTime()
-            : 0);
-
+        const { recordingId, downloadUrl, durationMs } = extractRecordingFields(p);
         if (!recordingId || !downloadUrl) {
           log.warn('call.recording.saved missing fields', { recordingId, hasUrl: !!downloadUrl });
           break;
@@ -139,6 +134,29 @@ router.post('/telnyx', async (req, res) => {
   res.sendStatus(200);
 });
 
+async function findCallParticipants(to: string, phone: string) {
+  const [agent, contact] = await Promise.all([
+    prisma.agent.findFirst({ where: { phoneNumber: to, status: 'active' } }),
+    prisma.contact.upsert({ where: { phone }, update: {}, create: { phone } }),
+  ]);
+  return { agent, contact };
+}
+
+async function initCallRecord(
+  callControlId: string,
+  agentId: string,
+  contactId: string,
+  phone: string,
+) {
+  const call = await prisma.call.create({
+    data: { agentId, contactId, callControlId, direction: 'inbound', status: 'in_call', startedAt: new Date() },
+    include: { contact: { select: { phone: true, name: true } } },
+  });
+  await publishCallEvent(agentId, 'call_created', { call });
+  await createSession({ callId: call.id, agentId, callControlId, contactPhone: phone });
+  return call;
+}
+
 async function handleIncomingCall(
   callControlId: string,
   from: string,
@@ -146,41 +164,42 @@ async function handleIncomingCall(
 ): Promise<void> {
   const phone = normalizePhone(from);
 
-  const [agent, contact] = await Promise.all([
-    prisma.agent.findFirst({ where: { phoneNumber: to, status: 'active' } }),
-    prisma.contact.upsert({ where: { phone }, update: {}, create: { phone } }),
-  ]);
+  const existing = await prisma.call.findFirst({ where: { callControlId } });
+  if (existing) {
+    log.warn('Duplicate call.initiated ignored', { callControlId: callControlId.slice(-12) });
+    return;
+  }
 
+  const { agent, contact } = await findCallParticipants(to, phone);
   if (!agent) {
     log.warn('No active agent for number', { to });
     await hangupCall(callControlId);
     return;
   }
 
-  const call = await prisma.call.create({
-    data: {
-      agentId: agent.id,
-      contactId: contact.id,
-      callControlId,
-      direction: 'inbound',
-      status: 'in_call',
-      startedAt: new Date(),
-    },
-    include: { contact: { select: { phone: true, name: true } } },
-  });
+  const call = await initCallRecord(callControlId, agent.id, contact.id, phone);
 
-  await publishCallEvent(agent.id, 'call_created', { call });
+  warmup(call.id, agent.id, phone, undefined, 'inbound').catch((err) =>
+    log.warn('Inbound warmup failed', { callId: call.id, err: String(err) })
+  );
 
-  await createSession({
-    callId: call.id,
-    agentId: agent.id,
-    callControlId,
-    contactPhone: phone,
-  });
+  try {
+    await answerCall(callControlId, getStreamUrl());
+  } catch (err) {
+    log.error('answerCall failed — hanging up', err, { callControlId: callControlId.slice(-12) });
+    await hangupCall(callControlId).catch(() => {});
+  }
+}
 
-  warmup(call.id, agent.id, phone, undefined, 'inbound').catch(() => {});
-
-  await answerCall(callControlId, getStreamUrl());
+function extractRecordingFields(p: Record<string, any>): { recordingId: string | undefined; downloadUrl: string; durationMs: number } {
+  const recordingId = p.recording_id ?? p.id;
+  const downloadUrl = p.recording_urls?.mp3 ?? p.download_urls?.mp3 ?? p.public_recording_urls?.mp3 ?? '';
+  const durationMs = p.duration_millis
+    ?? (p.duration_secs ? p.duration_secs * 1000 : null)
+    ?? (p.recording_started_at && p.recording_ended_at
+      ? new Date(p.recording_ended_at).getTime() - new Date(p.recording_started_at).getTime()
+      : 0);
+  return { recordingId, downloadUrl, durationMs };
 }
 
 async function markNoAnswerIfUnanswered(callControlId: string): Promise<void> {

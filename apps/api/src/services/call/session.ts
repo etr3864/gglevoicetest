@@ -136,6 +136,18 @@ export async function endSession(callControlId: string): Promise<void> {
   });
 }
 
+// Delays sum to ~6.7s. First check is immediate (before first delay).
+const SESSION_RETRY_DELAYS = [200, 500, 1000, 2000, 3000];
+
+export async function waitForSession(callControlId: string): Promise<CallSession | undefined> {
+  for (const delay of SESSION_RETRY_DELAYS) {
+    const session = await getSession(callControlId);
+    if (session) return session;
+    await new Promise((r) => setTimeout(r, delay));
+  }
+  return getSession(callControlId);
+}
+
 export async function activeSessionCount(): Promise<number> {
   const count = await redis.get(SESSION_COUNT_KEY);
   return Math.max(0, parseInt(count || '0', 10));

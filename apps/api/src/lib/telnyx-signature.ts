@@ -15,7 +15,11 @@ function buildPublicKey(raw: string): string {
 export function verifyTelnyxWebhook(req: Request): boolean {
   const publicKey = process.env.TELNYX_WEBHOOK_PUBLIC_KEY;
   if (!publicKey) {
-    log.warn('TELNYX_WEBHOOK_PUBLIC_KEY not set — webhook unverified');
+    if (process.env.NODE_ENV === 'production') {
+      log.error('TELNYX_WEBHOOK_PUBLIC_KEY not set in production — blocking all webhooks');
+      return false;
+    }
+    log.warn('TELNYX_WEBHOOK_PUBLIC_KEY not set — webhook unverified (dev mode)');
     return true;
   }
 
@@ -25,14 +29,18 @@ export function verifyTelnyxWebhook(req: Request): boolean {
 
   if (!signature || !timestamp || !rawBody) return false;
 
-  const age = Date.now() / 1000 - parseInt(timestamp, 10);
+  const tsNum = parseInt(timestamp, 10);
+  if (isNaN(tsNum)) return false;
+
+  const age = Date.now() / 1000 - tsNum;
   if (age > REPLAY_WINDOW_SEC || age < -60) return false;
 
   try {
     const message = Buffer.from(`${timestamp}|${rawBody.toString()}`);
     const sigBuf = Buffer.from(signature, 'base64');
     return crypto.verify(null, message, buildPublicKey(publicKey), sigBuf);
-  } catch {
+  } catch (err) {
+    log.error('Signature verification threw — check TELNYX_WEBHOOK_PUBLIC_KEY format', err);
     return false;
   }
 }

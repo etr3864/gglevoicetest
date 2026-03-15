@@ -113,31 +113,25 @@ export function downsample24kTo16k(input: Buffer, carry: Buffer = Buffer.alloc(0
 
 export function getStreamUrl(): string {
   const base = process.env.API_URL || 'http://localhost:3000';
-  return base.replace('http', 'ws') + '/ws/media';
+  return base.replace(/^https?/, (m) => (m === 'https' ? 'wss' : 'ws')) + '/ws/media';
+}
+
+function buildBaseStreamParams(streamUrl: string) {
+  return {
+    stream_url: streamUrl,
+    stream_track: TELNYX_STREAM.track,
+    stream_codec: TELNYX_STREAM.codec,
+    stream_bidirectional_mode: TELNYX_STREAM.bidirectionalMode,
+    stream_bidirectional_codec: TELNYX_STREAM.bidirectionalCodec,
+    stream_bidirectional_sampling_rate: TELNYX_STREAM.bidirectionalSamplingRate,
+    send_silence_when_idle: true,
+  };
 }
 
 export function buildAnswerParams(streamUrl: string) {
-  return {
-    preferred_codecs: TELNYX_SIP.preferredCodecs,
-    stream_url: streamUrl,
-    stream_track: TELNYX_STREAM.track,
-    stream_codec: TELNYX_STREAM.codec,
-    stream_bidirectional_mode: TELNYX_STREAM.bidirectionalMode,
-    stream_bidirectional_codec: TELNYX_STREAM.bidirectionalCodec,
-    stream_bidirectional_sampling_rate: TELNYX_STREAM.bidirectionalSamplingRate,
-    send_silence_when_idle: true,
-  };
+  return { ...buildBaseStreamParams(streamUrl), preferred_codecs: TELNYX_SIP.preferredCodecs };
 }
 
 export function buildDialStreamParams(streamUrl: string) {
-  return {
-    stream_url: streamUrl,
-    stream_track: TELNYX_STREAM.track,
-    stream_codec: TELNYX_STREAM.codec,
-    stream_bidirectional_mode: TELNYX_STREAM.bidirectionalMode,
-    stream_bidirectional_codec: TELNYX_STREAM.bidirectionalCodec,
-    stream_bidirectional_sampling_rate: TELNYX_STREAM.bidirectionalSamplingRate,
-    send_silence_when_idle: true,
-    stream_establish_before_call_originate: true,
-  };
+  return { ...buildBaseStreamParams(streamUrl), stream_establish_before_call_originate: true };
 }
