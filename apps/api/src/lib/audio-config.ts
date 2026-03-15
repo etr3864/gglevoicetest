@@ -125,6 +125,7 @@ export function buildAnswerParams(streamUrl: string) {
     stream_bidirectional_mode: TELNYX_STREAM.bidirectionalMode,
     stream_bidirectional_codec: TELNYX_STREAM.bidirectionalCodec,
     stream_bidirectional_sampling_rate: TELNYX_STREAM.bidirectionalSamplingRate,
+    send_silence_when_idle: true,
   };
 }
 
