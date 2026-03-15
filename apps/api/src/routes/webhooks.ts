@@ -3,6 +3,7 @@ import { prisma } from '@voice/db';
 import { createLogger } from '../lib/logger';
 import { normalizePhone } from '../lib/phone';
 import { getStreamUrl } from '../lib/audio-config';
+import { verifyTelnyxWebhook } from '../lib/telnyx-signature';
 import { answerCall, hangupCall, startRecording } from '../services/telnyx';
 import { createSession, endSession, getSession, warmup } from '../services/call';
 import { publishCallEvent } from '../services/events/pubsub';
@@ -12,6 +13,11 @@ const log = createLogger('webhook');
 const router = Router();
 
 router.post('/telnyx', async (req, res) => {
+  if (!verifyTelnyxWebhook(req)) {
+    log.warn('Telnyx webhook signature invalid');
+    return res.sendStatus(403);
+  }
+
   const event = req.body?.data;
   if (!event) return res.sendStatus(200);
 

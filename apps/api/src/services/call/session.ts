@@ -9,7 +9,6 @@ import { handleReminderCallEnded } from '../reminders/reminder.service';
 const log = createLogger('session');
 const SESSION_COUNT_KEY = 'call:session_count';
 
-// Represents the data stored in Redis
 export interface CallSession {
   callId: string;
   agentId: string;
@@ -20,7 +19,6 @@ export interface CallSession {
   callContext?: Record<string, unknown>;
 }
 
-// Helper to store transcripts
 export async function addTranscript(callControlId: string, entry: TranscriptEntry): Promise<void> {
   const transcriptsKey = `call:transcripts:${callControlId}`;
   
@@ -173,7 +171,6 @@ async function persistUtterances(session: CallSession, transcripts: TranscriptEn
       })),
     });
     
-    // Notify frontend that transcript is ready
     await publishCallEvent(session.agentId, 'call_updated', { 
       call: { id: session.callId, transcriptSaved: true } 
     });

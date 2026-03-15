@@ -105,8 +105,6 @@ export function expire(callId: string): void {
   pending.delete(callId);
 }
 
-// --- Internal ---
-
 async function doWarmup(
   callId: string,
   agentId: string,
@@ -142,7 +140,7 @@ async function doWarmup(
   return { provider, transcriber: null, timer, preloadedAudio };
 }
 
-async function buildProviderConfig(
+export async function buildProviderConfig(
   agentId: string,
   contactPhone: string | null,
   callContext?: Record<string, unknown>,

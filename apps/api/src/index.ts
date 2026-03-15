@@ -53,7 +53,13 @@ app.use(
     credentials: true,
   })
 );
-app.use(express.json());
+app.use(express.json({
+  verify: (req: any, _res, buf) => {
+    if (req.path?.startsWith('/webhooks/telnyx')) {
+      req.rawBody = buf;
+    }
+  },
+}));
 
 const MAX_SESSIONS_PER_POD = parseInt(process.env.MAX_SESSIONS_PER_POD || '25');
 let isDraining = false;

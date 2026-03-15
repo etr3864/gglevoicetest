@@ -2,21 +2,17 @@ import { WebSocketServer, WebSocket } from 'ws';
 import type { Server } from 'http';
 import { prisma } from '@voice/db';
 import { createLogger } from '../../lib/logger';
-import { GEMINI_MODEL, DEFAULT_VOICE } from '../../lib/constants';
-import { GeminiProvider, geminiKeyPool } from '../providers';
+import { GeminiProvider } from '../providers';
 import { globalRegistry, type ToolContext } from '../tools';
 import { getSession, endSession, addTranscript, type CallSession } from './session';
-import { claim, expire } from './warmup';
+import { claim, expire, buildProviderConfig } from './warmup';
 import { hangupCall, startRecording } from '../telnyx';
 import { DeepgramTranscriber } from '../transcription';
-import type { VoiceProvider, ProviderEvents, ProviderConfig } from '../providers/types';
-import { mergeModelConfig, type ModelConfig } from '../providers/types';
-import { buildContactContext } from '../contact-context';
-import { buildSchedulingPrompt, resolveDirectionalPrompts } from './prompt-builder';
+import type { VoiceProvider, ProviderEvents } from '../providers/types';
 import { publishCallEvent } from '../events/pubsub';
 import { redis } from '../../lib/redis';
 import {
-  INBOUND, OUTBOUND, DEEPGRAM, NEEDS_ENDIAN_SWAP, GEMINI,
+  OUTBOUND, DEEPGRAM, NEEDS_ENDIAN_SWAP, GEMINI,
   swapEndian16, diagnoseChunk, applyGain, downsample24kTo16k,
 } from '../../lib/audio-config';
 
@@ -29,6 +25,16 @@ interface ActiveConnection {
   greetingPreloaded: boolean;
   interruptRef: { enabled: boolean };
   downsampleCarry: Buffer;
+}
+
+interface BridgeContext {
+  session: CallSession;
+  callControlId: string;
+  telnyxWs: WebSocket;
+  hasDeepgram: boolean;
+  agentTranscriber: DeepgramTranscriber | null;
+  sendToTelnyx: (payload: Buffer) => void;
+  interruptRef: { enabled: boolean };
 }
 
 const activeConnections = new Map<string, ActiveConnection>();
@@ -120,8 +126,6 @@ function handleMedia(callControlId: string, pcm: Buffer, chunk: number): void {
   }
 }
 
-// --- Stream Lifecycle ---
-
 const SESSION_RETRY_DELAYS = [200, 500, 1000, 2000, 3000];
 
 async function waitForSession(callControlId: string): Promise<CallSession | null> {
@@ -140,7 +144,8 @@ async function handleStreamStart(
 ): Promise<void> {
   const session = await waitForSession(callControlId);
   if (!session) {
-    log.warn('No session for stream after retries', { callControlId });
+    log.error('No session for stream after retries — hanging up', undefined, { callControlId });
+    hangupCall(callControlId).catch(() => {});
     return;
   }
 
@@ -181,15 +186,14 @@ async function resolveConnection(
   telnyxWs: WebSocket,
 ): Promise<ActiveConnection | null> {
   const claimed = await claim(session.callId);
-
-  const sendToTelnyx = makeSendToTelnyx(callControlId, telnyxWs);
-
+  const sendToTelnyx = makeSendToTelnyx(telnyxWs);
+  const transcriber = createTranscriber(callControlId, 'customer');
+  const agentTranscriber = createTranscriber(callControlId, 'agent');
   const interruptRef = { enabled: false };
+  const ctx: BridgeContext = { session, callControlId, telnyxWs, hasDeepgram: !!transcriber, agentTranscriber, sendToTelnyx, interruptRef };
+  const events = buildProviderEvents(ctx);
 
   if (claimed) {
-    const transcriber = createTranscriber(callControlId);
-    const agentTranscriber = createAgentTranscriber(callControlId);
-    const events = buildProviderEvents(session, callControlId, telnyxWs, !!transcriber, agentTranscriber, sendToTelnyx, interruptRef);
     claimed.provider.setEvents(events);
     claimed.provider.setCallActiveCheck?.(() => activeConnections.has(callControlId));
 
@@ -202,7 +206,6 @@ async function resolveConnection(
       const durationMs = Math.ceil((totalBytes / 2 / OUTBOUND.sampleRate) * 1000) + 300;
       setTimeout(() => { interruptRef.enabled = true; }, durationMs);
     } else {
-      // Warmup connected but generated no audio — enable interrupt immediately
       interruptRef.enabled = true;
     }
 
@@ -215,9 +218,6 @@ async function resolveConnection(
     return { provider: claimed.provider, transcriber, agentTranscriber, greetingPreloaded: true, interruptRef, downsampleCarry: Buffer.alloc(0) };
   }
 
-  const transcriber = createTranscriber(callControlId);
-  const agentTranscriber = createAgentTranscriber(callControlId);
-  const events = buildProviderEvents(session, callControlId, telnyxWs, !!transcriber, agentTranscriber, sendToTelnyx, interruptRef);
   const provider = await connectProvider(session, events);
   provider?.setCallActiveCheck?.(() => activeConnections.has(callControlId));
   log.info('Connection ready', { callId: session.callId, type: 'cold', elapsed: Date.now() - streamStartTs });
@@ -237,12 +237,12 @@ function teardown(callControlId: string | null): void {
   if (!callControlId) return;
 
   const conn = activeConnections.get(callControlId);
-  if (conn) {
-    conn.transcriber?.close();
-    conn.agentTranscriber?.close();
-    try { conn.provider?.disconnect(); } catch {}
-    activeConnections.delete(callControlId);
-  }
+  if (!conn) return;
+
+  activeConnections.delete(callControlId);
+  conn.transcriber?.close();
+  conn.agentTranscriber?.close();
+  try { conn.provider?.disconnect(); } catch {}
 
   getSession(callControlId).then((session) => {
     if (session) expire(session.callId);
@@ -253,43 +253,17 @@ function teardown(callControlId: string | null): void {
   });
 }
 
-// --- Provider Setup ---
-
 async function connectProvider(
   session: CallSession,
   events: ProviderEvents,
 ): Promise<VoiceProvider | null> {
-  const [agent, contactCtx] = await Promise.all([
-    prisma.agent.findUnique({ where: { id: session.agentId } }),
-    session.contactPhone ? buildContactContext(session.contactPhone) : null,
-  ]);
-
-  if (!agent) {
-    log.error('Agent not found', undefined, { agentId: session.agentId });
-    return null;
-  }
-
-  const { baseSystemPrompt, openingMessage } = resolveDirectionalPrompts(agent as any, session.direction);
-
-  let systemPrompt = baseSystemPrompt;
-  if (contactCtx) systemPrompt += `\n\n${contactCtx.promptSection}`;
-  if (session.callContext && Object.keys(session.callContext).length > 0) {
-    systemPrompt += '\n\n--- Call Context ---\n';
-    systemPrompt += Object.entries(session.callContext)
-      .map(([k, v]) => `${k}: ${typeof v === 'object' ? JSON.stringify(v) : v}`)
-      .join('\n');
-  }
-  systemPrompt += buildSchedulingPrompt(agent as any);
-
-  const config: ProviderConfig = {
-    apiKey: geminiKeyPool.next(),
-    model: GEMINI_MODEL,
-    voice: agent.voice || DEFAULT_VOICE,
-    systemPrompt,
-    openingMessage,
-    modelConfig: mergeModelConfig((agent as Record<string, unknown>).modelConfig as Partial<ModelConfig> | undefined),
-    tools: globalRegistry.getDefinitions(),
-  };
+  const config = await buildProviderConfig(
+    session.agentId,
+    session.contactPhone,
+    session.callContext,
+    session.direction,
+  );
+  if (!config) return null;
 
   const provider = new GeminiProvider();
   try {
@@ -301,45 +275,26 @@ async function connectProvider(
   }
 }
 
-// --- Transcription ---
-
-function createTranscriber(callControlId: string): DeepgramTranscriber | null {
+function createTranscriber(
+  callControlId: string,
+  speaker: 'customer' | 'agent',
+): DeepgramTranscriber | null {
+  const sampleRate = speaker === 'customer' ? DEEPGRAM.customerRate : DEEPGRAM.agentRate;
   const transcriber = new DeepgramTranscriber(async (result) => {
     if (!result.isFinal || !result.text.trim()) return;
-
-
     await addTranscript(callControlId, {
-      speaker: 'customer',
+      speaker,
       text: result.text,
       timestamp: new Date(Date.now() - result.durationSec * 1000),
       isFinal: true,
     });
   });
-
-  return transcriber.connect({ sampleRate: DEEPGRAM.customerRate }) ? transcriber : null;
+  return transcriber.connect({ sampleRate }) ? transcriber : null;
 }
 
-function createAgentTranscriber(callControlId: string): DeepgramTranscriber | null {
-  const transcriber = new DeepgramTranscriber(async (result) => {
-    if (!result.isFinal || !result.text.trim()) return;
-    await addTranscript(callControlId, {
-      speaker: 'agent',
-      text: result.text,
-      timestamp: new Date(Date.now() - result.durationSec * 1000),
-      isFinal: true,
-    });
-  });
-
-  return transcriber.connect({ sampleRate: DEEPGRAM.agentRate }) ? transcriber : null;
-}
-
-// --- Provider Events ---
-
-function makeSendToTelnyx(callControlId: string, telnyxWs: WebSocket): (payload: Buffer) => void {
-  let outboundChunkCount = 0;
+function makeSendToTelnyx(telnyxWs: WebSocket): (payload: Buffer) => void {
   return (payload: Buffer) => {
     if (telnyxWs.readyState !== WebSocket.OPEN) return;
-    outboundChunkCount++;
     const amplified = applyGain(payload, OUTBOUND.gain);
     telnyxWs.send(JSON.stringify({
       event: 'media',
@@ -348,15 +303,8 @@ function makeSendToTelnyx(callControlId: string, telnyxWs: WebSocket): (payload:
   };
 }
 
-function buildProviderEvents(
-  session: CallSession,
-  callControlId: string,
-  telnyxWs: WebSocket,
-  hasDeepgram: boolean,
-  agentTranscriber: DeepgramTranscriber | null,
-  sendToTelnyx: (payload: Buffer) => void,
-  interruptRef: { enabled: boolean },
-): ProviderEvents {
+function buildProviderEvents(ctx: BridgeContext): ProviderEvents {
+  const { session, callControlId, telnyxWs, hasDeepgram, agentTranscriber, sendToTelnyx, interruptRef } = ctx;
   const toolContext: ToolContext = {
     callId: session.callId,
     agentId: session.agentId,
@@ -417,10 +365,9 @@ function handleToolAction(result: unknown, callControlId: string): void {
   }
 }
 
-// --- Debug ---
-
 export function simulateCrashForTesting(): boolean {
-  for (const [id, conn] of activeConnections) {
+  if (process.env.NODE_ENV === 'production') return false;
+  for (const [, conn] of activeConnections) {
     if (conn.provider instanceof GeminiProvider) {
       conn.provider.simulateCrash();
       return true;
@@ -428,8 +375,6 @@ export function simulateCrashForTesting(): boolean {
   }
   return false;
 }
-
-// --- Redis Disconnect Subscription ---
 
 function subscribeToDisconnects(): void {
   const subscriber = redis.duplicate();
