@@ -245,13 +245,14 @@ export default function AgentDetailPage() {
               <Card>
                 <div className="p-1">
                   <div className="flex items-center justify-between px-5 pt-4 pb-2">
-                    <span className="text-xs text-[var(--text-muted)]">{charCount} תווים &bull; {wordCount} מילים</span>
+                    <span className={`text-xs ${charCount > 7000 ? 'text-amber-400' : 'text-[var(--text-muted)]'}`}>{charCount} / 8000 תווים &bull; {wordCount} מילים</span>
                     <h3 className="font-semibold text-[var(--text-primary)] text-sm">System Prompt</h3>
                   </div>
                   <div className="px-3 pb-3">
                     <textarea
                       value={prompt}
                       onChange={(e) => setPrompt(e.target.value)}
+                      maxLength={8000}
                       rows={12}
                       className="w-full rounded-lg bg-[var(--bg-primary)] border border-[var(--border)] px-4 py-3 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]/30 resize-none leading-relaxed transition-colors"
                       placeholder="כתוב כאן את ההנחיות לסוכן לשיחות יוצאות..."
@@ -291,13 +292,14 @@ export default function AgentDetailPage() {
               <Card>
                 <div className="p-1">
                   <div className="flex items-center justify-between px-5 pt-4 pb-2">
-                    <span className="text-xs text-[var(--text-muted)]">{inboundPrompt.length} תווים</span>
+                    <span className={`text-xs ${inboundPrompt.length > 7000 ? 'text-amber-400' : 'text-[var(--text-muted)]'}`}>{inboundPrompt.length} / 8000 תווים</span>
                     <h3 className="font-semibold text-[var(--text-primary)] text-sm">System Prompt</h3>
                   </div>
                   <div className="px-3 pb-3">
                     <textarea
                       value={inboundPrompt}
                       onChange={(e) => setInboundPrompt(e.target.value)}
+                      maxLength={8000}
                       rows={12}
                       className="w-full rounded-lg bg-[var(--bg-primary)] border border-[var(--border)] px-4 py-3 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]/30 resize-none leading-relaxed transition-colors"
                       placeholder="אם ריק, ישתמש ב-System Prompt של שיחות יוצאות..."
