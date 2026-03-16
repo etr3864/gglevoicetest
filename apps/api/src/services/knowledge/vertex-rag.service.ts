@@ -72,7 +72,7 @@ export interface OperationStatus {
   response?: { importedRagFilesCount?: number; failedRagFilesCount?: number };
 }
 
-export async function createCorpus(displayName: string): Promise<RagCorpus> {
+export async function createCorpus(displayName: string): Promise<string> {
   const op = await request<LroResponse<RagCorpus>>('POST', corporaBase(), {
     displayName,
     vectorDbConfig: {
@@ -85,12 +85,8 @@ export async function createCorpus(displayName: string): Promise<RagCorpus> {
     },
   });
 
-  if (op.done) {
-    if (op.error) throw new Error(`Corpus creation failed: ${op.error.message}`);
-    return op.response as RagCorpus;
-  }
-
-  return waitForOperation<RagCorpus>(op.name);
+  // op.name הוא ה-operation ID (למשל projects/.../operations/...)
+  return op.name;
 }
 
 export async function deleteCorpus(corpusResourceName: string): Promise<void> {

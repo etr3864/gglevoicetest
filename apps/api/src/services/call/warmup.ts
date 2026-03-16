@@ -226,7 +226,7 @@ export async function buildProviderConfig(
 
   const gcpProject = process.env.GCP_PROJECT_ID;
   const ragLocation = process.env.GCP_RAG_LOCATION || 'europe-west4';
-  const ragCorpusResourceName = agent.knowledgeBase && gcpProject
+  const ragCorpusResourceName = agent.knowledgeBase && agent.knowledgeBase.vertexCorpusId !== 'pending' && gcpProject
     ? `projects/${gcpProject}/locations/${ragLocation}/ragCorpora/${agent.knowledgeBase.vertexCorpusId}`
     : undefined;
 

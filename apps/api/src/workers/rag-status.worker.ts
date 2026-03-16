@@ -34,10 +34,43 @@ async function processOperation(docId: string): Promise<void> {
   });
 }
 
+async function processCorpusOperation(kbId: string, operationId: string): Promise<void> {
+  const kb = await prisma.knowledgeBase.findUnique({ where: { id: kbId } });
+  if (!kb || kb.vertexCorpusId !== 'pending') return;
+
+  const status = await pollOperation(operationId);
+
+  if (!status.done) {
+    await ragStatusQueue.add('poll-corpus', { kbId, operationId }, { delay: RETRY_DELAY_MS });
+    return;
+  }
+
+  if (status.error) {
+    log.error('Failed to create corpus', undefined, { kbId, error: status.error.message });
+    await prisma.knowledgeBase.delete({ where: { id: kbId } });
+    return;
+  }
+
+  // extract corpus ID from the response name
+  const response = status.response as { name: string };
+  const [, corpusId] = response.name.split('/ragCorpora/');
+
+  await prisma.knowledgeBase.update({
+    where: { id: kbId },
+    data: { vertexCorpusId: corpusId },
+  });
+}
+
 export function startRagStatusWorker() {
-  const worker = createWorker<{ docId: string }>(
+  const worker = createWorker<{ docId?: string; kbId?: string; operationId?: string }>(
     'rag-status',
-    (job) => processOperation(job.data.docId),
+    async (job) => {
+      if (job.name === 'poll-corpus' && job.data.kbId && job.data.operationId) {
+        await processCorpusOperation(job.data.kbId, job.data.operationId);
+      } else if (job.data.docId) {
+        await processOperation(job.data.docId);
+      }
+    },
     { concurrency: 5 },
   );
 

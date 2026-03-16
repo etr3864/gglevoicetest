@@ -24,6 +24,7 @@ interface KnowledgeBase {
   totalFiles: number;
   totalSizeBytes: number;
   documents: KnowledgeDocument[];
+  vertexCorpusId: string;
 }
 
 interface UploadEntry {
@@ -70,7 +71,9 @@ export default function KnowledgeTab({ agentId }: Props) {
     },
     refetchInterval: (query) => {
       const docs = query.state.data?.documents ?? [];
-      return docs.some((d) => d.status === 'processing') ? 4000 : false;
+      const hasProcessingDocs = docs.some((d) => d.status === 'processing');
+      const isCorpusPending = query.state.data?.vertexCorpusId === 'pending';
+      return hasProcessingDocs || isCorpusPending ? 4000 : false;
     },
   });
 
@@ -180,17 +183,30 @@ export default function KnowledgeTab({ agentId }: Props) {
           }
         }}
         isDisabling={disableMutation.isPending}
+        isPending={kb.vertexCorpusId === 'pending'}
       />
 
-      <DropZone
-        fileInputRef={fileInputRef}
-        isDragging={isDragging}
-        onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
-        onDragLeave={() => setIsDragging(false)}
-        onDrop={handleDrop}
-        onClick={() => fileInputRef.current?.click()}
-        onChange={(e) => e.target.files && handleFiles(e.target.files)}
-      />
+      {kb.vertexCorpusId === 'pending' ? (
+        <div className="flex flex-col items-center justify-center gap-4 py-20 bg-[var(--bg-hover)] rounded-xl border border-[var(--border)]">
+          <Loader2 className="w-8 h-8 animate-spin text-emerald-400" />
+          <div className="text-center max-w-xs">
+            <p className="font-medium text-[var(--text-primary)]">מקים מאגר ידע...</p>
+            <p className="text-sm text-[var(--text-secondary)] mt-1">
+              זה עשוי לקחת מספר דקות בפעם הראשונה
+            </p>
+          </div>
+        </div>
+      ) : (
+        <DropZone
+          fileInputRef={fileInputRef}
+          isDragging={isDragging}
+          onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+          onDragLeave={() => setIsDragging(false)}
+          onDrop={handleDrop}
+          onClick={() => fileInputRef.current?.click()}
+          onChange={(e) => e.target.files && handleFiles(e.target.files)}
+        />
+      )}
 
       {uploads.length > 0 && (
         <div className="space-y-2">
@@ -252,17 +268,20 @@ interface KbHeaderProps {
   processingCount: number;
   onDisable: () => void;
   isDisabling: boolean;
+  isPending?: boolean;
 }
 
-function KbHeader({ totalFiles, totalSizeBytes, processingCount, onDisable, isDisabling }: KbHeaderProps) {
+function KbHeader({ totalFiles, totalSizeBytes, processingCount, onDisable, isDisabling, isPending }: KbHeaderProps) {
   return (
     <div className="flex items-center justify-between">
       <div className="flex items-center gap-3">
         <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center">
-          <Database className="w-4 h-4 text-emerald-400" />
+          {isPending ? <Loader2 className="w-4 h-4 animate-spin text-emerald-400" /> : <Database className="w-4 h-4 text-emerald-400" />}
         </div>
         <div>
-          <p className="text-sm font-medium text-[var(--text-primary)]">מאגר ידע פעיל</p>
+          <p className="text-sm font-medium text-[var(--text-primary)]">
+            {isPending ? 'מקים מאגר...' : 'מאגר ידע פעיל'}
+          </p>
           <p className="text-xs text-[var(--text-secondary)]">
             {totalFiles} קבצים · {formatBytes(totalSizeBytes)}
             {processingCount > 0 && (

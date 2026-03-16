@@ -10,22 +10,30 @@ export async function enableKnowledgeBase(agentId: string) {
   const existing = await prisma.knowledgeBase.findUnique({ where: { agentId } });
   if (existing) return existing;
 
-  const corpus = await vertexRag.createCorpus(`agent-${agentId}`);
-  const [, corpusId] = corpus.name.split('/ragCorpora/');
+  const operationId = await vertexRag.createCorpus(`agent-${agentId}`);
 
-  return prisma.knowledgeBase.create({
-    data: { agentId, vertexCorpusId: corpusId },
+  // Create it with a temporary placeholder corpus ID, and add to rag status queue
+  // Since we don't have the final corpus ID until the operation completes
+  const kb = await prisma.knowledgeBase.create({
+    data: { agentId, vertexCorpusId: 'pending' },
   });
+
+  // Since we already have a status queue for documents, let's reuse it for the corpus
+  await ragStatusQueue.add('poll-corpus', { kbId: kb.id, operationId }, { delay: 5_000 });
+
+  return kb;
 }
 
 export async function disableKnowledgeBase(agentId: string) {
   const kb = await prisma.knowledgeBase.findUnique({ where: { agentId } });
   if (!kb) return;
 
-  try {
-    await vertexRag.deleteCorpus(`projects/${process.env.GCP_PROJECT_ID}/locations/${process.env.GCP_RAG_LOCATION || 'europe-west4'}/ragCorpora/${kb.vertexCorpusId}`);
-  } catch (err) {
-    log.warn('Failed to delete Vertex corpus — removing DB record anyway', { corpusId: kb.vertexCorpusId, err: String(err) });
+  if (kb.vertexCorpusId !== 'pending') {
+    try {
+      await vertexRag.deleteCorpus(`projects/${process.env.GCP_PROJECT_ID}/locations/${process.env.GCP_RAG_LOCATION || 'europe-west4'}/ragCorpora/${kb.vertexCorpusId}`);
+    } catch (err) {
+      log.warn('Failed to delete Vertex corpus — removing DB record anyway', { corpusId: kb.vertexCorpusId, err: String(err) });
+    }
   }
 
   await prisma.knowledgeBase.delete({ where: { agentId } });
@@ -42,6 +50,7 @@ export interface UploadDocumentInput {
 export async function addDocument(input: UploadDocumentInput) {
   const kb = await prisma.knowledgeBase.findUnique({ where: { agentId: input.agentId } });
   if (!kb) throw new Error('Knowledge base not enabled for this agent');
+  if (kb.vertexCorpusId === 'pending') throw new Error('Knowledge base is still being created');
 
   const doc = await prisma.knowledgeDocument.create({
     data: {
