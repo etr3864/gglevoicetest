@@ -52,6 +52,7 @@ model Agent {
   appointments         Appointment[]
   summaries            CallSummary[]
   scheduledReminders   ScheduledReminder[]
+  knowledgeBase        KnowledgeBase?
 
   @@map("agents")
 }
@@ -172,6 +173,39 @@ model ScheduledReminder {
   @@index([agentId, status])
   @@index([scheduledFor, status])
   @@map("scheduled_reminders")
+}
+
+model KnowledgeBase {
+  id              String              @id @default(uuid())
+  agentId         String              @unique @map("agent_id")
+  vertexCorpusId  String              @map("vertex_corpus_id")
+  totalFiles      Int                 @default(0) @map("total_files")
+  totalSizeBytes  BigInt              @default(0) @map("total_size_bytes")
+  createdAt       DateTime            @default(now()) @map("created_at")
+  updatedAt       DateTime            @updatedAt @map("updated_at")
+  agent           Agent               @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  documents       KnowledgeDocument[]
+
+  @@map("knowledge_bases")
+}
+
+model KnowledgeDocument {
+  id               String        @id @default(uuid())
+  knowledgeBaseId  String        @map("knowledge_base_id")
+  fileName         String        @map("file_name")
+  fileSizeBytes    BigInt        @map("file_size_bytes")
+  gcsUri           String        @map("gcs_uri")
+  vertexFileId     String?       @map("vertex_file_id")
+  vertexOperationId String?      @map("vertex_operation_id")
+  status           String        @default("processing")
+  errorMessage     String?       @map("error_message") @db.Text
+  createdAt        DateTime      @default(now()) @map("created_at")
+  updatedAt        DateTime      @updatedAt @map("updated_at")
+  knowledgeBase    KnowledgeBase @relation(fields: [knowledgeBaseId], references: [id], onDelete: Cascade)
+
+  @@index([knowledgeBaseId, status])
+  @@index([vertexOperationId])
+  @@map("knowledge_documents")
 }
 
 model CallSummary {

@@ -41,6 +41,8 @@ export const reminderQueue = new Queue('reminder-calls', {
   defaultJobOptions: { removeOnComplete: 500, removeOnFail: 1000 },
 });
 
+export const ragStatusQueue = createQueue('rag-status');
+
 export async function scheduleReminderSafetyScan(): Promise<void> {
   await reminderQueue.add(
     'safety-scan',

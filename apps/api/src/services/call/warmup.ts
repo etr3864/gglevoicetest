@@ -183,6 +183,7 @@ export async function buildProviderConfig(
         calendarInstructions: true,
         businessHours: true,
         modelConfig: true,
+        knowledgeBase: { select: { vertexCorpusId: true } },
       },
     }),
     contactPhone && !systemPromptOverride ? buildContactContext(contactPhone) : null,
@@ -223,6 +224,16 @@ export async function buildProviderConfig(
     return null;
   }
 
+  const gcpProject = process.env.GCP_PROJECT_ID;
+  const gcpLocation = process.env.GCP_LOCATION || 'us-central1';
+  const ragCorpusResourceName = agent.knowledgeBase && gcpProject
+    ? `projects/${gcpProject}/locations/${gcpLocation}/ragCorpora/${agent.knowledgeBase.vertexCorpusId}`
+    : undefined;
+
+  if (ragCorpusResourceName) {
+    systemPrompt += '\n\nיש לך גישה למאגר ידע ייעודי עם מסמכים רלוונטיים. כאשר שאלה קשורה למידע שעשוי להיות במאגר — השתמש בו כדי לספק תשובות מדויקות ומבוססות.';
+  }
+
   return {
     apiKey,
     model: GEMINI_MODEL,
@@ -231,6 +242,7 @@ export async function buildProviderConfig(
     openingMessage,
     modelConfig: mergeModelConfig(agent.modelConfig as Partial<ModelConfig> | undefined),
     tools: globalRegistry.getDefinitions(),
+    ragCorpusResourceName,
   };
 }
 

@@ -1,0 +1,104 @@
+import { GoogleAuth } from 'google-auth-library';
+
+const PROJECT_ID = process.env.GCP_PROJECT_ID;
+const LOCATION = process.env.GCP_LOCATION || 'us-central1';
+const BASE_URL = `https://${LOCATION}-aiplatform.googleapis.com/v1`;
+const EMBEDDING_MODEL = 'publishers/google/models/text-multilingual-embedding-002';
+
+const auth = new GoogleAuth({ scopes: ['https://www.googleapis.com/auth/cloud-platform'] });
+
+async function getHeaders(): Promise<Record<string, string>> {
+  const client = await auth.getClient();
+  const token = await client.getAccessToken();
+  return { Authorization: `Bearer ${token.token}`, 'Content-Type': 'application/json' };
+}
+
+function requireProject(): string {
+  if (!PROJECT_ID) throw new Error('GCP_PROJECT_ID not set');
+  return PROJECT_ID;
+}
+
+function corporaBase(): string {
+  return `${BASE_URL}/projects/${requireProject()}/locations/${LOCATION}/ragCorpora`;
+}
+
+async function request<T>(method: string, url: string, body?: unknown): Promise<T> {
+  const headers = await getHeaders();
+  const res = await fetch(url, { method, headers, body: body ? JSON.stringify(body) : undefined });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Vertex RAG API ${method} ${url} → ${res.status}: ${text}`);
+  }
+  return res.json() as Promise<T>;
+}
+
+export interface RagCorpus {
+  name: string;
+  displayName: string;
+}
+
+export interface RagOperationResult {
+  operationId: string;
+}
+
+export interface RagFileRef {
+  name: string;
+}
+
+export interface OperationStatus {
+  done: boolean;
+  error?: { code: number; message: string };
+  response?: { importedRagFilesCount?: number; failedRagFilesCount?: number };
+}
+
+export async function createCorpus(displayName: string): Promise<RagCorpus> {
+  return request<RagCorpus>('POST', corporaBase(), {
+    displayName,
+    ragEmbeddingModelConfig: {
+      vertexPredictionEndpoint: { publisherModel: EMBEDDING_MODEL },
+    },
+  });
+}
+
+export async function deleteCorpus(corpusResourceName: string): Promise<void> {
+  const headers = await getHeaders();
+  const res = await fetch(`${BASE_URL}/${corpusResourceName}`, { method: 'DELETE', headers });
+  if (!res.ok && res.status !== 404) {
+    const text = await res.text();
+    throw new Error(`Delete corpus ${res.status}: ${text}`);
+  }
+}
+
+export async function importFile(
+  corpusResourceName: string,
+  gcsUri: string,
+  displayName: string,
+): Promise<RagOperationResult> {
+  const url = `${BASE_URL}/${corpusResourceName}/ragFiles:import`;
+  const op = await request<{ name: string }>('POST', url, {
+    importRagFilesConfig: {
+      ragFileTransformationConfig: { ragFileChunkingConfig: { fixedLengthChunking: { chunkSize: 1024, chunkOverlap: 200 } } },
+      gcsSource: { uris: [gcsUri] },
+    },
+    ragFiles: [{ displayName }],
+  });
+  return { operationId: op.name };
+}
+
+export async function deleteFile(ragFileResourceName: string): Promise<void> {
+  const headers = await getHeaders();
+  const res = await fetch(`${BASE_URL}/${ragFileResourceName}`, { method: 'DELETE', headers });
+  if (!res.ok && res.status !== 404) {
+    const text = await res.text();
+    throw new Error(`Delete rag file ${res.status}: ${text}`);
+  }
+}
+
+export async function pollOperation(operationResourceName: string): Promise<OperationStatus> {
+  return request<OperationStatus>('GET', `${BASE_URL}/${operationResourceName}`);
+}
+
+export async function listFiles(corpusResourceName: string): Promise<RagFileRef[]> {
+  const result = await request<{ ragFiles?: RagFileRef[] }>('GET', `${BASE_URL}/${corpusResourceName}/ragFiles`);
+  return result.ragFiles ?? [];
+}

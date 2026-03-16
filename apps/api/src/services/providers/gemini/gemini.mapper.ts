@@ -12,8 +12,21 @@ export class GeminiMapper {
       systemInstruction: { parts: [{ text: systemPrompt }] },
     };
 
+    const toolsPayload: Record<string, unknown>[] = [];
     if (tools?.length) {
-      setup.tools = [{ functionDeclarations: tools.map((t) => this.formatTool(t)) }];
+      toolsPayload.push({ functionDeclarations: tools.map((t) => this.formatTool(t)) });
+    }
+    if (config.ragCorpusResourceName) {
+      toolsPayload.push({
+        retrieval: {
+          vertexRagStore: {
+            ragResources: [{ ragCorpus: config.ragCorpusResourceName }],
+          },
+        },
+      });
+    }
+    if (toolsPayload.length) {
+      setup.tools = toolsPayload;
     }
     if (vad) {
       setup.realtimeInputConfig = this.buildVadConfig(vad);

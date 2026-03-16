@@ -4,7 +4,7 @@ import {
   ArrowRight, Save, Trash2, Settings, Phone, MessageSquare,
   FileText, Users, PhoneCall, PhoneOutgoing, PhoneIncoming, PhoneMissed, Loader2, Calendar,
   Copy, Check, RefreshCw, Eye, EyeOff, Activity, Play, Pause,
-  Download, Search, X as XIcon
+  Download, Search, X as XIcon, BookOpen
 } from 'lucide-react';
 import { useState, useEffect, useRef, useCallback, type RefObject, type MouseEvent as ReactMouseEvent } from 'react';
 import api from '../../lib/api';
@@ -21,8 +21,9 @@ import ContactDrawer from './ContactDrawer';
 import OutboundCallDialog from './OutboundCallDialog';
 import CalendarTab from './CalendarTab';
 import RemindersTab from './RemindersTab';
+import KnowledgeTab from './KnowledgeTab';
 
-type Tab = 'prompt' | 'calls' | 'contacts' | 'calendar' | 'reminders' | 'summaries' | 'settings';
+type Tab = 'prompt' | 'calls' | 'contacts' | 'calendar' | 'reminders' | 'summaries' | 'knowledge' | 'settings';
 
 const tabs: { key: Tab; label: string; icon: typeof FileText }[] = [
   { key: 'prompt', label: 'System Prompt', icon: FileText },
@@ -31,6 +32,7 @@ const tabs: { key: Tab; label: string; icon: typeof FileText }[] = [
   { key: 'calendar', label: 'יומן', icon: Calendar },
   { key: 'reminders', label: 'תזכורות', icon: PhoneOutgoing },
   { key: 'summaries', label: 'סיכומים', icon: MessageSquare },
+  { key: 'knowledge', label: 'ידע', icon: BookOpen },
   { key: 'settings', label: 'הגדרות', icon: Settings },
 ];
 
@@ -419,6 +421,11 @@ export default function AgentDetailPage() {
           onSave={(data) => updateSettings.mutate(data)}
           isSaving={updateSettings.isPending}
         />
+      )}
+
+      {/* ===== Knowledge ===== */}
+      {tab === 'knowledge' && id && (
+        <KnowledgeTab agentId={id} />
       )}
 
       {/* ===== Settings ===== */}
