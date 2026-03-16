@@ -32,6 +32,27 @@ async function request<T>(method: string, url: string, body?: unknown): Promise<
   return res.json() as Promise<T>;
 }
 
+interface LroResponse<T> {
+  name: string;
+  done?: boolean;
+  error?: { code: number; message: string };
+  response?: T;
+}
+
+async function waitForOperation<T>(operationName: string, maxWaitMs = 60_000): Promise<T> {
+  const interval = 2_000;
+  const attempts = Math.ceil(maxWaitMs / interval);
+  for (let i = 0; i < attempts; i++) {
+    await new Promise((r) => setTimeout(r, interval));
+    const status = await request<LroResponse<T>>('GET', `${BASE_URL}/${operationName}`);
+    if (status.done) {
+      if (status.error) throw new Error(`Operation failed: ${status.error.message}`);
+      return status.response as T;
+    }
+  }
+  throw new Error(`Operation timed out after ${maxWaitMs}ms: ${operationName}`);
+}
+
 export interface RagCorpus {
   name: string;
   displayName: string;
@@ -52,12 +73,24 @@ export interface OperationStatus {
 }
 
 export async function createCorpus(displayName: string): Promise<RagCorpus> {
-  return request<RagCorpus>('POST', corporaBase(), {
+  const op = await request<LroResponse<RagCorpus>>('POST', corporaBase(), {
     displayName,
-    ragEmbeddingModelConfig: {
-      vertexPredictionEndpoint: { publisherModel: EMBEDDING_MODEL },
+    vectorDbConfig: {
+      ragManagedDb: {},
+      ragEmbeddingModelConfig: {
+        vertexPredictionEndpoint: {
+          endpoint: `projects/${requireProject()}/locations/${LOCATION}/${EMBEDDING_MODEL}`,
+        },
+      },
     },
   });
+
+  if (op.done) {
+    if (op.error) throw new Error(`Corpus creation failed: ${op.error.message}`);
+    return op.response as RagCorpus;
+  }
+
+  return waitForOperation<RagCorpus>(op.name);
 }
 
 export async function deleteCorpus(corpusResourceName: string): Promise<void> {
