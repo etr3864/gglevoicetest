@@ -55,7 +55,8 @@ export function attachWebSocket(server: Server): void {
 
   subscribeToDisconnects();
 
-  wss.on('connection', (ws) => {
+  wss.on('connection', (ws, req) => {
+    log.info('WebSocket connected', { remoteIp: req.socket.remoteAddress, url: req.url });
     let callControlId: string | null = null;
     let streamStartTs = 0;
     let mediaChunkCount = 0;
@@ -68,7 +69,7 @@ export function attachWebSocket(server: Server): void {
           case 'start':
             callControlId = msg.start?.call_control_id;
             streamStartTs = Date.now();
-            log.debug('Telnyx stream start', {
+            log.info('Telnyx stream start', {
               callControlId,
               encoding: msg.start?.media_format?.encoding,
               sampleRate: msg.start?.media_format?.sample_rate,
