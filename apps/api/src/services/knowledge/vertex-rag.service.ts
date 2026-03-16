@@ -109,7 +109,6 @@ export async function importFile(
       ragFileTransformationConfig: { ragFileChunkingConfig: { fixedLengthChunking: { chunkSize: 1024, chunkOverlap: 200 } } },
       gcsSource: { uris: [gcsUri] },
     },
-    ragFiles: [{ displayName }],
   });
   return { operationId: op.name };
 }
