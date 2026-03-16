@@ -23,7 +23,7 @@ export async function disableKnowledgeBase(agentId: string) {
   if (!kb) return;
 
   try {
-    await vertexRag.deleteCorpus(`projects/${process.env.GCP_PROJECT_ID}/locations/${process.env.GCP_LOCATION || 'us-central1'}/ragCorpora/${kb.vertexCorpusId}`);
+    await vertexRag.deleteCorpus(`projects/${process.env.GCP_PROJECT_ID}/locations/${process.env.GCP_RAG_LOCATION || 'europe-west4'}/ragCorpora/${kb.vertexCorpusId}`);
   } catch (err) {
     log.warn('Failed to delete Vertex corpus — removing DB record anyway', { corpusId: kb.vertexCorpusId, err: String(err) });
   }
@@ -61,7 +61,7 @@ export async function addDocument(input: UploadDocumentInput) {
     input.contentType,
   );
 
-  const corpusResourceName = `projects/${process.env.GCP_PROJECT_ID}/locations/${process.env.GCP_LOCATION || 'us-central1'}/ragCorpora/${kb.vertexCorpusId}`;
+  const corpusResourceName = `projects/${process.env.GCP_PROJECT_ID}/locations/${process.env.GCP_RAG_LOCATION || 'europe-west4'}/ragCorpora/${kb.vertexCorpusId}`;
   const { operationId } = await vertexRag.importFile(corpusResourceName, gcsUri, input.fileName);
 
   await prisma.knowledgeDocument.update({

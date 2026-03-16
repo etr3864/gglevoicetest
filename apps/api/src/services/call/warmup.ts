@@ -225,9 +225,9 @@ export async function buildProviderConfig(
   }
 
   const gcpProject = process.env.GCP_PROJECT_ID;
-  const gcpLocation = process.env.GCP_LOCATION || 'us-central1';
+  const ragLocation = process.env.GCP_RAG_LOCATION || 'europe-west4';
   const ragCorpusResourceName = agent.knowledgeBase && gcpProject
-    ? `projects/${gcpProject}/locations/${gcpLocation}/ragCorpora/${agent.knowledgeBase.vertexCorpusId}`
+    ? `projects/${gcpProject}/locations/${ragLocation}/ragCorpora/${agent.knowledgeBase.vertexCorpusId}`
     : undefined;
 
   if (ragCorpusResourceName) {

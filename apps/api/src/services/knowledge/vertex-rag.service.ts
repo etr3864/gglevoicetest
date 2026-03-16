@@ -1,8 +1,8 @@
 import { GoogleAuth } from 'google-auth-library';
 
 const PROJECT_ID = process.env.GCP_PROJECT_ID;
-const LOCATION = process.env.GCP_LOCATION || 'us-central1';
-const BASE_URL = `https://${LOCATION}-aiplatform.googleapis.com/v1`;
+const RAG_LOCATION = process.env.GCP_RAG_LOCATION || 'europe-west4';
+const BASE_URL = `https://${RAG_LOCATION}-aiplatform.googleapis.com/v1`;
 const EMBEDDING_MODEL = 'publishers/google/models/text-multilingual-embedding-002';
 
 const auth = new GoogleAuth({ scopes: ['https://www.googleapis.com/auth/cloud-platform'] });
@@ -19,7 +19,7 @@ function requireProject(): string {
 }
 
 function corporaBase(): string {
-  return `${BASE_URL}/projects/${requireProject()}/locations/${LOCATION}/ragCorpora`;
+  return `${BASE_URL}/projects/${requireProject()}/locations/${RAG_LOCATION}/ragCorpora`;
 }
 
 async function request<T>(method: string, url: string, body?: unknown): Promise<T> {
@@ -79,7 +79,7 @@ export async function createCorpus(displayName: string): Promise<RagCorpus> {
       ragManagedDb: {},
       ragEmbeddingModelConfig: {
         vertexPredictionEndpoint: {
-          endpoint: `projects/${requireProject()}/locations/${LOCATION}/${EMBEDDING_MODEL}`,
+          endpoint: `projects/${requireProject()}/locations/${RAG_LOCATION}/${EMBEDDING_MODEL}`,
         },
       },
     },
