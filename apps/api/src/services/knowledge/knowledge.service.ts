@@ -8,7 +8,9 @@ const log = createLogger('knowledge-service');
 
 export async function enableKnowledgeBase(agentId: string) {
   const existing = await prisma.knowledgeBase.findUnique({ where: { agentId } });
-  if (existing) return existing;
+  if (existing) {
+    return { ...existing, totalSizeBytes: Number(existing.totalSizeBytes) };
+  }
 
   const operationId = await vertexRag.createCorpus(`agent-${agentId}`);
 
@@ -21,7 +23,7 @@ export async function enableKnowledgeBase(agentId: string) {
   // Since we already have a status queue for documents, let's reuse it for the corpus
   await ragStatusQueue.add('poll-corpus', { kbId: kb.id, operationId }, { delay: 5_000 });
 
-  return kb;
+  return { ...kb, totalSizeBytes: Number(kb.totalSizeBytes) };
 }
 
 export async function disableKnowledgeBase(agentId: string) {
@@ -85,7 +87,12 @@ export async function addDocument(input: UploadDocumentInput) {
     data: { totalFiles: { increment: 1 }, totalSizeBytes: { increment: input.fileSizeBytes } },
   });
 
-  return { ...doc, gcsUri, vertexOperationId: operationId };
+  return {
+    ...doc,
+    fileSizeBytes: Number(doc.fileSizeBytes),
+    gcsUri,
+    vertexOperationId: operationId,
+  };
 }
 
 export async function removeDocument(docId: string) {
@@ -122,5 +129,14 @@ export async function listDocuments(agentId: string) {
     where: { agentId },
     include: { documents: { orderBy: { createdAt: 'desc' } } },
   });
-  return kb ?? null;
+  if (!kb) return null;
+
+  return {
+    ...kb,
+    totalSizeBytes: Number(kb.totalSizeBytes),
+    documents: kb.documents.map((d) => ({
+      ...d,
+      fileSizeBytes: Number(d.fileSizeBytes),
+    })),
+  };
 }
