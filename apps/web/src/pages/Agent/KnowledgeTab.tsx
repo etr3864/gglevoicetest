@@ -105,7 +105,7 @@ export default function KnowledgeTab({ agentId }: Props) {
 
       try {
         await api.post(`/agents/${agentId}/knowledge/documents`, file, {
-          headers: { 'Content-Type': file.type, 'X-File-Name': file.name },
+          headers: { 'Content-Type': file.type, 'X-File-Name': encodeURIComponent(file.name) },
           onUploadProgress: (e) => {
             if (e.total) {
               const pct = Math.round((e.loaded / e.total) * 100);

@@ -41,8 +41,9 @@ router.post('/documents', async (req: AgentReq, res) => {
     throw new AppError(415, 'UNSUPPORTED_TYPE', 'Unsupported file type');
   }
 
-  const fileName = (req.headers['x-file-name'] as string)?.replace(/[^a-zA-Z0-9.\-_]/g, '_');
-  if (!fileName) throw new AppError(400, 'MISSING_FILE_NAME', 'x-file-name header required');
+  const rawFileName = req.headers['x-file-name'] as string;
+  if (!rawFileName) throw new AppError(400, 'MISSING_FILE_NAME', 'x-file-name header required');
+  const fileName = decodeURIComponent(rawFileName).replace(/[^a-zA-Z0-9\u0590-\u05FF.\-_ ]/g, '_');
 
   const chunks: Buffer[] = [];
   for await (const chunk of req) chunks.push(chunk as Buffer);
