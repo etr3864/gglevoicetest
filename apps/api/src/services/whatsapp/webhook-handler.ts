@@ -36,7 +36,7 @@ export function verifyMetaChallenge(
 
 async function dedupInbound(messageId: string): Promise<boolean> {
   const key = `wa:dedup:${messageId}`;
-  const result = await redis.set(key, '1', 'NX', 'EX', 86400);
+  const result = await redis.set(key, '1', 'EX', 86400, 'NX');
   return result === 'OK';
 }
 
