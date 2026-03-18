@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { prisma } from '@voice/db';
+import { assertAgentAccess } from '../middleware/auth';
 
 const router = Router();
 
@@ -14,6 +15,17 @@ router.get('/contacts/:contactId/whatsapp', async (req, res) => {
   });
 
   if (!contact) return res.status(404).json({ error: 'Contact not found' });
+
+  if (req.user?.role !== 'super_admin') {
+    const hasAccess = await prisma.call.findFirst({
+      where: {
+        contactId,
+        agent: { userId: req.user?.role === 'employee' && req.user?.parentId ? req.user.parentId : req.user?.userId },
+      },
+      select: { id: true },
+    });
+    if (!hasAccess) return res.status(403).json({ error: 'Access denied' });
+  }
 
   const where = cursor
     ? { contactPhone: contact.phone, id: { lt: cursor } }

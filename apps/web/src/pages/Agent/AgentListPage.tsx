@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Bot, Settings, ArrowLeft, Phone, Loader2 } from 'lucide-react';
+import { Plus, Bot, Settings, ArrowLeft, Phone, Loader2, Search } from 'lucide-react';
 import api from '../../lib/api';
+import { useAuth } from '../../hooks/useAuth';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { Input } from '../../components/ui/Input';
@@ -13,13 +14,22 @@ export default function AgentListPage() {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { isSuperAdmin, isEmployee } = useAuth();
   const [showCreate, setShowCreate] = useState(false);
   const [name, setName] = useState('');
+  const [search, setSearch] = useState('');
 
   const { data: agents, isLoading } = useQuery({
     queryKey: ['agents'],
     queryFn: () => api.get('/agents').then(r => r.data.data),
   });
+
+  const filtered = useMemo(() => {
+    if (!agents) return [];
+    if (!search.trim()) return agents;
+    const q = search.trim().toLowerCase();
+    return agents.filter((a: any) => a.name?.toLowerCase().includes(q));
+  }, [agents, search]);
 
   const create = useMutation({
     mutationFn: (data: { name: string }) => api.post('/agents', data),
@@ -45,16 +55,28 @@ export default function AgentListPage() {
   return (
     <div className="max-w-5xl mx-auto space-y-6">
       <div className="flex items-center gap-4">
-        <Button onClick={() => setShowCreate(true)}>
-          <Plus className="w-4 h-4" />
-          סוכן חדש
-        </Button>
+        {isSuperAdmin && (
+          <Button onClick={() => setShowCreate(true)}>
+            <Plus className="w-4 h-4" />
+            סוכן חדש
+          </Button>
+        )}
+        <div className="relative flex-1 max-w-xs">
+          <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-muted)]" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="חפש סוכן..."
+            className="w-full pr-9 pl-3 py-2 rounded-lg text-sm bg-[var(--bg-primary)] border border-[var(--border)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]/30 transition-colors"
+          />
+        </div>
       </div>
 
       <div className="grid grid-cols-3 gap-4">
         {[
           { value: agents?.length ?? 0, label: 'סוכנים', color: 'text-[var(--text-primary)]' },
-          { value: activeCount, label: 'פעילים', color: 'text-emerald-400' },
+          { value: activeCount, label: 'פעילים', color: 'text-[var(--accent)]' },
           { value: totalCalls, label: 'שיחות', color: 'text-blue-400' },
         ].map(({ value, label, color }) => (
           <Card key={label} className="p-5 text-center group hover:border-[var(--border-bright)] transition-colors">
@@ -64,7 +86,7 @@ export default function AgentListPage() {
         ))}
       </div>
 
-      {showCreate && (
+      {showCreate && isSuperAdmin && (
         <Card className="p-5 animate-slide-up">
           <form
             onSubmit={(e) => { e.preventDefault(); create.mutate({ name }); }}
@@ -95,18 +117,20 @@ export default function AgentListPage() {
       )}
 
       <div className="space-y-3">
-        {agents?.map((agent: any) => (
+        {filtered?.map((agent: any) => (
           <Card
             key={agent.id}
             className="flex items-center justify-between px-5 py-4 hover:border-[var(--border-bright)] transition-colors"
           >
             <div className="flex items-center gap-3">
-              <button
-                onClick={() => navigate(`/agents/${agent.id}?tab=settings`)}
-                className="p-2 rounded-lg text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] transition-colors"
-              >
-                <Settings className="w-4 h-4" />
-              </button>
+              {isSuperAdmin && (
+                <button
+                  onClick={() => navigate(`/agents/${agent.id}?tab=settings`)}
+                  className="p-2 rounded-lg text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] transition-colors"
+                >
+                  <Settings className="w-4 h-4" />
+                </button>
+              )}
               <Button
                 variant="secondary"
                 size="sm"
@@ -115,12 +139,14 @@ export default function AgentListPage() {
                 <ArrowLeft className="w-3.5 h-3.5" />
                 הכנס
               </Button>
-              <Toggle
-                checked={agent.status === 'active'}
-                onChange={(checked) =>
-                  toggleStatus.mutate({ id: agent.id, status: checked ? 'active' : 'inactive' })
-                }
-              />
+              {!isEmployee && (
+                <Toggle
+                  checked={agent.status === 'active'}
+                  onChange={(checked) =>
+                    toggleStatus.mutate({ id: agent.id, status: checked ? 'active' : 'inactive' })
+                  }
+                />
+              )}
             </div>
 
             <div className="flex items-center gap-4">
@@ -128,7 +154,7 @@ export default function AgentListPage() {
                 <div className="flex items-center gap-2">
                   <span className="font-semibold text-[var(--text-primary)]">{agent.name}</span>
                   <span className={`w-2 h-2 rounded-full ${
-                    agent.status === 'active' ? 'bg-emerald-400 shadow-[0_0_6px_theme(colors.emerald.400)]' : 'bg-red-400'
+                    agent.status === 'active' ? 'bg-[var(--accent)] shadow-[0_0_6px_var(--accent)]' : 'bg-red-400'
                   }`} />
                 </div>
                 <div className="flex items-center gap-2 mt-1">
@@ -145,19 +171,23 @@ export default function AgentListPage() {
                   )}
                 </div>
               </div>
-              <div className="w-10 h-10 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
-                <Bot className="w-5 h-5 text-emerald-400" />
+              <div className="w-10 h-10 rounded-lg bg-[var(--accent)]/10 border border-[var(--accent)]/20 flex items-center justify-center">
+                <Bot className="w-5 h-5 text-[var(--accent)]" />
               </div>
             </div>
           </Card>
         ))}
       </div>
 
-      {agents?.length === 0 && !isLoading && (
+      {filtered?.length === 0 && !isLoading && (
         <div className="text-center py-16">
           <Bot className="w-16 h-16 mx-auto mb-4 text-[var(--text-muted)]" />
-          <h3 className="text-lg font-medium text-[var(--text-primary)]">אין סוכנים עדיין</h3>
-          <p className="text-[var(--text-secondary)] mt-1">צור סוכן חדש כדי להתחיל</p>
+          <h3 className="text-lg font-medium text-[var(--text-primary)]">
+            {search ? 'לא נמצאו סוכנים תואמים' : 'אין סוכנים עדיין'}
+          </h3>
+          {!search && isSuperAdmin && (
+            <p className="text-[var(--text-secondary)] mt-1">צור סוכן חדש כדי להתחיל</p>
+          )}
         </div>
       )}
     </div>

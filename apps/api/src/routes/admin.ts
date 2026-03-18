@@ -1,11 +1,9 @@
 import { Router } from 'express';
 import { prisma } from '@voice/db';
-import { adminMiddleware } from '../middleware/auth';
 import { AppError } from '../middleware/error-handler';
 import { simulateCrashForTesting } from '../services/call/media-bridge';
 
 const router = Router();
-router.use(adminMiddleware);
 
 const TABLE_MAP: Record<string, { model: string; orderBy: Record<string, string> }> = {
   agents:       { model: 'agent',       orderBy: { createdAt: 'desc' } },

@@ -8,13 +8,21 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(uuid())
-  email     String   @unique
-  password  String
-  role      String   @default("admin")
-  createdAt DateTime @default(now()) @map("created_at")
-  agents    Agent[]
+  id          String   @id @default(uuid())
+  email       String   @unique
+  password    String
+  role        String   @default("super_admin")
+  name        String?
+  companyName String?  @map("company_name")
+  phone       String?
+  isActive    Boolean  @default(true) @map("is_active")
+  parentId    String?  @map("parent_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  parent      User?    @relation("UserHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children    User[]   @relation("UserHierarchy")
+  agents      Agent[]
 
+  @@index([parentId])
   @@map("users")
 }
 

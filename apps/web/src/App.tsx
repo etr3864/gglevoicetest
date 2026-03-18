@@ -1,9 +1,11 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth';
+import type { UserRole } from '@voice/shared';
 import LoginPage from './pages/LoginPage';
 import AgentListPage from './pages/Agent/AgentListPage';
 import AgentDetailPage from './pages/Agent/AgentDetailPage';
 import AdminPage from './pages/Admin/AdminPage';
+import UsersPage from './pages/Users/UsersPage';
 import Layout from './components/Layout';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -19,6 +21,12 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function RoleRoute({ children, allowedRoles }: { children: React.ReactNode; allowedRoles: UserRole[] }) {
+  const { hasRole } = useAuth();
+  if (!hasRole(...allowedRoles)) return <Navigate to="/" replace />;
+  return <>{children}</>;
+}
+
 export default function App() {
   return (
     <Routes>
@@ -26,7 +34,8 @@ export default function App() {
       <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
         <Route index element={<AgentListPage />} />
         <Route path="agents/:id" element={<AgentDetailPage />} />
-        <Route path="database" element={<AdminPage />} />
+        <Route path="database" element={<RoleRoute allowedRoles={['super_admin']}><AdminPage /></RoleRoute>} />
+        <Route path="users" element={<RoleRoute allowedRoles={['super_admin', 'admin']}><UsersPage /></RoleRoute>} />
       </Route>
     </Routes>
   );

@@ -1,17 +1,19 @@
 import { Router } from 'express';
-import { authMiddlewareOptionalToken } from '../middleware/auth';
+import { authMiddlewareOptionalToken, assertAgentAccess } from '../middleware/auth';
 import { sseManager } from '../services/events/sse.manager';
 
 const router = Router();
 
-router.get('/agents/:id/events', authMiddlewareOptionalToken, (req, res) => {
+router.get('/agents/:id/events', authMiddlewareOptionalToken, async (req, res) => {
+  const { id } = req.params as { id: string };
+  await assertAgentAccess(id, req.user!);
+
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
   res.flushHeaders();
 
-  const agentId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
-  sseManager.addClient(agentId, res);
+  sseManager.addClient(id, res);
 });
 
 export default router;

@@ -7,7 +7,7 @@ import { createLogger } from './lib/logger';
 import { VOICES } from './lib/constants';
 import { redis } from './lib/redis';
 import { errorHandler } from './middleware/error-handler';
-import { authMiddleware } from './middleware/auth';
+import { authMiddleware, requireSuperAdmin } from './middleware/auth';
 import authRoutes from './routes/auth';
 import agentRoutes from './routes/agents';
 import callRoutes from './routes/calls';
@@ -104,7 +104,7 @@ app.use('/', authMiddleware, callRoutes);
 app.use('/', recordingRoutes);
 app.use('/', authMiddleware, contactRoutes);
 app.use('/', authMiddleware, whatsappRoutes);
-app.use('/admin', authMiddleware, adminRoutes);
+app.use('/admin', authMiddleware, requireSuperAdmin, adminRoutes);
 
 app.use(errorHandler);
 

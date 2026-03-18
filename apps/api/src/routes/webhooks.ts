@@ -226,7 +226,7 @@ async function markNoAnswerIfUnanswered(callControlId: string): Promise<void> {
 }
 
 router.get('/whatsapp/meta/:agentId', async (req: Request, res: Response) => {
-  const { agentId } = req.params;
+  const agentId = req.params.agentId as string;
   const config = await loadAgentWhatsappConfig(agentId);
   if (!config?.verifyToken) return res.sendStatus(403);
 
@@ -237,7 +237,7 @@ router.get('/whatsapp/meta/:agentId', async (req: Request, res: Response) => {
 });
 
 router.post('/whatsapp/meta/:agentId', async (req: Request, res: Response) => {
-  const { agentId } = req.params;
+  const agentId = req.params.agentId as string;
   const rawBody: Buffer | undefined = (req as any).rawBody;
 
   const config = await loadAgentWhatsappConfig(agentId);
@@ -256,7 +256,7 @@ router.post('/whatsapp/meta/:agentId', async (req: Request, res: Response) => {
 });
 
 router.post('/whatsapp/wasender/:agentId', async (req: Request, res: Response) => {
-  const { agentId } = req.params;
+  const agentId = req.params.agentId as string;
   const rawBody: Buffer | undefined = (req as any).rawBody;
 
   const config = await loadAgentWhatsappConfig(agentId);

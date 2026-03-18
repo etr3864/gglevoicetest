@@ -1,5 +1,6 @@
 import { Router, Request } from 'express';
 import { AppError } from '../middleware/error-handler';
+import { requireSuperAdmin, assertAgentAccess } from '../middleware/auth';
 import {
   enableKnowledgeBase,
   disableKnowledgeBase,
@@ -20,22 +21,23 @@ const ALLOWED_CONTENT_TYPES = new Set([
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
 ]);
 
-router.post('/enable', async (req: AgentReq, res) => {
+router.post('/enable', requireSuperAdmin, async (req: AgentReq, res) => {
   const kb = await enableKnowledgeBase(req.params.agentId);
   res.status(201).json({ data: kb });
 });
 
-router.delete('/', async (req: AgentReq, res) => {
+router.delete('/', requireSuperAdmin, async (req: AgentReq, res) => {
   await disableKnowledgeBase(req.params.agentId);
   res.json({ data: { success: true } });
 });
 
 router.get('/documents', async (req: AgentReq, res) => {
+  await assertAgentAccess(req.params.agentId, req.user!);
   const result = await listDocuments(req.params.agentId);
   res.json({ data: result });
 });
 
-router.post('/documents', async (req: AgentReq, res) => {
+router.post('/documents', requireSuperAdmin, async (req: AgentReq, res) => {
   const contentType = req.headers['content-type'] ?? '';
   if (!ALLOWED_CONTENT_TYPES.has(contentType.split(';')[0].trim())) {
     throw new AppError(415, 'UNSUPPORTED_TYPE', 'Unsupported file type');
@@ -64,7 +66,7 @@ router.post('/documents', async (req: AgentReq, res) => {
   res.status(202).json({ data: doc });
 });
 
-router.delete('/documents/:docId', async (req: AgentReq, res) => {
+router.delete('/documents/:docId', requireSuperAdmin, async (req: AgentReq, res) => {
   await removeDocument(req.params.docId!);
   res.json({ data: { success: true } });
 });

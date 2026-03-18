@@ -2,10 +2,13 @@ import { Router } from 'express';
 import { prisma } from '@voice/db';
 import { reminderQueue } from '../lib/queue';
 import { AppError } from '../middleware/error-handler';
+import { assertAgentAccess } from '../middleware/auth';
 
 const router = Router();
 
 router.get('/:agentId/reminders', async (req, res) => {
+  await assertAgentAccess(req.params.agentId, req.user!);
+
   const { agentId } = req.params;
   const status = req.query.status as string | undefined;
   const page = Math.max(1, parseInt(req.query.page as string) || 1);
@@ -35,8 +38,9 @@ router.get('/:agentId/reminders', async (req, res) => {
 });
 
 router.post('/:agentId/reminders/:reminderId/trigger', async (req, res) => {
-  const { agentId, reminderId } = req.params;
+  await assertAgentAccess(req.params.agentId, req.user!);
 
+  const { agentId, reminderId } = req.params;
   const reminder = await prisma.scheduledReminder.findUnique({ where: { id: reminderId } });
   if (!reminder || reminder.agentId !== agentId) throw new AppError(404, 'NOT_FOUND', 'Reminder not found');
   if (reminder.status === 'CALLING') throw new AppError(409, 'ALREADY_CALLING', 'Reminder call is already in progress');
@@ -58,8 +62,9 @@ router.post('/:agentId/reminders/:reminderId/trigger', async (req, res) => {
 });
 
 router.post('/:agentId/reminders/:reminderId/cancel', async (req, res) => {
-  const { agentId, reminderId } = req.params;
+  await assertAgentAccess(req.params.agentId, req.user!);
 
+  const { agentId, reminderId } = req.params;
   const reminder = await prisma.scheduledReminder.findUnique({ where: { id: reminderId } });
   if (!reminder || reminder.agentId !== agentId) throw new AppError(404, 'NOT_FOUND', 'Reminder not found');
   if (reminder.status === 'CANCELLED') throw new AppError(409, 'ALREADY_CANCELLED', 'Reminder is already cancelled');

@@ -6,8 +6,9 @@ import {
   Copy, Check, RefreshCw, Eye, EyeOff, Activity, Play, Pause,
   Download, Search, X as XIcon, BookOpen
 } from 'lucide-react';
-import { useState, useEffect, useRef, useCallback, type RefObject, type MouseEvent as ReactMouseEvent } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo, type RefObject, type MouseEvent as ReactMouseEvent } from 'react';
 import api from '../../lib/api';
+import { useAuth } from '../../hooks/useAuth';
 import { useAgentEvents } from '../../hooks/useAgentEvents';
 import { Button } from '../../components/ui/Button';
 import { Card, CardContent } from '../../components/ui/Card';
@@ -24,18 +25,20 @@ import RemindersTab from './RemindersTab';
 import KnowledgeTab from './KnowledgeTab';
 import WhatsappTab from './WhatsappTab';
 
+import type { UserRole } from '@voice/shared';
+
 type Tab = 'prompt' | 'calls' | 'contacts' | 'calendar' | 'reminders' | 'summaries' | 'knowledge' | 'whatsapp' | 'settings';
 
-const tabs: { key: Tab; label: string; icon: typeof FileText }[] = [
-  { key: 'prompt', label: 'System Prompt', icon: FileText },
-  { key: 'calls', label: 'שיחות', icon: Phone },
-  { key: 'contacts', label: 'אנשי קשר', icon: Users },
-  { key: 'calendar', label: 'יומן', icon: Calendar },
-  { key: 'reminders', label: 'תזכורות', icon: PhoneOutgoing },
-  { key: 'summaries', label: 'סיכומים', icon: MessageSquare },
-  { key: 'knowledge', label: 'ידע', icon: BookOpen },
-  { key: 'whatsapp', label: 'וואטסאפ', icon: MessageSquare },
-  { key: 'settings', label: 'הגדרות', icon: Settings },
+const allTabs: { key: Tab; label: string; icon: typeof FileText; roles: UserRole[] }[] = [
+  { key: 'prompt', label: 'System Prompt', icon: FileText, roles: ['super_admin'] },
+  { key: 'calls', label: 'שיחות', icon: Phone, roles: ['super_admin', 'admin', 'employee'] },
+  { key: 'contacts', label: 'אנשי קשר', icon: Users, roles: ['super_admin', 'admin'] },
+  { key: 'calendar', label: 'יומן', icon: Calendar, roles: ['super_admin', 'admin'] },
+  { key: 'reminders', label: 'תזכורות', icon: PhoneOutgoing, roles: ['super_admin', 'admin'] },
+  { key: 'summaries', label: 'סיכומים', icon: MessageSquare, roles: ['super_admin'] },
+  { key: 'knowledge', label: 'ידע', icon: BookOpen, roles: ['super_admin'] },
+  { key: 'whatsapp', label: 'וואטסאפ', icon: MessageSquare, roles: ['super_admin'] },
+  { key: 'settings', label: 'הגדרות', icon: Settings, roles: ['super_admin'] },
 ];
 
 export default function AgentDetailPage() {
@@ -44,12 +47,16 @@ export default function AgentDetailPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const qc = useQueryClient();
   const { toast } = useToast();
+  const { hasRole, isSuperAdmin, isEmployee } = useAuth();
+
+  const tabs = useMemo(() => allTabs.filter(t => hasRole(...t.roles)), [hasRole]);
+  const defaultTab = tabs[0]?.key ?? 'calls';
 
   const urlTab = searchParams.get('tab') as Tab | null;
-  const tab: Tab = urlTab && tabs.some(t => t.key === urlTab) ? urlTab : 'prompt';
+  const tab: Tab = urlTab && tabs.some(t => t.key === urlTab) ? urlTab : defaultTab;
 
   function setTab(next: Tab) {
-    setSearchParams(next === 'prompt' ? {} : { tab: next }, { replace: true });
+    setSearchParams(next === defaultTab ? {} : { tab: next }, { replace: true });
   }
 
   const { data: agent, isLoading } = useQuery({
@@ -203,8 +210,8 @@ export default function AgentDetailPage() {
 
         <div className="flex items-center gap-3">
           <h2 className="text-xl font-bold text-[var(--text-primary)]">{agent.name}</h2>
-          <div className="w-9 h-9 rounded-lg bg-emerald-500/20 flex items-center justify-center">
-            <FileText className="w-5 h-5 text-emerald-400" />
+          <div className="w-9 h-9 rounded-lg bg-[var(--accent)]/20 flex items-center justify-center">
+            <FileText className="w-5 h-5 text-[var(--accent)]" />
           </div>
           <button
             onClick={() => navigate('/')}
@@ -225,7 +232,7 @@ export default function AgentDetailPage() {
             className={cn(
               'flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors -mb-px',
               tab === key
-                ? 'border-emerald-500 text-emerald-400'
+                ? 'border-[var(--accent)] text-[var(--accent)]'
                 : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
             )}
           >

@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import { prisma, Prisma } from '@voice/db';
 import { createAgentSchema, updateAgentSchema } from '@voice/shared';
 import { AppError } from '../middleware/error-handler';
+import { requireSuperAdmin, assertAgentAccess } from '../middleware/auth';
 import { outboundQueue } from '../lib/queue';
 import { normalizePhone } from '../lib/phone';
 import { publishCallEvent } from '../services/events/pubsub';
@@ -12,25 +13,37 @@ function generateApiKey(): string {
   return `vk_${crypto.randomBytes(24).toString('hex')}`;
 }
 
+function getAdminId(user: Express.Request['user']): string | undefined {
+  if (!user) return undefined;
+  if (user.role === 'super_admin') return undefined;
+  return user.role === 'employee' && user.parentId ? user.parentId : user.userId;
+}
+
 const router = Router();
 
-router.get('/', async (_req, res) => {
+router.get('/', async (req, res) => {
+  const adminId = getAdminId(req.user);
+  const where = adminId ? { userId: adminId } : {};
   const agents = await prisma.agent.findMany({
+    where,
     orderBy: { createdAt: 'desc' },
     include: { _count: { select: { calls: true } } },
   });
   res.json({ data: agents });
 });
 
-router.post('/', async (req, res) => {
+router.post('/', requireSuperAdmin, async (req, res) => {
   const body = createAgentSchema.parse(req.body);
   const agent = await prisma.agent.create({ data: { ...body, apiKey: generateApiKey() } });
   res.status(201).json({ data: agent });
 });
 
 router.get('/:id', async (req, res) => {
+  const { id } = req.params as { id: string };
+  await assertAgentAccess(id, req.user!);
+
   const agent = await prisma.agent.findUnique({
-    where: { id: req.params.id },
+    where: { id },
     include: { _count: { select: { calls: true } } },
   });
   if (!agent) throw new AppError(404, 'NOT_FOUND', 'Agent not found');
@@ -39,15 +52,22 @@ router.get('/:id', async (req, res) => {
   if (agent.whatsappConfig) {
     try {
       whatsappConfig = decryptConfig(agent.whatsappConfig);
-    } catch {
-      // config decryption failed — return null so UI can prompt re-entry
-    }
+    } catch {}
   }
 
   res.json({ data: { ...agent, whatsappConfig } });
 });
 
 router.patch('/:id', async (req, res) => {
+  const { id } = req.params as { id: string };
+  if (req.user?.role === 'employee') {
+    throw new AppError(403, 'FORBIDDEN', 'Employees cannot edit agents');
+  }
+  if (req.user?.role === 'admin') {
+    throw new AppError(403, 'FORBIDDEN', 'Admins cannot edit agent configuration');
+  }
+  await assertAgentAccess(id, req.user!);
+
   const body = updateAgentSchema.parse(req.body);
   const data: Record<string, unknown> = { ...body };
 
@@ -55,7 +75,7 @@ router.patch('/:id', async (req, res) => {
   if (data.businessHours === null) data.businessHours = Prisma.DbNull;
 
   if (data.calendarConfig !== undefined) {
-    const existing = await prisma.agent.findUnique({ where: { id: req.params.id }, select: { calendarConfig: true } });
+    const existing = await prisma.agent.findUnique({ where: { id }, select: { calendarConfig: true } });
     data.calendarConfig = { ...(existing?.calendarConfig as Record<string, unknown> ?? {}), ...(data.calendarConfig as Record<string, unknown>) };
   }
 
@@ -67,52 +87,63 @@ router.patch('/:id', async (req, res) => {
     }
   }
 
-  const agent = await prisma.agent.update({ where: { id: req.params.id }, data });
+  const agent = await prisma.agent.update({ where: { id }, data });
   res.json({ data: agent });
 });
 
-router.delete('/:id', async (req, res) => {
-  await prisma.agent.delete({ where: { id: req.params.id } });
+router.delete('/:id', requireSuperAdmin, async (req, res) => {
+  const { id } = req.params as { id: string };
+  await prisma.agent.delete({ where: { id } });
   res.json({ data: { success: true } });
 });
 
-router.post('/:id/regenerate-key', async (req, res) => {
+router.post('/:id/regenerate-key', requireSuperAdmin, async (req, res) => {
+  const { id } = req.params as { id: string };
   const agent = await prisma.agent.update({
-    where: { id: req.params.id },
+    where: { id },
     data: { apiKey: generateApiKey() },
   });
   res.json({ data: { apiKey: agent.apiKey } });
 });
 
-router.post('/:id/webhook-test', async (req, res) => {
-  const agent = await prisma.agent.findUnique({ where: { id: req.params.id }, select: { webhookUrl: true, webhookSecret: true } });
+router.post('/:id/webhook-test', requireSuperAdmin, async (req, res) => {
+  const { id } = req.params as { id: string };
+  const agent = await prisma.agent.findUnique({ where: { id }, select: { webhookUrl: true, webhookSecret: true } });
   if (!agent?.webhookUrl) throw new AppError(400, 'NO_WEBHOOK', 'No webhook URL configured');
-
-  res.json({ data: await sendWebhookTest(agent.webhookUrl, agent.webhookSecret, req.params.id) });
+  res.json({ data: await sendWebhookTest(agent.webhookUrl, agent.webhookSecret, id) });
 });
 
-router.post('/:id/appointment-webhook-test', async (req, res) => {
-  const agent = await prisma.agent.findUnique({ where: { id: req.params.id }, select: { appointmentWebhookUrl: true, appointmentWebhookSecret: true } });
+router.post('/:id/appointment-webhook-test', requireSuperAdmin, async (req, res) => {
+  const { id } = req.params as { id: string };
+  const agent = await prisma.agent.findUnique({ where: { id }, select: { appointmentWebhookUrl: true, appointmentWebhookSecret: true } });
   if (!agent?.appointmentWebhookUrl) throw new AppError(400, 'NO_WEBHOOK', 'No appointment webhook URL configured');
-
-  res.json({ data: await sendWebhookTest(agent.appointmentWebhookUrl, agent.appointmentWebhookSecret, req.params.id) });
+  res.json({ data: await sendWebhookTest(agent.appointmentWebhookUrl, agent.appointmentWebhookSecret, id) });
 });
 
 router.patch('/:id/status', async (req, res) => {
+  const { id } = req.params as { id: string };
+  if (req.user?.role === 'employee') {
+    throw new AppError(403, 'FORBIDDEN', 'Employees cannot change agent status');
+  }
+  await assertAgentAccess(id, req.user!);
+
   const { status } = req.body;
   if (!['active', 'inactive'].includes(status)) {
     throw new AppError(400, 'INVALID_INPUT', 'Status must be active or inactive');
   }
-  const agent = await prisma.agent.update({ where: { id: req.params.id }, data: { status } });
+  const agent = await prisma.agent.update({ where: { id }, data: { status } });
   res.json({ data: agent });
 });
 
 router.post('/:id/outbound', async (req, res) => {
+  const { id } = req.params as { id: string };
+  await assertAgentAccess(id, req.user!);
+
   const { phone: rawPhone, contactName, gender, context } = req.body;
   if (!rawPhone) throw new AppError(400, 'INVALID_INPUT', 'Phone number required');
 
   const phone = normalizePhone(rawPhone);
-  const agent = await prisma.agent.findUnique({ where: { id: req.params.id } });
+  const agent = await prisma.agent.findUnique({ where: { id } });
   if (!agent) throw new AppError(404, 'NOT_FOUND', 'Agent not found');
   if (agent.status !== 'active') throw new AppError(400, 'AGENT_INACTIVE', 'Agent is not active');
   if (!agent.phoneNumber) throw new AppError(400, 'NO_PHONE', 'Agent has no phone number');

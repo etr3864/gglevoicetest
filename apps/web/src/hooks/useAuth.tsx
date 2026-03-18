@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
 import axios from 'axios';
 import api from '../lib/api';
-import type { AuthTokens, JwtPayload } from '@voice/shared';
+import type { AuthTokens, JwtPayload, UserRole } from '@voice/shared';
 
 interface AuthContext {
   isAuthenticated: boolean;
@@ -9,6 +9,10 @@ interface AuthContext {
   user: JwtPayload | null;
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
+  isSuperAdmin: boolean;
+  isAdmin: boolean;
+  isEmployee: boolean;
+  hasRole: (...roles: UserRole[]) => boolean;
 }
 
 const AuthContext = createContext<AuthContext | null>(null);
@@ -87,8 +91,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     window.location.href = '/login';
   }, []);
 
+  const role = user?.role;
+  const isSuperAdmin = role === 'super_admin';
+  const isAdmin = role === 'admin';
+  const isEmployee = role === 'employee';
+  const hasRole = useCallback((...roles: UserRole[]) => !!role && roles.includes(role), [role]);
+
   return (
-    <AuthContext.Provider value={{ isAuthenticated: !!user, isLoading, user, login, logout }}>
+    <AuthContext.Provider value={{ isAuthenticated: !!user, isLoading, user, login, logout, isSuperAdmin, isAdmin, isEmployee, hasRole }}>
       {children}
     </AuthContext.Provider>
   );
