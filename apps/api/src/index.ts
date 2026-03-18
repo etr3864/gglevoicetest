@@ -33,6 +33,7 @@ import { startReminderWorker } from './workers/reminder.worker';
 import { startRagStatusWorker } from './workers/rag-status.worker';
 import { startWhatsappSendWorker } from './workers/whatsapp-send.worker';
 import { startRecordingCrons } from './services/recording/recording.cron';
+import dashboardRoutes from './routes/dashboard';
 import { initPubSub, closePubSub } from './services/events/pubsub';
 import { sseManager } from './services/events/sse.manager';
 import { activeSessionCount } from './services/call/session';
@@ -105,6 +106,7 @@ app.use('/', recordingRoutes);
 app.use('/', authMiddleware, contactRoutes);
 app.use('/', authMiddleware, whatsappRoutes);
 app.use('/admin', authMiddleware, requireSuperAdmin, adminRoutes);
+app.use('/dashboard', authMiddleware, dashboardRoutes);
 
 app.use(errorHandler);
 

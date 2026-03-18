@@ -6,6 +6,7 @@ import AgentListPage from './pages/Agent/AgentListPage';
 import AgentDetailPage from './pages/Agent/AgentDetailPage';
 import AdminPage from './pages/Admin/AdminPage';
 import UsersPage from './pages/Users/UsersPage';
+import DashboardPage from './pages/Dashboard/DashboardPage';
 import Layout from './components/Layout';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -36,6 +37,7 @@ export default function App() {
         <Route path="agents/:id" element={<AgentDetailPage />} />
         <Route path="database" element={<RoleRoute allowedRoles={['super_admin']}><AdminPage /></RoleRoute>} />
         <Route path="users" element={<RoleRoute allowedRoles={['super_admin', 'admin']}><UsersPage /></RoleRoute>} />
+        <Route path="dashboard" element={<RoleRoute allowedRoles={['super_admin', 'admin']}><DashboardPage /></RoleRoute>} />
       </Route>
     </Routes>
   );

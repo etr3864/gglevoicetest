@@ -1,5 +1,5 @@
 import { Outlet, NavLink } from 'react-router-dom';
-import { Bot, Database, LogOut, Users } from 'lucide-react';
+import { Bot, Database, LogOut, Users, LayoutDashboard } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { cn } from '../lib/cn';
 import type { UserRole } from '@voice/shared';
@@ -18,6 +18,7 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { to: '/', label: 'סוכנים', icon: Bot, roles: ['super_admin', 'admin', 'employee'] },
+  { to: '/dashboard', label: 'דשבורד', icon: LayoutDashboard, roles: ['super_admin', 'admin'] },
   { to: '/users', label: 'משתמשים', icon: Users, roles: ['super_admin', 'admin'] },
   { to: '/database', label: 'Database', icon: Database, roles: ['super_admin'] },
 ];

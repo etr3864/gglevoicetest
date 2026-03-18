@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, Pencil, Trash2, KeyRound, Building2, UserCheck, UserX, Bot } from 'lucide-react';
+import { Plus, Pencil, Trash2, KeyRound, Building2, UserCheck, UserX, Bot, User } from 'lucide-react';
 import api from '../../lib/api';
 import { useAuth } from '../../hooks/useAuth';
 import { Button } from '../../components/ui/Button';
@@ -18,6 +18,7 @@ interface UserRow {
   isActive: boolean;
   createdAt: string;
   _count?: { agents: number };
+  parentName?: string;
 }
 
 type Tab = 'super-admins' | 'admins' | 'employees';
@@ -204,6 +205,7 @@ export default function UsersPage() {
                 <th className="text-right px-4 py-3 font-medium">אימייל</th>
                 {tab === 'admins' && <th className="text-right px-4 py-3 font-medium">חברה</th>}
                 {tab === 'admins' && <th className="text-right px-4 py-3 font-medium">סוכנים</th>}
+                {tab === 'employees' && isSuperAdmin && <th className="text-right px-4 py-3 font-medium">לקוח</th>}
                 {tab !== 'super-admins' && <th className="text-right px-4 py-3 font-medium">סטטוס</th>}
                 <th className="px-4 py-3"></th>
               </tr>
@@ -225,6 +227,16 @@ export default function UsersPage() {
                   )}
                   {tab === 'admins' && (
                     <td className="px-4 py-3 text-[var(--text-secondary)]">{u._count?.agents ?? 0}</td>
+                  )}
+                  {tab === 'employees' && isSuperAdmin && (
+                    <td className="px-4 py-3">
+                      {u.parentName ? (
+                        <span className="flex items-center gap-1.5 text-[var(--text-secondary)]">
+                          <User className="w-3.5 h-3.5 shrink-0" />
+                          {u.parentName}
+                        </span>
+                      ) : <span className="text-[var(--text-muted)]">—</span>}
+                    </td>
                   )}
                   {tab !== 'super-admins' && (
                     <td className="px-4 py-3">

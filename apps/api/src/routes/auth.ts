@@ -281,8 +281,27 @@ router.get('/agents/unassigned', authMiddleware, requireSuperAdmin, async (_req,
 // ─── Employees (admin+ can manage own employees) ───
 
 router.get('/employees', authMiddleware, requireAdminOrAbove, async (req, res) => {
-  const where = req.user!.role === 'super_admin' ? { role: 'employee' as const } : { role: 'employee' as const, parentId: req.user!.userId };
-  const employees = await prisma.user.findMany({ where, orderBy: { createdAt: 'desc' } });
+  const isSuperAdmin = req.user!.role === 'super_admin';
+
+  if (isSuperAdmin) {
+    const employees = await prisma.user.findMany({
+      where: { role: 'employee' },
+      orderBy: { createdAt: 'desc' },
+      include: { parent: { select: { id: true, name: true, companyName: true, email: true } } },
+    });
+    res.json({
+      data: employees.map((e) => ({
+        ...sanitizeUser(e),
+        parentName: e.parent ? (e.parent.name || e.parent.companyName || e.parent.email) : null,
+      })),
+    });
+    return;
+  }
+
+  const employees = await prisma.user.findMany({
+    where: { role: 'employee', parentId: req.user!.userId },
+    orderBy: { createdAt: 'desc' },
+  });
   res.json({ data: employees.map(sanitizeUser) });
 });
 
