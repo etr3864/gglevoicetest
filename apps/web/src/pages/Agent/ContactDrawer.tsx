@@ -110,16 +110,17 @@ export default function ContactDrawer({ contact, onClose }: Props) {
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-start bg-black/70 backdrop-blur-sm" onClick={onClose}>
       <div
-        className="bg-[var(--bg-card)] border-l border-[var(--border)] w-full max-w-md h-full overflow-y-auto animate-slide-up"
+        className="bg-[var(--bg-card)] border-l border-[var(--border)] w-full max-w-md h-full flex flex-col animate-slide-up"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border)]">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border)] shrink-0 sticky top-0 bg-[var(--bg-card)] z-10">
           <button onClick={onClose} className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] transition-colors">
             <X className="w-5 h-5" />
           </button>
           <h3 className="font-semibold text-[var(--text-primary)]">איש קשר</h3>
         </div>
 
+        <div className="overflow-y-auto flex-1">
         <div className="px-5 py-4 border-b border-[var(--border)] flex items-center gap-2 justify-end">
           <span className="font-mono text-sm text-[var(--text-primary)]" dir="ltr">{contact.phone}</span>
           <Phone className="w-4 h-4 text-[var(--text-muted)]" />
@@ -267,6 +268,7 @@ export default function ContactDrawer({ contact, onClose }: Props) {
             <Trash2 className="w-4 h-4" />
             מחק
           </Button>
+        </div>
         </div>
       </div>
     </div>
