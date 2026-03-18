@@ -47,7 +47,7 @@ export default function OutboundCallDialog({ agentId, onClose }: Props) {
           </button>
           <div className="flex items-center gap-2">
             <h3 className="font-semibold text-[var(--text-primary)]">שיחה יוצאת</h3>
-            <PhoneOutgoing className="w-4 h-4 text-emerald-400" />
+            <PhoneOutgoing className="w-4 h-4 text-[var(--accent)]" />
           </div>
         </div>
 

@@ -188,7 +188,7 @@ export default function KnowledgeTab({ agentId }: Props) {
 
       {kb.vertexCorpusId === 'pending' ? (
         <div className="flex flex-col items-center justify-center gap-4 py-20 bg-[var(--bg-hover)] rounded-xl border border-[var(--border)]">
-          <Loader2 className="w-8 h-8 animate-spin text-emerald-400" />
+          <Loader2 className="w-8 h-8 animate-spin text-[var(--accent)]" />
           <div className="text-center max-w-xs">
             <p className="font-medium text-[var(--text-primary)]">מקים מאגר ידע...</p>
             <p className="text-sm text-[var(--text-secondary)] mt-1">
@@ -275,8 +275,8 @@ function KbHeader({ totalFiles, totalSizeBytes, processingCount, onDisable, isDi
   return (
     <div className="flex items-center justify-between">
       <div className="flex items-center gap-3">
-        <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center">
-          {isPending ? <Loader2 className="w-4 h-4 animate-spin text-emerald-400" /> : <Database className="w-4 h-4 text-emerald-400" />}
+        <div className="w-8 h-8 rounded-lg bg-[var(--accent)]/10 flex items-center justify-center">
+          {isPending ? <Loader2 className="w-4 h-4 animate-spin text-[var(--accent)]" /> : <Database className="w-4 h-4 text-[var(--accent)]" />}
         </div>
         <div>
           <p className="text-sm font-medium text-[var(--text-primary)]">
@@ -321,7 +321,7 @@ function DropZone({ fileInputRef, isDragging, onDragOver, onDragLeave, onDrop, o
       className={cn(
         'border-2 border-dashed rounded-xl p-10 text-center cursor-pointer transition-all duration-200 select-none',
         isDragging
-          ? 'border-emerald-500 bg-emerald-500/5 scale-[1.01]'
+          ? 'border-[var(--accent)] bg-[var(--accent)]/5 scale-[1.01]'
           : 'border-[var(--border)] hover:border-[var(--border-bright)] hover:bg-[var(--bg-hover)]',
       )}
     >
@@ -336,7 +336,7 @@ function DropZone({ fileInputRef, isDragging, onDragOver, onDragLeave, onDrop, o
       <Upload
         className={cn(
           'w-8 h-8 mx-auto mb-3 transition-colors',
-          isDragging ? 'text-emerald-400' : 'text-[var(--text-secondary)]',
+          isDragging ? 'text-[var(--accent)]' : 'text-[var(--text-secondary)]',
         )}
       />
       <p className="text-sm font-medium text-[var(--text-primary)]">גרור קבצים לכאן או לחץ לבחירה</p>
@@ -355,7 +355,7 @@ function UploadRow({ entry, onDismiss }: { entry: UploadEntry; onDismiss: () => 
         {entry.status === 'uploading' && (
           <div className="mt-1.5 h-1 bg-[var(--bg-hover)] rounded-full overflow-hidden">
             <div
-              className="h-full bg-emerald-500 rounded-full transition-all duration-300"
+              className="h-full bg-[var(--accent)] rounded-full transition-all duration-300"
               style={{ width: `${entry.progress}%` }}
             />
           </div>
@@ -368,10 +368,10 @@ function UploadRow({ entry, onDismiss }: { entry: UploadEntry; onDismiss: () => 
         {entry.status === 'uploading' && (
           <>
             <span className="text-xs text-[var(--text-secondary)]">{entry.progress}%</span>
-            <Loader2 className="w-4 h-4 animate-spin text-emerald-400" />
+            <Loader2 className="w-4 h-4 animate-spin text-[var(--accent)]" />
           </>
         )}
-        {entry.status === 'done' && <CheckCircle className="w-4 h-4 text-emerald-400" />}
+        {entry.status === 'done' && <CheckCircle className="w-4 h-4 text-[var(--accent)]" />}
         {entry.status === 'error' && (
           <button onClick={onDismiss} className="hover:text-red-300 transition-colors">
             <XCircle className="w-4 h-4 text-red-400" />

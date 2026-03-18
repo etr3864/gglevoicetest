@@ -55,7 +55,7 @@ function CopyButton({ text }: { text: string }) {
       className="p-1 rounded hover:bg-[var(--bg-hover)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
       title="העתק"
     >
-      {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+      {copied ? <Check className="w-4 h-4 text-[var(--accent)]" /> : <Copy className="w-4 h-4" />}
     </button>
   );
 }
@@ -120,8 +120,8 @@ export default function WhatsappTab({ agentId, agent }: Props) {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
-        <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center">
-          <MessageSquare className="w-4 h-4 text-emerald-400" />
+        <div className="w-8 h-8 rounded-lg bg-[var(--accent)]/10 flex items-center justify-center">
+          <MessageSquare className="w-4 h-4 text-[var(--accent)]" />
         </div>
         <div>
           <p className="text-sm font-medium text-[var(--text-primary)]">WhatsApp</p>
@@ -134,7 +134,7 @@ export default function WhatsappTab({ agentId, agent }: Props) {
         <select
           value={provider}
           onChange={e => setProvider(e.target.value as Provider)}
-          className="w-full px-3 py-2 rounded-lg bg-[var(--bg-card)] border border-[var(--border)] text-[var(--text-primary)] text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+          className="w-full px-3 py-2 rounded-lg bg-[var(--bg-card)] border border-[var(--border)] text-[var(--text-primary)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/50"
         >
           <option value="">ללא</option>
           <option value="meta">Meta Cloud API (רשמי)</option>
@@ -225,7 +225,7 @@ export default function WhatsappTab({ agentId, agent }: Props) {
           onChange={e => setInstructions(e.target.value)}
           placeholder="למשל: שלח הודעת וואטסאפ עם קישור תשלום בסוף כל שיחה שנסגרה בהצלחה"
           rows={4}
-          className="w-full px-3 py-2 rounded-lg bg-[var(--bg-card)] border border-[var(--border)] text-[var(--text-primary)] text-sm resize-none focus:outline-none focus:ring-2 focus:ring-emerald-500/50 placeholder:text-[var(--text-tertiary)]"
+          className="w-full px-3 py-2 rounded-lg bg-[var(--bg-card)] border border-[var(--border)] text-[var(--text-primary)] text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/50 placeholder:text-[var(--text-tertiary)]"
         />
         <p className="text-xs text-[var(--text-secondary)]">הנחיות דינאמיות לסוכן — מתי ואיך להשתמש ביכולת שליחת ווצאפ</p>
       </div>
@@ -238,7 +238,7 @@ export default function WhatsappTab({ agentId, agent }: Props) {
           max={100}
           value={contextMessages}
           onChange={e => setContextMessages(Number(e.target.value))}
-          className="w-24 px-3 py-2 rounded-lg bg-[var(--bg-card)] border border-[var(--border)] text-[var(--text-primary)] text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+          className="w-24 px-3 py-2 rounded-lg bg-[var(--bg-card)] border border-[var(--border)] text-[var(--text-primary)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/50"
         />
         <p className="text-xs text-[var(--text-secondary)]">כמה הודעות וואטסאפ אחרונות לכלול בקונטקסט של שיחה חדשה (0–100)</p>
       </div>

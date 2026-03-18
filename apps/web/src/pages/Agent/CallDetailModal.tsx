@@ -78,7 +78,7 @@ export default function CallDetailModal({ callId, onClose }: Props) {
               <span title={call.direction === 'inbound' ? 'שיחה נכנסת' : 'שיחה יוצאת'}>
                 {call.direction === 'inbound'
                   ? <PhoneIncoming className="w-3.5 h-3.5 text-blue-400" />
-                  : <PhoneOutgoing className="w-3.5 h-3.5 text-emerald-400" />}
+                  : <PhoneOutgoing className="w-3.5 h-3.5 text-[var(--accent)]" />}
               </span>
               {call.durationSec != null && (
                 <span className="flex items-center gap-1 text-[var(--text-muted)]">
@@ -124,7 +124,7 @@ export default function CallDetailModal({ callId, onClose }: Props) {
             >
               <div className={`max-w-[80%] rounded-xl px-4 py-2.5 text-sm ${
                 u.speaker === 'agent'
-                  ? 'bg-emerald-500/10 border border-emerald-500/20 text-[var(--text-primary)]'
+                  ? 'bg-[var(--accent)]/10 border border-[var(--accent)]/20 text-[var(--text-primary)]'
                   : 'bg-blue-500/10 border border-blue-500/20 text-[var(--text-primary)]'
               }`}>
                 <div className="flex items-center justify-between gap-4 mb-1">
@@ -132,7 +132,7 @@ export default function CallDetailModal({ callId, onClose }: Props) {
                     {call ? new Date(new Date(call.startedAt || call.createdAt).getTime() + u.startMs).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : ''}
                   </span>
                   <span className={`text-xs font-medium ${
-                    u.speaker === 'agent' ? 'text-emerald-400' : 'text-blue-400'
+                    u.speaker === 'agent' ? 'text-[var(--accent)]' : 'text-blue-400'
                   }`}>
                     {u.speaker === 'agent' ? 'סוכן' : 'לקוח'}
                   </span>
@@ -279,7 +279,7 @@ function AudioPlayer({ callId, agentId }: { callId: string; agentId: string }) {
       <button
         onClick={togglePlay}
         disabled={!audioUrl}
-        className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400 hover:bg-emerald-500/30 transition-colors disabled:opacity-40"
+        className="w-8 h-8 rounded-full bg-[var(--accent)]/20 flex items-center justify-center text-[var(--accent)] hover:bg-[var(--accent)]/30 transition-colors disabled:opacity-40"
       >
         {isPlaying ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
       </button>
@@ -294,7 +294,7 @@ function AudioPlayer({ callId, agentId }: { callId: string; agentId: string }) {
         onChange={onSliderChange}
         onMouseUp={onSliderCommit}
         onTouchEnd={onSliderCommit}
-        className="flex-1 accent-emerald-500 h-1"
+        className="flex-1 accent-violet-500 h-1"
         disabled={!audioUrl || !duration}
       />
 

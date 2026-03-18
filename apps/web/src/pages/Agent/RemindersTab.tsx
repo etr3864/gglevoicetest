@@ -351,7 +351,7 @@ export default function RemindersTab({ agentId, agent }: Props) {
                   {canTrigger && (
                     <button
                       onClick={() => triggerReminder.mutate(r.id)}
-                      className="p-1 rounded hover:bg-[var(--bg-hover)] text-emerald-400 hover:text-emerald-300 transition-colors"
+                      className="p-1 rounded hover:bg-[var(--bg-hover)] text-[var(--accent)] hover:text-[var(--accent-hover)] transition-colors"
                       title="הפעל עכשיו"
                     >
                       <Play className="w-3.5 h-3.5" />

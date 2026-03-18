@@ -149,7 +149,7 @@ export default function ContactDrawer({ contact, onClose }: Props) {
           <div className="px-5 py-4 border-b border-[var(--border)]">
             <div className="flex items-center gap-2 justify-end mb-3">
               <h4 className="text-sm font-semibold text-[var(--text-primary)]">WhatsApp</h4>
-              <MessageSquare className="w-4 h-4 text-emerald-400" />
+              <MessageSquare className="w-4 h-4 text-[var(--accent)]" />
             </div>
 
             {hasMoreWa && (
@@ -171,7 +171,7 @@ export default function ContactDrawer({ contact, onClose }: Props) {
                   <div key={msg.id} className={cn('flex', isOut ? 'justify-end' : 'justify-start')}>
                     <div className={cn(
                       'max-w-[80%] px-3 py-2 rounded-xl text-sm',
-                      isOut ? 'bg-emerald-600/20 text-[var(--text-primary)]' : 'bg-[var(--bg-hover)] text-[var(--text-primary)]',
+                      isOut ? 'bg-[var(--accent)]/15 text-[var(--text-primary)]' : 'bg-[var(--bg-hover)] text-[var(--text-primary)]',
                     )}>
                       <p className="break-words">{msg.content}</p>
                       <div className={cn('flex items-center gap-1.5 mt-1', isOut ? 'justify-end' : 'justify-start')}>

@@ -35,7 +35,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
           <div
             key={t.id}
             className={`flex items-center gap-3 px-4 py-3 rounded-lg border shadow-lg backdrop-blur-md text-sm animate-slide-up ${
-              t.type === 'success' ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-300' :
+              t.type === 'success' ? 'bg-[var(--accent)]/15 border-[var(--accent)]/30 text-[var(--accent)]' :
               t.type === 'error' ? 'bg-red-500/15 border-red-500/30 text-red-300' :
               'bg-[var(--bg-card)]/90 border-[var(--border)] text-[var(--text-primary)]'
             }`}

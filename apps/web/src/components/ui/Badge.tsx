@@ -6,7 +6,7 @@ interface BadgeProps extends HTMLAttributes<HTMLSpanElement> {
 }
 
 const colorMap = {
-  success: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30',
+  success: 'bg-[var(--accent)]/15 text-[var(--accent)] border-[var(--accent)]/30',
   warning: 'bg-yellow-500/15 text-yellow-400 border-yellow-500/30',
   danger: 'bg-red-500/15 text-red-400 border-red-500/30',
   neutral: 'bg-gray-500/15 text-gray-400 border-gray-500/30',

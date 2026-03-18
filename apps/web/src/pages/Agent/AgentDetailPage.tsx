@@ -250,7 +250,7 @@ export default function AgentDetailPage() {
             {/* Outbound */}
             <div className="space-y-4">
               <div className="flex items-center gap-2 px-1">
-                <PhoneOutgoing className="w-4 h-4 text-emerald-400" />
+                <PhoneOutgoing className="w-4 h-4 text-[var(--accent)]" />
                 <span className="text-sm font-semibold text-[var(--text-primary)]">שיחות יוצאות</span>
               </div>
               <Card>
@@ -636,7 +636,7 @@ function CallsTab({
                     ? <PhoneMissed className="w-3.5 h-3.5 text-amber-400 shrink-0" />
                     : call.direction === 'inbound'
                       ? <PhoneIncoming className="w-3.5 h-3.5 text-blue-400 shrink-0" />
-                      : <PhoneOutgoing className="w-3.5 h-3.5 text-emerald-400 shrink-0" />}
+                      : <PhoneOutgoing className="w-3.5 h-3.5 text-[var(--accent)] shrink-0" />}
                 </span>
                 {call.retryCount > 0 && <Badge variant="warning">חויג שנית</Badge>}
                 {call.durationSec != null && (
@@ -654,7 +654,7 @@ function CallsTab({
                   <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
                     <button
                       onClick={e => playRecording(e, call)}
-                      className="p-1 rounded hover:bg-[var(--bg-hover)] text-emerald-400 hover:text-emerald-300 transition-colors"
+                      className="p-1 rounded hover:bg-[var(--bg-hover)] text-[var(--accent)] hover:text-[var(--accent-hover)] transition-colors"
                       title={playingCallId === call.id ? 'עצור' : 'נגן הקלטה'}
                     >
                       {playingCallId === call.id
@@ -771,7 +771,7 @@ function SettingsTab({ agent, form, setForm, voices, onSave, onDelete, isSaving 
               step={0.1}
               value={form.temperature}
               onChange={(e) => setForm((f: any) => ({ ...f, temperature: parseFloat(e.target.value) }))}
-              className="w-full accent-emerald-500"
+              className="w-full accent-violet-500"
             />
             <div className="flex justify-between text-xs text-[var(--text-muted)] mt-1">
               <span>0.0</span>
@@ -908,7 +908,7 @@ function ApiReferenceCard({ agentId, apiKey: initialKey }: { agentId: string; ap
       className="p-1 rounded hover:bg-[var(--bg-hover)] text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors"
     >
       {copied === id
-        ? <Check className="w-3.5 h-3.5 text-emerald-400" />
+        ? <Check className="w-3.5 h-3.5 text-[var(--accent)]" />
         : <Copy className="w-3.5 h-3.5" />}
     </button>
   );
@@ -1161,7 +1161,7 @@ function SummariesTab({ agentId, form, setForm, webhookTestResult, setWebhookTes
                 </button>
               )}
               {webhookTestResult && (
-                <span className={`text-xs ${webhookTestResult.success ? 'text-emerald-400' : 'text-red-400'}`}>
+                <span className={`text-xs ${webhookTestResult.success ? 'text-[var(--accent)]' : 'text-red-400'}`}>
                   {webhookTestResult.success ? `${webhookTestResult.statusCode} OK (${webhookTestResult.latencyMs}ms)` : `נכשל (${webhookTestResult.statusCode ?? 'timeout'})`}
                 </span>
               )}
