@@ -1,8 +1,6 @@
 import type { WhatsappProvider, SendResult, WasenderConfig } from './types';
 
-function toJid(e164: string): string {
-  return `${e164.replace(/^\+/, '')}@c.us`;
-}
+const SEND_URL = 'https://www.wasenderapi.com/api/send-message';
 
 function classifyStatus(status: number): { retryable: boolean } {
   if (status === 429 || status === 503 || status === 500) return { retryable: true };
@@ -13,16 +11,11 @@ export class WasenderWhatsappProvider implements WhatsappProvider {
   constructor(private readonly config: WasenderConfig) {}
 
   async send(to: string, text: string, timeoutMs = 10_000): Promise<SendResult> {
-    const url = `https://api.wasenderapi.com/api/send-text`;
-    const body = JSON.stringify({
-      session: this.config.session,
-      to: toJid(to),
-      text,
-    });
+    const body = JSON.stringify({ to, text });
 
     let response: Response;
     try {
-      response = await fetch(url, {
+      response = await fetch(SEND_URL, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${this.config.apiKey}`,
@@ -37,8 +30,8 @@ export class WasenderWhatsappProvider implements WhatsappProvider {
     }
 
     if (response.ok) {
-      const data = await response.json() as { id?: string };
-      return { ok: true, messageId: data.id ?? '' };
+      const data = await response.json() as { data?: { msgId?: number } };
+      return { ok: true, messageId: String(data.data?.msgId ?? '') };
     }
 
     const { retryable } = classifyStatus(response.status);
