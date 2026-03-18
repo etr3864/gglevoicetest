@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, Pencil, Trash2, KeyRound, Building2, UserCheck, UserX } from 'lucide-react';
+import { Plus, Pencil, Trash2, KeyRound, Building2, UserCheck, UserX, Bot } from 'lucide-react';
 import api from '../../lib/api';
 import { useAuth } from '../../hooks/useAuth';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import UserFormModal, { type UserFormData } from './UserFormModal';
 import ResetPasswordModal from './ResetPasswordModal';
+import AgentAssignModal from './AgentAssignModal';
 
 interface UserRow {
   id: string;
@@ -16,26 +17,36 @@ interface UserRow {
   phone: string | null;
   isActive: boolean;
   createdAt: string;
-  _count?: { agents: number; children: number };
+  _count?: { agents: number };
 }
 
-type Tab = 'admins' | 'employees';
+type Tab = 'super-admins' | 'admins' | 'employees';
+
 type ModalState =
+  | { type: 'create-super-admin' }
   | { type: 'create-admin' }
   | { type: 'create-employee' }
   | { type: 'edit-admin'; user: UserRow }
   | { type: 'edit-employee'; user: UserRow }
   | { type: 'reset-password'; user: UserRow; endpoint: string }
+  | { type: 'assign-agents'; user: UserRow }
   | null;
 
 export default function UsersPage() {
-  const { isSuperAdmin } = useAuth();
+  const { isSuperAdmin, user: me } = useAuth();
   const [tab, setTab] = useState<Tab>(isSuperAdmin ? 'admins' : 'employees');
+  const [superAdmins, setSuperAdmins] = useState<UserRow[]>([]);
   const [admins, setAdmins] = useState<UserRow[]>([]);
   const [employees, setEmployees] = useState<UserRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [modal, setModal] = useState<ModalState>(null);
+
+  const fetchSuperAdmins = useCallback(async () => {
+    if (!isSuperAdmin) return;
+    const res = await api.get('/auth/super-admins');
+    setSuperAdmins(res.data.data);
+  }, [isSuperAdmin]);
 
   const fetchAdmins = useCallback(async () => {
     if (!isSuperAdmin) return;
@@ -50,49 +61,61 @@ export default function UsersPage() {
 
   useEffect(() => {
     setLoading(true);
-    Promise.all([fetchAdmins(), fetchEmployees()]).finally(() => setLoading(false));
-  }, [fetchAdmins, fetchEmployees]);
+    Promise.all([fetchSuperAdmins(), fetchAdmins(), fetchEmployees()]).finally(() => setLoading(false));
+  }, [fetchSuperAdmins, fetchAdmins, fetchEmployees]);
+
+  async function withSave(fn: () => Promise<void>) {
+    setSaving(true);
+    try { await fn(); } finally { setSaving(false); }
+  }
+
+  async function handleCreateSuperAdmin(data: UserFormData) {
+    await withSave(async () => {
+      await api.post('/auth/super-admins', data);
+      await fetchSuperAdmins();
+      setModal(null);
+    });
+  }
 
   async function handleCreateAdmin(data: UserFormData) {
-    setSaving(true);
-    try {
+    await withSave(async () => {
       await api.post('/auth/admins', data);
       await fetchAdmins();
       setModal(null);
-    } finally { setSaving(false); }
+    });
   }
 
   async function handleCreateEmployee(data: UserFormData) {
-    setSaving(true);
-    try {
+    await withSave(async () => {
       await api.post('/auth/employees', data);
       await fetchEmployees();
       setModal(null);
-    } finally { setSaving(false); }
+    });
   }
 
   async function handleEditAdmin(user: UserRow, data: UserFormData) {
-    setSaving(true);
-    try {
+    await withSave(async () => {
       await api.put(`/auth/admins/${user.id}`, { name: data.name, companyName: data.companyName || null, phone: data.phone || null });
       await fetchAdmins();
       setModal(null);
-    } finally { setSaving(false); }
+    });
   }
 
   async function handleEditEmployee(user: UserRow, data: UserFormData) {
-    setSaving(true);
-    try {
+    await withSave(async () => {
       await api.put(`/auth/employees/${user.id}`, { name: data.name });
       await fetchEmployees();
       setModal(null);
-    } finally { setSaving(false); }
+    });
   }
 
-  async function handleDelete(user: UserRow, type: 'admin' | 'employee') {
+  async function handleDelete(user: UserRow, type: 'super-admin' | 'admin' | 'employee') {
     if (!confirm(`למחוק את ${user.name || user.email}?`)) return;
-    await api.delete(`/auth/${type === 'admin' ? 'admins' : 'employees'}/${user.id}`);
-    type === 'admin' ? await fetchAdmins() : await fetchEmployees();
+    const endpoint = type === 'super-admin' ? 'super-admins' : type === 'admin' ? 'admins' : 'employees';
+    await api.delete(`/auth/${endpoint}/${user.id}`);
+    if (type === 'super-admin') await fetchSuperAdmins();
+    else if (type === 'admin') await fetchAdmins();
+    else await fetchEmployees();
   }
 
   async function handleToggleActive(user: UserRow, type: 'admin' | 'employee') {
@@ -103,24 +126,36 @@ export default function UsersPage() {
 
   async function handleResetPassword(password: string) {
     if (modal?.type !== 'reset-password') return;
-    setSaving(true);
-    try {
+    await withSave(async () => {
       await api.put(modal.endpoint, { password });
       setModal(null);
-    } finally { setSaving(false); }
+    });
   }
 
   const tabs: { key: Tab; label: string }[] = isSuperAdmin
-    ? [{ key: 'admins', label: 'לקוחות' }, { key: 'employees', label: 'עובדים' }]
+    ? [
+        { key: 'admins', label: 'לקוחות' },
+        { key: 'employees', label: 'עובדים' },
+        { key: 'super-admins', label: 'צוות Optive' },
+      ]
     : [{ key: 'employees', label: 'העובדים שלי' }];
 
-  const currentList = tab === 'admins' ? admins : employees;
+  const currentList =
+    tab === 'super-admins' ? superAdmins :
+    tab === 'admins' ? admins :
+    employees;
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold">ניהול משתמשים</h1>
         <div className="flex gap-2">
+          {tab === 'super-admins' && isSuperAdmin && (
+            <Button size="sm" onClick={() => setModal({ type: 'create-super-admin' })}>
+              <Plus className="w-4 h-4" />
+              חבר צוות חדש
+            </Button>
+          )}
           {tab === 'admins' && isSuperAdmin && (
             <Button size="sm" onClick={() => setModal({ type: 'create-admin' })}>
               <Plus className="w-4 h-4" />
@@ -136,7 +171,6 @@ export default function UsersPage() {
         </div>
       </div>
 
-      {/* Tabs */}
       {tabs.length > 1 && (
         <div className="flex gap-1 p-1 rounded-lg bg-[var(--bg-secondary)] w-fit">
           {tabs.map(t => (
@@ -155,12 +189,11 @@ export default function UsersPage() {
         </div>
       )}
 
-      {/* Table */}
       {loading ? (
         <div className="text-center py-12 text-[var(--text-muted)]">טוען...</div>
       ) : currentList.length === 0 ? (
         <div className="text-center py-12 text-[var(--text-muted)]">
-          {tab === 'admins' ? 'אין לקוחות עדיין' : 'אין עובדים עדיין'}
+          {tab === 'super-admins' ? 'אין חברי צוות' : tab === 'admins' ? 'אין לקוחות עדיין' : 'אין עובדים עדיין'}
         </div>
       ) : (
         <div className="rounded-xl border border-[var(--border)] overflow-hidden">
@@ -171,7 +204,7 @@ export default function UsersPage() {
                 <th className="text-right px-4 py-3 font-medium">אימייל</th>
                 {tab === 'admins' && <th className="text-right px-4 py-3 font-medium">חברה</th>}
                 {tab === 'admins' && <th className="text-right px-4 py-3 font-medium">סוכנים</th>}
-                <th className="text-right px-4 py-3 font-medium">סטטוס</th>
+                {tab !== 'super-admins' && <th className="text-right px-4 py-3 font-medium">סטטוס</th>}
                 <th className="px-4 py-3"></th>
               </tr>
             </thead>
@@ -193,45 +226,95 @@ export default function UsersPage() {
                   {tab === 'admins' && (
                     <td className="px-4 py-3 text-[var(--text-secondary)]">{u._count?.agents ?? 0}</td>
                   )}
-                  <td className="px-4 py-3">
-                    <Badge variant={u.isActive ? 'success' : 'danger'}>
-                      {u.isActive ? 'פעיל' : 'מושבת'}
-                    </Badge>
-                  </td>
+                  {tab !== 'super-admins' && (
+                    <td className="px-4 py-3">
+                      <Badge variant={u.isActive ? 'success' : 'danger'}>
+                        {u.isActive ? 'פעיל' : 'מושבת'}
+                      </Badge>
+                    </td>
+                  )}
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-1">
-                      <button
-                        onClick={() => handleToggleActive(u, tab === 'admins' ? 'admin' : 'employee')}
-                        className="p-1.5 rounded-lg hover:bg-[var(--bg-hover)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
-                        title={u.isActive ? 'השבת' : 'הפעל'}
-                      >
-                        {u.isActive ? <UserX className="w-4 h-4" /> : <UserCheck className="w-4 h-4" />}
-                      </button>
-                      <button
-                        onClick={() => setModal(tab === 'admins' ? { type: 'edit-admin', user: u } : { type: 'edit-employee', user: u })}
-                        className="p-1.5 rounded-lg hover:bg-[var(--bg-hover)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
-                        title="ערוך"
-                      >
-                        <Pencil className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => setModal({
-                          type: 'reset-password',
-                          user: u,
-                          endpoint: `/auth/${tab === 'admins' ? 'admins' : 'employees'}/${u.id}/password`,
-                        })}
-                        className="p-1.5 rounded-lg hover:bg-[var(--bg-hover)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
-                        title="איפוס סיסמה"
-                      >
-                        <KeyRound className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(u, tab === 'admins' ? 'admin' : 'employee')}
-                        className="p-1.5 rounded-lg hover:bg-red-500/10 text-[var(--text-muted)] hover:text-red-400 transition-colors"
-                        title="מחק"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      {tab === 'admins' && (
+                        <>
+                          <button
+                            onClick={() => setModal({ type: 'assign-agents', user: u })}
+                            className="p-1.5 rounded-lg hover:bg-[var(--bg-hover)] text-[var(--text-muted)] hover:text-[var(--accent)] transition-colors"
+                            title="שייך סוכנים"
+                          >
+                            <Bot className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleToggleActive(u, 'admin')}
+                            className="p-1.5 rounded-lg hover:bg-[var(--bg-hover)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
+                            title={u.isActive ? 'השבת' : 'הפעל'}
+                          >
+                            {u.isActive ? <UserX className="w-4 h-4" /> : <UserCheck className="w-4 h-4" />}
+                          </button>
+                          <button
+                            onClick={() => setModal({ type: 'edit-admin', user: u })}
+                            className="p-1.5 rounded-lg hover:bg-[var(--bg-hover)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
+                            title="ערוך"
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => setModal({ type: 'reset-password', user: u, endpoint: `/auth/admins/${u.id}/password` })}
+                            className="p-1.5 rounded-lg hover:bg-[var(--bg-hover)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
+                            title="איפוס סיסמה"
+                          >
+                            <KeyRound className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(u, 'admin')}
+                            className="p-1.5 rounded-lg hover:bg-red-500/10 text-[var(--text-muted)] hover:text-red-400 transition-colors"
+                            title="מחק"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </>
+                      )}
+                      {tab === 'employees' && (
+                        <>
+                          <button
+                            onClick={() => handleToggleActive(u, 'employee')}
+                            className="p-1.5 rounded-lg hover:bg-[var(--bg-hover)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
+                            title={u.isActive ? 'השבת' : 'הפעל'}
+                          >
+                            {u.isActive ? <UserX className="w-4 h-4" /> : <UserCheck className="w-4 h-4" />}
+                          </button>
+                          <button
+                            onClick={() => setModal({ type: 'edit-employee', user: u })}
+                            className="p-1.5 rounded-lg hover:bg-[var(--bg-hover)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
+                            title="ערוך"
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => setModal({ type: 'reset-password', user: u, endpoint: `/auth/employees/${u.id}/password` })}
+                            className="p-1.5 rounded-lg hover:bg-[var(--bg-hover)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
+                            title="איפוס סיסמה"
+                          >
+                            <KeyRound className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(u, 'employee')}
+                            className="p-1.5 rounded-lg hover:bg-red-500/10 text-[var(--text-muted)] hover:text-red-400 transition-colors"
+                            title="מחק"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </>
+                      )}
+                      {tab === 'super-admins' && u.id !== me?.userId && (
+                        <button
+                          onClick={() => handleDelete(u, 'super-admin')}
+                          className="p-1.5 rounded-lg hover:bg-red-500/10 text-[var(--text-muted)] hover:text-red-400 transition-colors"
+                          title="מחק"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -242,6 +325,14 @@ export default function UsersPage() {
       )}
 
       {/* Modals */}
+      {modal?.type === 'create-super-admin' && (
+        <UserFormModal
+          title="חבר צוות Optive חדש"
+          loading={saving}
+          onSubmit={handleCreateSuperAdmin}
+          onClose={() => setModal(null)}
+        />
+      )}
       {modal?.type === 'create-admin' && (
         <UserFormModal
           title="לקוח חדש"
@@ -288,6 +379,13 @@ export default function UsersPage() {
           loading={saving}
           onSubmit={handleResetPassword}
           onClose={() => setModal(null)}
+        />
+      )}
+      {modal?.type === 'assign-agents' && (
+        <AgentAssignModal
+          adminId={modal.user.id}
+          adminName={modal.user.name || modal.user.email}
+          onClose={() => { setModal(null); fetchAdmins(); }}
         />
       )}
     </div>

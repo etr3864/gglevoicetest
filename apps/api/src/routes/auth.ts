@@ -138,6 +138,15 @@ router.put('/me/password', authMiddleware, async (req, res) => {
 
 // ─── Super Admins (only super_admin can manage) ───
 
+router.get('/super-admins', authMiddleware, requireSuperAdmin, async (_req, res) => {
+  const users = await prisma.user.findMany({
+    where: { role: 'super_admin' },
+    orderBy: { createdAt: 'asc' },
+    select: { id: true, email: true, name: true, role: true, isActive: true, parentId: true, companyName: true, phone: true, createdAt: true },
+  });
+  res.json({ data: users.map(u => ({ ...u, createdAt: u.createdAt.toISOString() })) });
+});
+
 router.post('/super-admins', authMiddleware, requireSuperAdmin, async (req, res) => {
   const body = createSuperAdminSchema.parse(req.body);
   const exists = await prisma.user.findUnique({ where: { email: body.email } });
@@ -153,6 +162,16 @@ router.post('/super-admins', authMiddleware, requireSuperAdmin, async (req, res)
   });
   log.info('Super admin created', { actorId: req.user!.userId, targetEmail: user.email });
   res.status(201).json({ data: sanitizeUser(user) });
+});
+
+router.delete('/super-admins/:id', authMiddleware, requireSuperAdmin, async (req, res) => {
+  const id = req.params.id as string;
+  if (id === req.user!.userId) throw new AppError(400, 'SELF_DELETE', 'Cannot delete your own account');
+  const target = await prisma.user.findUnique({ where: { id } });
+  if (!target || target.role !== 'super_admin') throw new AppError(404, 'NOT_FOUND', 'Super admin not found');
+  await prisma.user.delete({ where: { id } });
+  log.info('Super admin deleted', { actorId: req.user!.userId, targetEmail: target.email });
+  res.json({ data: { success: true } });
 });
 
 // ─── Admins (only super_admin can manage) ───
@@ -216,6 +235,16 @@ router.put('/admins/:id/password', authMiddleware, requireSuperAdmin, async (req
 });
 
 // ─── Agent assignment (only super_admin) ───
+
+router.get('/admins/:adminId/agents', authMiddleware, requireSuperAdmin, async (req, res) => {
+  const adminId = req.params.adminId as string;
+  const agents = await prisma.agent.findMany({
+    where: { userId: adminId },
+    select: { id: true, name: true, phoneNumber: true, status: true },
+    orderBy: { createdAt: 'desc' },
+  });
+  res.json({ data: agents });
+});
 
 router.post('/admins/:adminId/agents/:agentId', authMiddleware, requireSuperAdmin, async (req, res) => {
   const adminId = req.params.adminId as string;
