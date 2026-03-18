@@ -1,6 +1,10 @@
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowRight, FileText, Loader2 } from 'lucide-react';
+import {
+  ArrowRight, Loader2, Bot,
+  Terminal, Phone, Users, CalendarDays, Bell,
+  ScrollText, BookOpen, MessageCircle, Settings2,
+} from 'lucide-react';
 import { useState, useEffect, useRef, useMemo } from 'react';
 import api from '../../lib/api';
 import { useAuth } from '../../hooks/useAuth';
@@ -24,16 +28,16 @@ import type { UserRole } from '@voice/shared';
 
 type Tab = 'prompt' | 'calls' | 'contacts' | 'calendar' | 'reminders' | 'summaries' | 'knowledge' | 'whatsapp' | 'settings';
 
-const allTabs: { key: Tab; label: string; icon: typeof FileText; roles: UserRole[] }[] = [
-  { key: 'prompt', label: 'System Prompt', icon: FileText, roles: ['super_admin'] },
-  { key: 'calls', label: 'שיחות', icon: FileText, roles: ['super_admin', 'admin', 'employee'] },
-  { key: 'contacts', label: 'אנשי קשר', icon: FileText, roles: ['super_admin', 'admin'] },
-  { key: 'calendar', label: 'יומן', icon: FileText, roles: ['super_admin'] },
-  { key: 'reminders', label: 'תזכורות', icon: FileText, roles: ['super_admin'] },
-  { key: 'summaries', label: 'סיכומים', icon: FileText, roles: ['super_admin'] },
-  { key: 'knowledge', label: 'ידע', icon: FileText, roles: ['super_admin'] },
-  { key: 'whatsapp', label: 'וואטסאפ', icon: FileText, roles: ['super_admin'] },
-  { key: 'settings', label: 'הגדרות', icon: FileText, roles: ['super_admin'] },
+const allTabs: { key: Tab; label: string; icon: typeof Terminal; roles: UserRole[] }[] = [
+  { key: 'prompt',    label: 'System Prompt', icon: Terminal,       roles: ['super_admin'] },
+  { key: 'calls',     label: 'שיחות',         icon: Phone,          roles: ['super_admin', 'admin', 'employee'] },
+  { key: 'contacts',  label: 'אנשי קשר',      icon: Users,          roles: ['super_admin', 'admin'] },
+  { key: 'calendar',  label: 'יומן',           icon: CalendarDays,   roles: ['super_admin'] },
+  { key: 'reminders', label: 'תזכורות',        icon: Bell,           roles: ['super_admin'] },
+  { key: 'summaries', label: 'סיכומים',        icon: ScrollText,     roles: ['super_admin'] },
+  { key: 'knowledge', label: 'ידע',            icon: BookOpen,       roles: ['super_admin'] },
+  { key: 'whatsapp',  label: 'וואטסאפ',        icon: MessageCircle,  roles: ['super_admin'] },
+  { key: 'settings',  label: 'הגדרות',         icon: Settings2,      roles: ['super_admin'] },
 ];
 
 export default function AgentDetailPage() {
@@ -102,8 +106,6 @@ export default function AgentDetailPage() {
     webhookSecret: '',
     webhookRetryCount: 3,
     webhookRetryDelay: 60,
-    appointmentWebhookUrl: '',
-    appointmentWebhookSecret: '',
   });
   const [webhookTestResult, setWebhookTestResult] = useState<{ success: boolean; statusCode: number | null; latencyMs: number } | null>(null);
 
@@ -130,8 +132,6 @@ export default function AgentDetailPage() {
         webhookSecret: agent.webhookSecret || '',
         webhookRetryCount: agent.webhookRetryCount ?? 3,
         webhookRetryDelay: agent.webhookRetryDelay ?? 60,
-        appointmentWebhookUrl: agent.appointmentWebhookUrl || '',
-        appointmentWebhookSecret: agent.appointmentWebhookSecret || '',
       });
       setForm({
         name: agent.name,
@@ -212,7 +212,7 @@ export default function AgentDetailPage() {
         <div className="flex items-center gap-3">
           <h2 className="text-xl font-bold text-[var(--text-primary)]">{agent.name}</h2>
           <div className="w-9 h-9 rounded-lg bg-[var(--accent)]/20 flex items-center justify-center">
-            <FileText className="w-5 h-5 text-[var(--accent)]" />
+            <Bot className="w-5 h-5 text-[var(--accent)]" />
           </div>
           <button
             onClick={() => navigate('/')}

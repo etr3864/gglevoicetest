@@ -7,6 +7,7 @@ import { Card, CardContent } from '../../components/ui/Card';
 import { Input } from '../../components/ui/Input';
 import { Toggle } from '../../components/ui/Toggle';
 
+
 const SAMPLE_WEBHOOK_PAYLOAD = JSON.stringify({
   event: 'call_summary',
   timestamp: '2026-03-13T14:30:00Z',
@@ -23,22 +24,9 @@ const SAMPLE_WEBHOOK_PAYLOAD = JSON.stringify({
   utterance_count: 23,
   call_context: null,
   summary: 'תוכן הסיכום שנוצר על ידי ה-AI...',
+  appointment_id: '<appointment_id or null>',
 }, null, 2);
 
-const SAMPLE_APPOINTMENT_WEBHOOK_PAYLOAD = JSON.stringify({
-  event: 'appointment_booked',
-  timestamp: '2026-03-14T10:00:00Z',
-  appointment_id: '<appointment_id>',
-  agent_id: '<agent_id>',
-  agent_name: 'שם הסוכן',
-  customer_name: 'יוסי כהן',
-  customer_phone: '+972501234567',
-  title: 'פגישת ייעוץ',
-  date: '2026-03-20',
-  time: '10:00',
-  duration_min: 30,
-  call_id: '<call_id>',
-}, null, 2);
 
 interface SummariesTabProps {
   agentId: string;
@@ -52,8 +40,6 @@ interface SummariesTabProps {
 
 export default function SummariesTab({ agentId, form, setForm, webhookTestResult, setWebhookTestResult, onSave, isSaving }: SummariesTabProps) {
   const [testingWebhook, setTestingWebhook] = useState(false);
-  const [testingApptWebhook, setTestingApptWebhook] = useState(false);
-  const [apptWebhookTestResult, setApptWebhookTestResult] = useState<{ success: boolean; statusCode: number | null; latencyMs: number } | null>(null);
 
   const testWebhook = async () => {
     if (!form.webhookUrl) return;
@@ -68,19 +54,6 @@ export default function SummariesTab({ agentId, form, setForm, webhookTestResult
     }
   };
 
-  const testApptWebhook = async () => {
-    if (!form.appointmentWebhookUrl) return;
-    setTestingApptWebhook(true);
-    try {
-      const res = await api.post(`/agents/${agentId}/appointment-webhook-test`);
-      setApptWebhookTestResult(res.data.data);
-    } catch {
-      setApptWebhookTestResult({ success: false, statusCode: null, latencyMs: 0 });
-    } finally {
-      setTestingApptWebhook(false);
-    }
-  };
-
   const saveSummaryConfig = () => {
     onSave({
       summaryEnabled: form.summaryEnabled,
@@ -90,8 +63,6 @@ export default function SummariesTab({ agentId, form, setForm, webhookTestResult
       webhookSecret: form.webhookSecret || null,
       webhookRetryCount: form.webhookRetryCount,
       webhookRetryDelay: form.webhookRetryDelay,
-      appointmentWebhookUrl: form.appointmentWebhookUrl || null,
-      appointmentWebhookSecret: form.appointmentWebhookSecret || null,
     });
   };
 
@@ -212,55 +183,6 @@ export default function SummariesTab({ agentId, form, setForm, webhookTestResult
             </summary>
             <pre className="mt-2 bg-[var(--bg-primary)] border border-[var(--border)] rounded-lg p-3 text-xs font-mono text-[var(--text-primary)] overflow-x-auto" dir="ltr">
               {SAMPLE_WEBHOOK_PAYLOAD}
-            </pre>
-          </details>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <div className="px-5 pt-4 pb-2">
-          <h3 className="font-semibold text-[var(--text-primary)]">Webhook פגישות</h3>
-          <p className="text-xs text-[var(--text-muted)] mt-0.5">שליחת אירועי יומן (קביעה / שינוי / ביטול) לכתובת חיצונית</p>
-        </div>
-        <CardContent className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5 text-right">Webhook URL</label>
-            <input
-              type="url"
-              value={form.appointmentWebhookUrl}
-              onChange={(e) => setForm((f: any) => ({ ...f, appointmentWebhookUrl: e.target.value }))}
-              className="w-full rounded-lg bg-[var(--bg-primary)] border border-[var(--border)] px-4 py-2.5 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]/30 transition-colors"
-              placeholder="https://hooks.yourapp.com/appointments"
-              dir="ltr"
-            />
-          </div>
-          <Input
-            label="Webhook Secret (HMAC)"
-            value={form.appointmentWebhookSecret}
-            onChange={(e) => setForm((f: any) => ({ ...f, appointmentWebhookSecret: e.target.value }))}
-            dir="ltr"
-            placeholder="אופציונלי — לאימות חתימה"
-          />
-          {form.appointmentWebhookUrl && (
-            <div className="flex items-center gap-3">
-              <Button variant="secondary" size="sm" onClick={testApptWebhook} disabled={testingApptWebhook}>
-                {testingApptWebhook ? 'בודק...' : 'בדוק חיבור'}
-              </Button>
-              {apptWebhookTestResult && (
-                <span className={`text-xs font-medium ${apptWebhookTestResult.success ? 'text-green-500' : 'text-red-500'}`}>
-                  {apptWebhookTestResult.success
-                    ? `✓ ${apptWebhookTestResult.statusCode} · ${apptWebhookTestResult.latencyMs}ms`
-                    : `✗ ${apptWebhookTestResult.statusCode ?? 'error'} · ${apptWebhookTestResult.latencyMs}ms`}
-                </span>
-              )}
-            </div>
-          )}
-          <details className="group">
-            <summary className="text-xs text-[var(--text-muted)] cursor-pointer hover:text-[var(--text-secondary)] transition-colors">
-              דוגמת payload
-            </summary>
-            <pre className="mt-2 bg-[var(--bg-primary)] border border-[var(--border)] rounded-lg p-3 text-xs font-mono text-[var(--text-primary)] overflow-x-auto" dir="ltr">
-              {SAMPLE_APPOINTMENT_WEBHOOK_PAYLOAD}
             </pre>
           </details>
         </CardContent>

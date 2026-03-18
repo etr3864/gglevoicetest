@@ -1,12 +1,29 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Save, Link2, Unlink, Loader2 } from 'lucide-react';
+import { Save, Link2, Unlink, Loader2, RefreshCw } from 'lucide-react';
 import api from '../../lib/api';
+import { cn } from '../../lib/cn';
 import { Button } from '../../components/ui/Button';
 import { Card, CardContent } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
 import { Toggle } from '../../components/ui/Toggle';
+import { Input } from '../../components/ui/Input';
 import { useToast } from '../../components/ui/Toast';
+
+const SAMPLE_APPOINTMENT_WEBHOOK_PAYLOAD = JSON.stringify({
+  event: 'appointment_booked',
+  timestamp: '2026-03-14T10:00:00Z',
+  appointment_id: '<appointment_id>',
+  agent_id: '<agent_id>',
+  agent_name: 'שם הסוכן',
+  customer_name: 'יוסי כהן',
+  customer_phone: '+972501234567',
+  title: 'פגישת ייעוץ',
+  date: '2026-03-20',
+  time: '10:00',
+  duration_min: 30,
+  call_id: '<call_id>',
+}, null, 2);
 
 interface Props {
   agentId: string;
@@ -47,10 +64,16 @@ export default function CalendarTab({ agentId, agent }: Props) {
   const [hours, setHours] = useState<Record<string, { start: string; end: string } | null>>(
     agent.businessHours || DEFAULT_HOURS,
   );
+  const [webhookUrl, setWebhookUrl] = useState(agent.appointmentWebhookUrl || '');
+  const [webhookSecret, setWebhookSecret] = useState(agent.appointmentWebhookSecret || '');
+  const [testingWebhook, setTestingWebhook] = useState(false);
+  const [webhookTestResult, setWebhookTestResult] = useState<{ success: boolean; statusCode: number | null; latencyMs: number } | null>(null);
 
   useEffect(() => {
     setInstructions(agent.calendarInstructions || '');
     setHours(agent.businessHours || DEFAULT_HOURS);
+    setWebhookUrl(agent.appointmentWebhookUrl || '');
+    setWebhookSecret(agent.appointmentWebhookSecret || '');
   }, [agent]);
 
   const connect = useMutation({
@@ -76,6 +99,8 @@ export default function CalendarTab({ agentId, agent }: Props) {
       api.patch(`/agents/${agentId}`, {
         calendarInstructions: instructions || null,
         businessHours: hours,
+        appointmentWebhookUrl: webhookUrl || null,
+        appointmentWebhookSecret: webhookSecret || null,
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['agent', agentId] });
@@ -83,6 +108,20 @@ export default function CalendarTab({ agentId, agent }: Props) {
     },
     onError: () => toast('שגיאה בשמירה', 'error'),
   });
+
+  const testWebhook = async () => {
+    if (!webhookUrl) return;
+    setTestingWebhook(true);
+    setWebhookTestResult(null);
+    try {
+      const res = await api.post(`/agents/${agentId}/appointment-webhook-test`);
+      setWebhookTestResult(res.data.data);
+    } catch {
+      setWebhookTestResult({ success: false, statusCode: null, latencyMs: 0 });
+    } finally {
+      setTestingWebhook(false);
+    }
+  };
 
   const connected = statusData?.connected ?? false;
 
@@ -199,16 +238,69 @@ export default function CalendarTab({ agentId, agent }: Props) {
             dir="rtl"
           />
         </CardContent>
-        <div className="px-5 pb-4">
-          <Button
-            onClick={() => saveSettings.mutate()}
-            disabled={saveSettings.isPending}
-          >
-            <Save className="w-4 h-4" />
-            {saveSettings.isPending ? 'שומר...' : 'שמור הגדרות יומן'}
-          </Button>
-        </div>
       </Card>
+
+      {/* Appointment Webhook Card */}
+      <Card>
+        <div className="px-5 pt-4 pb-2">
+          <h3 className="font-semibold text-[var(--text-primary)]">Webhook פגישות</h3>
+          <p className="text-xs text-[var(--text-muted)] mt-0.5">שליחת אירועי יומן (קביעה / שינוי / ביטול) לכתובת חיצונית</p>
+        </div>
+        <CardContent className="space-y-4">
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              {webhookUrl && (
+                <button
+                  onClick={testWebhook}
+                  disabled={testingWebhook}
+                  className="flex items-center gap-1.5 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+                >
+                  <RefreshCw className={cn('w-3 h-3', testingWebhook && 'animate-spin')} />
+                  בדוק חיבור
+                </button>
+              )}
+              {webhookTestResult && (
+                <span className={`text-xs font-medium ${webhookTestResult.success ? 'text-[var(--accent)]' : 'text-red-400'}`}>
+                  {webhookTestResult.success
+                    ? `✓ ${webhookTestResult.statusCode} · ${webhookTestResult.latencyMs}ms`
+                    : `✗ ${webhookTestResult.statusCode ?? 'timeout'} · ${webhookTestResult.latencyMs}ms`}
+                </span>
+              )}
+              <label className="text-sm font-medium text-[var(--text-secondary)]">Webhook URL</label>
+            </div>
+            <input
+              type="url"
+              value={webhookUrl}
+              onChange={(e) => { setWebhookUrl(e.target.value); setWebhookTestResult(null); }}
+              className="w-full rounded-lg bg-[var(--bg-primary)] border border-[var(--border)] px-4 py-2.5 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]/30 transition-colors"
+              placeholder="https://hooks.yourapp.com/appointments"
+              dir="ltr"
+            />
+          </div>
+          <Input
+            label="Webhook Secret (HMAC)"
+            value={webhookSecret}
+            onChange={(e) => setWebhookSecret(e.target.value)}
+            dir="ltr"
+            placeholder="אופציונלי — לאימות חתימה"
+          />
+          <details className="group">
+            <summary className="text-xs text-[var(--text-muted)] cursor-pointer hover:text-[var(--text-secondary)] transition-colors">
+              דוגמת payload
+            </summary>
+            <pre className="mt-2 bg-[var(--bg-primary)] border border-[var(--border)] rounded-lg p-3 text-xs font-mono text-[var(--text-primary)] overflow-x-auto" dir="ltr">
+              {SAMPLE_APPOINTMENT_WEBHOOK_PAYLOAD}
+            </pre>
+          </details>
+        </CardContent>
+      </Card>
+
+      <div className="flex justify-start">
+        <Button onClick={() => saveSettings.mutate()} disabled={saveSettings.isPending}>
+          <Save className="w-4 h-4" />
+          {saveSettings.isPending ? 'שומר...' : 'שמור הגדרות יומן'}
+        </Button>
+      </div>
     </div>
   );
 }

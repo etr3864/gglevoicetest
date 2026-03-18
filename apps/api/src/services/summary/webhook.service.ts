@@ -11,7 +11,12 @@ export async function deliverWebhook(summaryId: string): Promise<void> {
   const row = await prisma.callSummary.findUnique({
     where: { id: summaryId },
     include: {
-      call: { include: { contact: { select: { name: true, phone: true } } } },
+      call: {
+        include: {
+          contact: { select: { name: true, phone: true } },
+          appointments: { select: { id: true }, take: 1, orderBy: { createdAt: 'desc' } },
+        },
+      },
       agent: { select: { id: true, name: true, webhookUrl: true, webhookSecret: true, webhookRetryCount: true, webhookRetryDelay: true } },
     },
   });
@@ -77,6 +82,7 @@ function buildPayload(row: SummaryWithRelations): Record<string, unknown> {
     utterance_count: row.utteranceCount,
     call_context: call.context ?? null,
     summary: row.summaryText,
+    appointment_id: call.appointments?.[0]?.id ?? null,
   };
 }
 
@@ -125,6 +131,7 @@ interface SummaryWithRelations {
     recordingUrl: string | null;
     context: unknown;
     contact: { name: string | null; phone: string } | null;
+    appointments: { id: string }[];
   };
   agent: {
     id: string;
