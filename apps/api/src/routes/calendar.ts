@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { prisma, Prisma } from '@voice/db';
 import { AppError } from '../middleware/error-handler';
+import { authMiddleware, requireSuperAdmin, assertAgentAccess } from '../middleware/auth';
 import {
   buildOAuthUrl,
   exchangeCodeForTokens,
@@ -11,8 +12,9 @@ import type { CalendarConfig } from '@voice/shared';
 
 const router = Router();
 
-router.get('/:id/calendar/connect', async (req, res) => {
-  const agent = await prisma.agent.findUnique({ where: { id: req.params.id } });
+router.get('/:id/calendar/connect', authMiddleware, requireSuperAdmin, async (req, res) => {
+  const { id } = req.params as { id: string };
+  const agent = await prisma.agent.findUnique({ where: { id } });
   if (!agent) throw new AppError(404, 'NOT_FOUND', 'Agent not found');
 
   const url = buildOAuthUrl(agent.id);
@@ -50,20 +52,23 @@ router.get('/calendar/callback', async (req, res) => {
   res.redirect(`${frontendUrl}/agents/${agentId}?tab=calendar&connected=true`);
 });
 
-router.post('/:id/calendar/disconnect', async (req, res) => {
-  const agent = await prisma.agent.findUnique({ where: { id: req.params.id } });
+router.post('/:id/calendar/disconnect', authMiddleware, requireSuperAdmin, async (req, res) => {
+  const { id } = req.params as { id: string };
+  const agent = await prisma.agent.findUnique({ where: { id } });
   if (!agent) throw new AppError(404, 'NOT_FOUND', 'Agent not found');
 
   await prisma.agent.update({
-    where: { id: req.params.id },
+    where: { id },
     data: { calendarConfig: Prisma.DbNull },
   });
 
   res.json({ data: { disconnected: true } });
 });
 
-router.get('/:id/calendar/status', async (req, res) => {
-  const agent = await prisma.agent.findUnique({ where: { id: req.params.id } });
+router.get('/:id/calendar/status', authMiddleware, async (req, res) => {
+  const { id } = req.params as { id: string };
+  await assertAgentAccess(id, req.user!);
+  const agent = await prisma.agent.findUnique({ where: { id } });
   if (!agent) throw new AppError(404, 'NOT_FOUND', 'Agent not found');
 
   const connected = !!agent.calendarConfig;
