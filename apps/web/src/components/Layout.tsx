@@ -3,6 +3,11 @@ import { Bot, Database, LogOut } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { cn } from '../lib/cn';
 
+const LOGO_WHITE =
+  'https://res.cloudinary.com/daowx6msw/image/upload/v1763910407/white_logoggfdsdfgdfsgds_bdqrww.png';
+const TENTACLE =
+  'https://res.cloudinary.com/daowx6msw/image/upload/v1763893433/ChatGPT_Image_Nov_23_2025_12_23_46_PM_tqfwov.png';
+
 const navItems = [
   { to: '/', label: 'סוכנים', icon: Bot },
   { to: '/database', label: 'Database', icon: Database },
@@ -12,13 +17,26 @@ export default function Layout() {
   const { logout, user } = useAuth();
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen flex flex-col relative overflow-x-hidden">
+      {/* Global tentacle decoration — bottom right */}
+      <img
+        src={TENTACLE}
+        alt=""
+        aria-hidden
+        className="fixed bottom-0 right-0 w-[600px] opacity-[0.07] select-none pointer-events-none z-0"
+        style={{ filter: 'hue-rotate(200deg) saturate(1.2)' }}
+      />
+
       <header className="bg-[var(--bg-secondary)]/80 backdrop-blur-md border-b border-[var(--border)] px-6 sticky top-0 z-40">
         <div className="flex items-center justify-between h-14">
+          {/* Logo + user */}
           <div className="flex items-center gap-4">
-            <h1 className="text-lg font-bold tracking-widest text-[var(--accent)] drop-shadow-[0_0_12px_var(--accent-glow)]">
-              VOICE AI
-            </h1>
+            <img
+              src={LOGO_WHITE}
+              alt="Optive"
+              className="h-7 select-none"
+              draggable={false}
+            />
             <span className="h-5 w-px bg-[var(--border)]" />
             <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[var(--bg-hover)]/60 text-sm">
               <span className="text-[var(--text-primary)] font-medium">{user?.email?.split('@')[0]}</span>
@@ -33,6 +51,7 @@ export default function Layout() {
             </button>
           </div>
 
+          {/* Nav */}
           <div className="flex items-center gap-1">
             {navItems.map(({ to, label, icon: Icon }) => (
               <NavLink
@@ -43,7 +62,7 @@ export default function Layout() {
                   cn(
                     'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors',
                     isActive
-                      ? 'bg-[var(--accent)]/10 text-[var(--accent)] shadow-[inset_0_0_0_1px_rgba(16,185,129,0.2)]'
+                      ? 'bg-[var(--accent)]/10 text-[var(--accent)] shadow-[inset_0_0_0_1px_rgba(139,92,246,0.25)]'
                       : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
                   )
                 }
@@ -56,7 +75,7 @@ export default function Layout() {
         </div>
       </header>
 
-      <main className="flex-1 p-6">
+      <main className="flex-1 p-6 relative z-10">
         <Outlet />
       </main>
     </div>
