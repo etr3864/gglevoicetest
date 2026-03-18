@@ -66,6 +66,7 @@ model Agent {
   scheduledReminders      ScheduledReminder[]
   knowledgeBase           KnowledgeBase?
   whatsappMessages        WhatsappMessage[]
+  usageMonthly            AgentUsageMonthly[]
 
   @@map("agents")
 }
@@ -107,6 +108,12 @@ model Call {
   durationSec        Int?          @map("duration_sec")
   startedAt          DateTime?     @map("started_at")
   endedAt            DateTime?     @map("ended_at")
+  audioInputTokens   Int?          @map("audio_input_tokens")
+  audioOutputTokens  Int?          @map("audio_output_tokens")
+  textInputTokens    Int?          @map("text_input_tokens")
+  textOutputTokens   Int?          @map("text_output_tokens")
+  telnyxBilledSec    Int?          @map("telnyx_billed_sec")
+  deepgramSec        Int?          @map("deepgram_sec")
   createdAt          DateTime      @default(now()) @map("created_at")
   agent              Agent         @relation(fields: [agentId], references: [id])
   contact            Contact?      @relation(fields: [contactId], references: [id])
@@ -259,4 +266,25 @@ model CallSummary {
 
   @@index([agentId, webhookStatus])
   @@map("call_summaries")
+}
+
+model AgentUsageMonthly {
+  id                     String  @id @default(uuid())
+  agentId                String  @map("agent_id")
+  yearMonth              String  @map("year_month")
+  callCount              Int     @default(0) @map("call_count")
+  totalDurationSec       Int     @default(0) @map("total_duration_sec")
+  totalBilledSec         Int     @default(0) @map("total_billed_sec")
+  totalAudioInputTokens  Int     @default(0) @map("total_audio_input_tokens")
+  totalAudioOutputTokens Int     @default(0) @map("total_audio_output_tokens")
+  totalTextInputTokens   Int     @default(0) @map("total_text_input_tokens")
+  totalTextOutputTokens  Int     @default(0) @map("total_text_output_tokens")
+  totalSummaryTokens     Int     @default(0) @map("total_summary_tokens")
+  totalDeepgramSec       Int     @default(0) @map("total_deepgram_sec")
+  totalRecordingSec      Int     @default(0) @map("total_recording_sec")
+  whatsappMsgCount       Int     @default(0) @map("whatsapp_msg_count")
+  agent                  Agent   @relation(fields: [agentId], references: [id])
+
+  @@unique([agentId, yearMonth])
+  @@map("agent_usage_monthly")
 }

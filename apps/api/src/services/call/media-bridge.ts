@@ -362,6 +362,11 @@ function buildProviderEvents(ctx: BridgeContext): ProviderEvents {
     onTurnComplete: () => {
       interruptRef.enabled = true;
     },
+
+    onUsage: (usage) => {
+      // Overwrite with latest cumulative snapshot from Gemini
+      redis.set(`call:usage:${callControlId}`, JSON.stringify(usage), 'EX', 7200).catch(() => {});
+    },
   };
 }
 

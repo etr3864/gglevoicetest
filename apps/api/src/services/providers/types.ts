@@ -121,6 +121,13 @@ export interface ToolResult {
 
 // --- Provider Interface ---
 
+export interface TokenUsage {
+  audioInputTokens: number;
+  audioOutputTokens: number;
+  textInputTokens: number;
+  textOutputTokens: number;
+}
+
 export interface ProviderEvents {
   onReady: () => void;
   onAudio: (chunk: AudioChunk) => void;
@@ -130,6 +137,7 @@ export interface ProviderEvents {
   onClose: () => void;
   onInterrupt?: () => void;
   onTurnComplete?: () => void;
+  onUsage?: (usage: TokenUsage) => void;
 }
 
 export interface VoiceProvider {

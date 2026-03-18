@@ -1,6 +1,7 @@
 import { prisma } from '@voice/db';
 import { normalizePhone } from '../../lib/phone';
 import { whatsappSendQueue } from '../../lib/queue';
+import { upsertMonthlyUsage } from '../usage/usage.service';
 
 export async function sendMessage(
   agentId: string,
@@ -42,6 +43,8 @@ export async function sendMessage(
         removeOnFail: 500,
       },
     );
+
+    upsertMonthlyUsage(agentId, { whatsappMsgCount: 1 }).catch(() => {});
   } catch (err) {
     await prisma.whatsappMessage.update({
       where: { id: row.id },

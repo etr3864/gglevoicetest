@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 import { GoogleAuth } from 'google-auth-library';
 import {
-  VoiceProvider, ProviderConfig, ProviderEvents, AudioChunk,
+  VoiceProvider, ProviderConfig, ProviderEvents, AudioChunk, TokenUsage,
 } from '../types';
 import { createLogger } from '../../../lib/logger';
 import { GEMINI } from '../../../lib/audio-config';
@@ -213,6 +213,10 @@ export class GeminiProvider implements VoiceProvider {
         this.state.setResumptionToken(msg.sessionResumptionUpdate.token);
       }
 
+      if (msg.usageMetadata) {
+        this.events?.onUsage?.(parseTokenUsage(msg.usageMetadata));
+      }
+
       if (msg.goAway) {
         this.handleGoAway(msg.goAway);
         return;
@@ -323,4 +327,26 @@ export class GeminiProvider implements VoiceProvider {
       this.connection.send(GeminiMapper.buildToolResponsePayload(validResponses));
     }
   }
+}
+
+interface ModalityTokenCount {
+  modality: string;
+  tokenCount: number;
+}
+
+interface GeminiUsageMetadata {
+  promptTokensDetails?: ModalityTokenCount[];
+  responseTokensDetails?: ModalityTokenCount[];
+}
+
+function parseTokenUsage(meta: GeminiUsageMetadata): TokenUsage {
+  const sumByModality = (details: ModalityTokenCount[] | undefined, modality: string): number =>
+    details?.find((d) => d.modality === modality)?.tokenCount ?? 0;
+
+  return {
+    audioInputTokens: sumByModality(meta.promptTokensDetails, 'AUDIO'),
+    textInputTokens: sumByModality(meta.promptTokensDetails, 'TEXT'),
+    audioOutputTokens: sumByModality(meta.responseTokensDetails, 'AUDIO'),
+    textOutputTokens: sumByModality(meta.responseTokensDetails, 'TEXT'),
+  };
 }

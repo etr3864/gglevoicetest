@@ -2,6 +2,7 @@ import { prisma } from '@voice/db';
 import { createLogger } from '../../lib/logger';
 import { recordingQueue } from '../../lib/queue';
 import { startRecording as telnyxStartRecording } from '../telnyx';
+import { upsertMonthlyUsage } from '../usage/usage.service';
 
 const log = createLogger('recording');
 
@@ -36,6 +37,7 @@ export async function handleRecordingWebhook(params: {
   }
 
   const durationSec = Math.round(params.durationMs / 1000);
+  const totalRecordingSec = Math.ceil(durationSec / 60) * 60;
 
   await prisma.call.update({
     where: { id: call.id },
@@ -45,6 +47,9 @@ export async function handleRecordingWebhook(params: {
       recordingDuration: durationSec,
     },
   });
+
+  upsertMonthlyUsage(call.agentId, { totalRecordingSec })
+    .catch((err) => log.error('Failed to upsert recording usage', err, { callId: call.id }));
 
   log.info('Recording webhook: queuing job', {
     callId: call.id,

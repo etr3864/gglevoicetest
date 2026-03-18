@@ -2,9 +2,10 @@ import { prisma } from '@voice/db';
 import { createLogger } from '../../lib/logger';
 import { redis } from '../../lib/redis';
 import { summaryQueue } from '../../lib/queue';
-import type { TranscriptEntry } from '../providers/types';
+import type { TranscriptEntry, TokenUsage } from '../providers/types';
 import { publishCallEvent } from '../events/pubsub';
 import { handleReminderCallEnded } from '../reminders/reminder.service';
+import { upsertMonthlyUsage } from '../usage/usage.service';
 
 const log = createLogger('session');
 const SESSION_COUNT_KEY = 'call:session_count';
@@ -102,13 +103,17 @@ export async function endSession(callControlId: string): Promise<void> {
   const transcripts = await getTranscripts(callControlId);
   const durationSec = Math.round((Date.now() - new Date(session.startedAt).getTime()) / 1000);
 
+  const usageRaw = await redis.get(`call:usage:${callControlId}`);
+  const tokenUsage: TokenUsage | null = usageRaw ? JSON.parse(usageRaw) : null;
+
   await redis.del(`call:session_by_id:${session.callId}`);
   await redis.del(`call:transcripts:${callControlId}`);
+  await redis.del(`call:usage:${callControlId}`);
   await redis.publish('call:disconnect', callControlId);
 
   const isReminder = session.callContext?.callType === 'reminder';
 
-  await finalizeCallRecord(session, durationSec);
+  await finalizeCallRecord(session, durationSec, tokenUsage);
   await persistUtterances(session, transcripts);
   await updateContactStats(session, durationSec);
 
@@ -154,16 +159,46 @@ export async function activeSessionCount(): Promise<number> {
   return Math.max(0, parseInt(count || '0', 10));
 }
 
-async function finalizeCallRecord(session: CallSession, durationSec: number): Promise<void> {
+async function finalizeCallRecord(session: CallSession, durationSec: number, tokens: TokenUsage | null): Promise<void> {
   try {
     const current = await prisma.call.findUnique({ where: { id: session.callId }, select: { status: true } });
     if (!current) return;
+
     const finalStatus = current.status === 'in_call' ? 'completed' : current.status;
+    const telnyxBilledSec = Math.ceil(durationSec / 60) * 60;
+    const deepgramSec = durationSec * 2;
+
     const call = await prisma.call.update({
       where: { id: session.callId },
-      data: { status: finalStatus, endedAt: new Date(), durationSec },
+      data: {
+        status: finalStatus,
+        endedAt: new Date(),
+        durationSec,
+        telnyxBilledSec,
+        deepgramSec,
+        ...(tokens && {
+          audioInputTokens: tokens.audioInputTokens,
+          audioOutputTokens: tokens.audioOutputTokens,
+          textInputTokens: tokens.textInputTokens,
+          textOutputTokens: tokens.textOutputTokens,
+        }),
+      },
     });
+
     await publishCallEvent(session.agentId, 'call_updated', { call });
+
+    upsertMonthlyUsage(session.agentId, {
+      callCount: 1,
+      totalDurationSec: durationSec,
+      totalBilledSec: telnyxBilledSec,
+      totalDeepgramSec: deepgramSec,
+      ...(tokens && {
+        totalAudioInputTokens: tokens.audioInputTokens,
+        totalAudioOutputTokens: tokens.audioOutputTokens,
+        totalTextInputTokens: tokens.textInputTokens,
+        totalTextOutputTokens: tokens.textOutputTokens,
+      }),
+    }).catch((err) => log.error('Failed to upsert monthly usage', err, { callId: session.callId }));
   } catch (err) {
     log.error('Failed to update call record', err, { callId: session.callId });
   }

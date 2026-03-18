@@ -2,6 +2,7 @@ import { prisma, Prisma } from '@voice/db';
 import { createLogger } from '../../lib/logger';
 import { generateText } from '../../lib/gemini-text';
 import { webhookQueue } from '../../lib/queue';
+import { upsertMonthlyUsage } from '../usage/usage.service';
 
 const log = createLogger('summary');
 
@@ -46,6 +47,11 @@ export async function generateCallSummary(callId: string): Promise<void> {
 
   if (hasWebhook && summary) {
     await webhookQueue.add('deliver', { summaryId: summary.id }, { jobId: `webhook-${summary.id}` });
+  }
+
+  if (summary && result.tokenCount) {
+    upsertMonthlyUsage(agent.id, { totalSummaryTokens: result.tokenCount })
+      .catch((err) => log.error('Failed to upsert summary usage', err, { callId }));
   }
 }
 
