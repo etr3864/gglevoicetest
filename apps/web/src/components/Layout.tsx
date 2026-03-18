@@ -34,7 +34,7 @@ export default function Layout() {
         alt=""
         aria-hidden
         className="fixed bottom-0 right-0 w-[600px] opacity-[0.07] select-none pointer-events-none z-0"
-        style={{ filter: 'hue-rotate(200deg) saturate(1.2)' }}
+        style={{ filter: 'sepia(1) saturate(4) hue-rotate(220deg) brightness(0.6)' }}
       />
 
       <header className="bg-[var(--bg-secondary)]/80 backdrop-blur-md border-b border-[var(--border)] px-6 sticky top-0 z-40">

@@ -51,7 +51,7 @@ export default function LoginPage() {
         alt=""
         aria-hidden
         className="absolute bottom-0 right-0 w-[480px] opacity-20 select-none pointer-events-none"
-        style={{ filter: 'hue-rotate(200deg) saturate(1.2)' }}
+        style={{ filter: 'sepia(1) saturate(4) hue-rotate(220deg) brightness(0.6)' }}
       />
 
       {/* Tentacle 2 — top left, mirrored */}
@@ -60,7 +60,7 @@ export default function LoginPage() {
         alt=""
         aria-hidden
         className="absolute top-0 left-0 w-[400px] opacity-15 select-none pointer-events-none"
-        style={{ filter: 'hue-rotate(200deg) saturate(1.2)', transform: 'scaleX(-1) rotate(180deg)' }}
+        style={{ filter: 'sepia(1) saturate(4) hue-rotate(220deg) brightness(0.6)', transform: 'scaleX(-1) rotate(180deg)' }}
       />
 
       <div className="w-full max-w-sm relative z-10">
