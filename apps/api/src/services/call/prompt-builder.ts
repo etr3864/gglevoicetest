@@ -1,5 +1,6 @@
 import type { BusinessHours } from '@voice/shared';
 import { formatNow } from '../../lib/date';
+import { getContextMessages } from '../whatsapp/whatsapp.service';
 
 interface AgentPromptData {
   basePrompt: string | null;
@@ -84,6 +85,59 @@ export function buildSchedulingPrompt(agent: AgentScheduleData): string {
   }
 
   return '\n\n--- Scheduling Context ---\n' + sections.join('\n\n');
+}
+
+const MAX_WHATSAPP_CONTEXT_CHARS = 2000;
+
+interface AgentWhatsappData {
+  whatsappProvider: string | null;
+  whatsappInstructions: string | null;
+}
+
+export function buildWhatsappPrompt(agent: AgentWhatsappData): string {
+  if (!agent.whatsappProvider) return '';
+
+  const sections: string[] = [
+    'You have the ability to send WhatsApp messages to the customer using the send_whatsapp tool.',
+    'Use it when the customer asks for information in writing (payment links, addresses, documents, confirmations, summaries).',
+  ];
+
+  if (agent.whatsappInstructions) {
+    sections.push(agent.whatsappInstructions);
+  }
+
+  sections.push(
+    'After calling send_whatsapp, confirm to the customer verbally that the message was sent.',
+    'If the tool returns sent: false, tell the customer there is a temporary issue with WhatsApp and you will try again.',
+  );
+
+  return '\n\n--- WhatsApp ---\n' + sections.join('\n');
+}
+
+export async function buildWhatsappContextSection(
+  agentId: string,
+  contactPhone: string,
+  limit: number,
+): Promise<string> {
+  if (!contactPhone) return '';
+
+  const messages = await getContextMessages(agentId, contactPhone, limit);
+  if (messages.length === 0) return '';
+
+  const lines = messages.map(m => {
+    const direction = m.direction === 'outbound' ? 'Agent' : 'Customer';
+    const date = m.createdAt.toISOString().slice(0, 16).replace('T', ' ');
+    return `[${date}] ${direction}: ${m.content}`;
+  });
+
+  let text = lines.join('\n');
+  if (text.length > MAX_WHATSAPP_CONTEXT_CHARS) {
+    text = text.slice(-MAX_WHATSAPP_CONTEXT_CHARS);
+    const newlineIdx = text.indexOf('\n');
+    if (newlineIdx > 0) text = text.slice(newlineIdx + 1);
+  }
+
+  return `\n\n--- WhatsApp History ---\n${text}`;
 }
 
 function formatBusinessHours(hours: BusinessHours): string {

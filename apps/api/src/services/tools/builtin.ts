@@ -3,9 +3,12 @@ import { globalRegistry } from './registry';
 import type { ToolContext } from './registry';
 import { registerCalendarTools } from './calendar';
 import { formatTimestamp } from '../../lib/date';
+import { SEND_WHATSAPP_DEFINITION, handleSendWhatsapp } from './whatsapp-tool';
 
 export function registerBuiltinTools(): void {
   registerCalendarTools();
+
+  globalRegistry.register(SEND_WHATSAPP_DEFINITION, handleSendWhatsapp);
   globalRegistry.register(
     {
       name: 'end_call',

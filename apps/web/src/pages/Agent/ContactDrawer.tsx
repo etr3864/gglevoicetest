@@ -1,16 +1,34 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { X, Save, Trash2, Phone, Calendar, Clock } from 'lucide-react';
+import { X, Save, Trash2, Phone, Calendar, Clock, MessageSquare, ChevronUp } from 'lucide-react';
 import api from '../../lib/api';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Badge } from '../../components/ui/Badge';
 import { useToast } from '../../components/ui/Toast';
+import { cn } from '../../lib/cn';
 
 interface Props {
   contact: any;
   onClose: () => void;
 }
+
+interface WhatsappMessage {
+  id: string;
+  direction: 'inbound' | 'outbound';
+  status: string;
+  content: string;
+  createdAt: string;
+}
+
+const WA_STATUS_LABELS: Record<string, { label: string; variant: 'success' | 'warning' | 'neutral' }> = {
+  sent: { label: 'נשלח', variant: 'success' },
+  delivered: { label: 'נמסר', variant: 'success' },
+  read: { label: 'נקרא', variant: 'success' },
+  failed: { label: 'נכשל', variant: 'warning' },
+  pending: { label: 'ממתין', variant: 'neutral' },
+  inbound: { label: 'נכנסת', variant: 'neutral' },
+};
 
 const STATUS_LABELS: Record<string, { label: string; variant: 'success' | 'danger' | 'warning' | 'info' | 'neutral' }> = {
   scheduled: { label: 'מתוכנן', variant: 'info' },
@@ -40,6 +58,30 @@ export default function ContactDrawer({ contact, onClose }: Props) {
     queryFn: () => api.get(`/contacts/${contact.id}/appointments`).then(r => r.data.data),
     enabled: !!contact.id,
   });
+
+  const [waCursor, setWaCursor] = useState<string | null | undefined>(undefined);
+  const [waMessages, setWaMessages] = useState<WhatsappMessage[]>([]);
+  const [hasMoreWa, setHasMoreWa] = useState(false);
+
+  const { data: waPage, isFetching: waLoading } = useQuery({
+    queryKey: ['contact-whatsapp', contact.id, waCursor],
+    queryFn: async () => {
+      const params = waCursor ? `?cursor=${waCursor}&limit=30` : '?limit=30';
+      const res = await api.get(`/contacts/${contact.id}/whatsapp${params}`);
+      return res.data as { data: WhatsappMessage[]; nextCursor: string | null };
+    },
+    enabled: !!contact.id,
+  });
+
+  useEffect(() => {
+    if (!waPage) return;
+    if (waCursor === undefined) {
+      setWaMessages(waPage.data);
+    } else {
+      setWaMessages(prev => [...waPage.data, ...prev]);
+    }
+    setHasMoreWa(!!waPage.nextCursor);
+  }, [waPage]);
 
   const update = useMutation({
     mutationFn: () => api.patch(`/contacts/${contact.id}`, {
@@ -101,6 +143,54 @@ export default function ContactDrawer({ contact, onClose }: Props) {
             <p className="text-xs text-[var(--text-muted)]">שיחה אחרונה</p>
           </div>
         </div>
+
+        {/* WhatsApp Section */}
+        {waMessages.length > 0 && (
+          <div className="px-5 py-4 border-b border-[var(--border)]">
+            <div className="flex items-center gap-2 justify-end mb-3">
+              <h4 className="text-sm font-semibold text-[var(--text-primary)]">WhatsApp</h4>
+              <MessageSquare className="w-4 h-4 text-emerald-400" />
+            </div>
+
+            {hasMoreWa && (
+              <button
+                onClick={() => setWaCursor(waPage?.nextCursor ?? null)}
+                disabled={waLoading}
+                className="flex items-center gap-1 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors mb-2 mx-auto"
+              >
+                <ChevronUp className="w-3 h-3" />
+                {waLoading ? 'טוען...' : 'טען עוד'}
+              </button>
+            )}
+
+            <div className="space-y-2 max-h-80 overflow-y-auto">
+              {waMessages.map(msg => {
+                const isOut = msg.direction === 'outbound';
+                const statusInfo = WA_STATUS_LABELS[msg.status] ?? WA_STATUS_LABELS.pending;
+                return (
+                  <div key={msg.id} className={cn('flex', isOut ? 'justify-end' : 'justify-start')}>
+                    <div className={cn(
+                      'max-w-[80%] px-3 py-2 rounded-xl text-sm',
+                      isOut ? 'bg-emerald-600/20 text-[var(--text-primary)]' : 'bg-[var(--bg-hover)] text-[var(--text-primary)]',
+                    )}>
+                      <p className="break-words">{msg.content}</p>
+                      <div className={cn('flex items-center gap-1.5 mt-1', isOut ? 'justify-end' : 'justify-start')}>
+                        <span className="text-xs text-[var(--text-muted)]">
+                          {new Date(msg.createdAt).toLocaleString('he-IL', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                        {isOut && (
+                          <Badge variant={statusInfo.variant} className="text-xs py-0 px-1">
+                            {statusInfo.label}
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Appointments Section */}
         {appointments && appointments.length > 0 && (

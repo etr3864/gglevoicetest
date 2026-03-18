@@ -45,4 +45,8 @@ export const updateAgentSchema = z.object({
   businessHours: z.record(timeSlotSchema).nullable().optional(),
   calendarConfig: z.record(z.unknown()).nullable().optional(),
   modelConfig: modelConfigSchema,
+  whatsappProvider: z.enum(['meta', 'wasender']).nullable().optional(),
+  whatsappConfig: z.record(z.unknown()).nullable().optional(),
+  whatsappInstructions: z.string().max(5000).nullable().optional(),
+  whatsappContextMessages: z.number().int().min(0).max(100).optional(),
 });

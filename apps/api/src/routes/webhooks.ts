@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import type { Request, Response } from 'express';
 import { prisma } from '@voice/db';
 import { createLogger } from '../lib/logger';
 import { normalizePhone } from '../lib/phone';
@@ -8,6 +9,14 @@ import { answerCall, hangupCall, startRecording } from '../services/telnyx';
 import { createSession, endSession, getSession, warmup } from '../services/call';
 import { publishCallEvent } from '../services/events/pubsub';
 import { handleRecordingWebhook } from '../services/recording/recording.service';
+import {
+  verifyMetaSignature,
+  verifyWasenderSignature,
+  verifyMetaChallenge,
+  handleMetaWebhook,
+  handleWasenderWebhook,
+  loadAgentWhatsappConfig,
+} from '../services/whatsapp/webhook-handler';
 
 const log = createLogger('webhook');
 const router = Router();
@@ -215,5 +224,54 @@ async function markNoAnswerIfUnanswered(callControlId: string): Promise<void> {
     });
   }
 }
+
+router.get('/whatsapp/meta/:agentId', async (req: Request, res: Response) => {
+  const { agentId } = req.params;
+  const config = await loadAgentWhatsappConfig(agentId);
+  if (!config?.verifyToken) return res.sendStatus(403);
+
+  const challenge = verifyMetaChallenge(req.query as Record<string, string>, config.verifyToken);
+  if (!challenge) return res.sendStatus(403);
+
+  res.send(challenge);
+});
+
+router.post('/whatsapp/meta/:agentId', async (req: Request, res: Response) => {
+  const { agentId } = req.params;
+  const rawBody: Buffer | undefined = (req as any).rawBody;
+
+  const config = await loadAgentWhatsappConfig(agentId);
+  if (!config?.appSecret) return res.sendStatus(403);
+
+  const signature = req.headers['x-hub-signature-256'] as string | undefined;
+  if (!signature || !rawBody || !verifyMetaSignature(rawBody, signature, config.appSecret)) {
+    log.warn('Meta webhook HMAC invalid', { agentId });
+    return res.sendStatus(403);
+  }
+
+  res.sendStatus(200);
+  handleMetaWebhook(req.body, agentId).catch(err =>
+    log.error('handleMetaWebhook failed', err, { agentId }),
+  );
+});
+
+router.post('/whatsapp/wasender/:agentId', async (req: Request, res: Response) => {
+  const { agentId } = req.params;
+  const rawBody: Buffer | undefined = (req as any).rawBody;
+
+  const config = await loadAgentWhatsappConfig(agentId);
+  if (!config?.webhookSecret) return res.sendStatus(403);
+
+  const signature = req.headers['x-wasender-signature'] as string | undefined;
+  if (!signature || !rawBody || !verifyWasenderSignature(rawBody, signature, config.webhookSecret)) {
+    log.warn('WA Sender webhook HMAC invalid', { agentId });
+    return res.sendStatus(403);
+  }
+
+  res.sendStatus(200);
+  handleWasenderWebhook(req.body, agentId).catch(err =>
+    log.error('handleWasenderWebhook failed', err, { agentId }),
+  );
+});
 
 export default router;

@@ -8,7 +8,8 @@ import { GeminiProvider, geminiKeyPool } from '../providers';
 import { globalRegistry } from '../tools';
 import type { DeepgramTranscriber } from '../transcription';
 import { buildContactContext } from '../contact-context';
-import { buildSchedulingPrompt, resolveDirectionalPrompts } from './prompt-builder';
+import { buildSchedulingPrompt, buildWhatsappPrompt, buildWhatsappContextSection, resolveDirectionalPrompts } from './prompt-builder';
+import { SEND_WHATSAPP_DEFINITION } from '../tools/whatsapp-tool';
 import type { VoiceProvider, ProviderConfig, ProviderEvents, ToolResult } from '../providers/types';
 import { mergeModelConfig, type ModelConfig } from '../providers/types';
 
@@ -184,6 +185,9 @@ export async function buildProviderConfig(
         businessHours: true,
         modelConfig: true,
         knowledgeBase: { select: { vertexCorpusId: true } },
+        whatsappProvider: true,
+        whatsappInstructions: true,
+        whatsappContextMessages: true,
       },
     }),
     contactPhone && !systemPromptOverride ? buildContactContext(contactPhone) : null,
@@ -216,6 +220,13 @@ export async function buildProviderConfig(
       }
     }
     systemPrompt += buildSchedulingPrompt(agent);
+
+    if (agent.whatsappProvider) {
+      systemPrompt += buildWhatsappPrompt(agent);
+      if (contactPhone) {
+        systemPrompt += await buildWhatsappContextSection(agentId, contactPhone, agent.whatsappContextMessages);
+      }
+    }
   }
 
   const apiKey = geminiKeyPool.next();
@@ -234,6 +245,11 @@ export async function buildProviderConfig(
     systemPrompt += '\n\nיש לך גישה למאגר ידע ייעודי עם מסמכים רלוונטיים. כאשר שאלה קשורה למידע שעשוי להיות במאגר — השתמש בו כדי לספק תשובות מדויקות ומבוססות.';
   }
 
+  const tools = globalRegistry.getDefinitions().filter(t => {
+    if (t.name === 'send_whatsapp') return !!agent.whatsappProvider;
+    return true;
+  });
+
   return {
     apiKey,
     model: GEMINI_MODEL,
@@ -241,7 +257,7 @@ export async function buildProviderConfig(
     systemPrompt: capSystemPrompt(systemPrompt),
     openingMessage,
     modelConfig: mergeModelConfig(agent.modelConfig as Partial<ModelConfig> | undefined),
-    tools: globalRegistry.getDefinitions(),
+    tools,
     ragCorpusResourceName,
   };
 }

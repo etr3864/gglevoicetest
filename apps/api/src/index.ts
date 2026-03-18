@@ -17,6 +17,7 @@ import adminRoutes from './routes/admin';
 import calendarRoutes from './routes/calendar';
 import reminderRoutes from './routes/reminders';
 import knowledgeRoutes from './routes/knowledge';
+import whatsappRoutes from './routes/whatsapp';
 import webhookRoutes from './routes/webhooks';
 import recordingRoutes from './routes/recordings';
 import eventsRouter from './routes/events';
@@ -30,6 +31,7 @@ import { startWebhookWorker } from './workers/webhook.worker';
 import { startAppointmentWebhookWorker } from './workers/appointment-webhook.worker';
 import { startReminderWorker } from './workers/reminder.worker';
 import { startRagStatusWorker } from './workers/rag-status.worker';
+import { startWhatsappSendWorker } from './workers/whatsapp-send.worker';
 import { startRecordingCrons } from './services/recording/recording.cron';
 import { initPubSub, closePubSub } from './services/events/pubsub';
 import { sseManager } from './services/events/sse.manager';
@@ -57,7 +59,7 @@ app.use(
 );
 app.use(express.json({
   verify: (req: any, _res, buf) => {
-    if (req.path?.startsWith('/webhooks/telnyx')) {
+    if (req.path?.startsWith('/webhooks/telnyx') || req.path?.startsWith('/webhooks/whatsapp/meta')) {
       req.rawBody = buf;
     }
   },
@@ -101,6 +103,7 @@ app.use('/agents', authMiddleware, agentRoutes);
 app.use('/', authMiddleware, callRoutes);
 app.use('/', recordingRoutes);
 app.use('/', authMiddleware, contactRoutes);
+app.use('/', authMiddleware, whatsappRoutes);
 app.use('/admin', authMiddleware, adminRoutes);
 
 app.use(errorHandler);
@@ -128,6 +131,7 @@ async function start() {
     const appointmentWebhookWorker = startAppointmentWebhookWorker();
     const reminderWorker = startReminderWorker();
     const ragStatusWorker = startRagStatusWorker();
+    const whatsappSendWorker = startWhatsappSendWorker();
     startRecordingCrons();
     attachWebSocket(server);
 
@@ -144,7 +148,7 @@ async function start() {
 
       log.info('All calls finished, shutting down');
       sseManager.shutdown();
-      await Promise.all([outboundWorker.close(), recordingWorker.close(), summaryWorker.close(), webhookWorker.close(), appointmentWebhookWorker.close(), reminderWorker.close(), ragStatusWorker.close()]);
+      await Promise.all([outboundWorker.close(), recordingWorker.close(), summaryWorker.close(), webhookWorker.close(), appointmentWebhookWorker.close(), reminderWorker.close(), ragStatusWorker.close(), whatsappSendWorker.close()]);
       await Promise.all([drainWarmups(), closeMediaBridge()]);
       await closePubSub();
       server.close(() => process.exit(0));

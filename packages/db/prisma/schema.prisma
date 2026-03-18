@@ -44,15 +44,20 @@ model Agent {
   modelConfig          Json?         @map("model_config")
   activeHours          Json?         @map("active_hours")
   calendarConfig       Json?         @map("calendar_config")
-  calendarInstructions String?       @map("calendar_instructions") @db.Text
-  businessHours        Json?         @map("business_hours")
-  createdAt            DateTime      @default(now()) @map("created_at")
-  user                 User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
-  calls                Call[]
-  appointments         Appointment[]
-  summaries            CallSummary[]
-  scheduledReminders   ScheduledReminder[]
-  knowledgeBase        KnowledgeBase?
+  calendarInstructions    String?       @map("calendar_instructions") @db.Text
+  businessHours           Json?         @map("business_hours")
+  whatsappProvider        String?       @map("whatsapp_provider")
+  whatsappConfig          String?       @map("whatsapp_config") @db.Text
+  whatsappInstructions    String?       @map("whatsapp_instructions") @db.Text
+  whatsappContextMessages Int           @default(20) @map("whatsapp_context_messages")
+  createdAt               DateTime      @default(now()) @map("created_at")
+  user                    User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  calls                   Call[]
+  appointments            Appointment[]
+  summaries               CallSummary[]
+  scheduledReminders      ScheduledReminder[]
+  knowledgeBase           KnowledgeBase?
+  whatsappMessages        WhatsappMessage[]
 
   @@map("agents")
 }
@@ -206,6 +211,26 @@ model KnowledgeDocument {
   @@index([knowledgeBaseId, status])
   @@index([vertexOperationId])
   @@map("knowledge_documents")
+}
+
+model WhatsappMessage {
+  id                String    @id @default(uuid())
+  agentId           String    @map("agent_id")
+  contactPhone      String    @map("contact_phone")
+  direction         String
+  status            String    @default("pending")
+  content           String    @db.Text
+  providerMessageId String?   @map("provider_message_id")
+  callId            String?   @map("call_id")
+  errorCode         String?   @map("error_code")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+  agent             Agent     @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@index([agentId, contactPhone, createdAt])
+  @@index([callId])
+  @@index([providerMessageId])
+  @@map("whatsapp_messages")
 }
 
 model CallSummary {

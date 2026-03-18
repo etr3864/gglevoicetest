@@ -42,6 +42,7 @@ export const reminderQueue = new Queue('reminder-calls', {
 });
 
 export const ragStatusQueue = createQueue('rag-status');
+export const whatsappSendQueue = createQueue('whatsapp-send');
 
 export async function scheduleReminderSafetyScan(): Promise<void> {
   await reminderQueue.add(

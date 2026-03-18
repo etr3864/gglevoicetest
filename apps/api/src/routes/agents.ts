@@ -6,6 +6,7 @@ import { AppError } from '../middleware/error-handler';
 import { outboundQueue } from '../lib/queue';
 import { normalizePhone } from '../lib/phone';
 import { publishCallEvent } from '../services/events/pubsub';
+import { encryptConfig, decryptConfig } from '../services/whatsapp/config-crypto';
 
 function generateApiKey(): string {
   return `vk_${crypto.randomBytes(24).toString('hex')}`;
@@ -33,7 +34,17 @@ router.get('/:id', async (req, res) => {
     include: { _count: { select: { calls: true } } },
   });
   if (!agent) throw new AppError(404, 'NOT_FOUND', 'Agent not found');
-  res.json({ data: agent });
+
+  let whatsappConfig: object | null = null;
+  if (agent.whatsappConfig) {
+    try {
+      whatsappConfig = decryptConfig(agent.whatsappConfig);
+    } catch {
+      // config decryption failed — return null so UI can prompt re-entry
+    }
+  }
+
+  res.json({ data: { ...agent, whatsappConfig } });
 });
 
 router.patch('/:id', async (req, res) => {
@@ -46,6 +57,14 @@ router.patch('/:id', async (req, res) => {
   if (data.calendarConfig !== undefined) {
     const existing = await prisma.agent.findUnique({ where: { id: req.params.id }, select: { calendarConfig: true } });
     data.calendarConfig = { ...(existing?.calendarConfig as Record<string, unknown> ?? {}), ...(data.calendarConfig as Record<string, unknown>) };
+  }
+
+  if (data.whatsappConfig !== undefined) {
+    if (data.whatsappConfig === null) {
+      data.whatsappConfig = null;
+    } else {
+      data.whatsappConfig = encryptConfig(data.whatsappConfig as object);
+    }
   }
 
   const agent = await prisma.agent.update({ where: { id: req.params.id }, data });

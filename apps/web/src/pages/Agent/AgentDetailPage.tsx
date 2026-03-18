@@ -22,8 +22,9 @@ import OutboundCallDialog from './OutboundCallDialog';
 import CalendarTab from './CalendarTab';
 import RemindersTab from './RemindersTab';
 import KnowledgeTab from './KnowledgeTab';
+import WhatsappTab from './WhatsappTab';
 
-type Tab = 'prompt' | 'calls' | 'contacts' | 'calendar' | 'reminders' | 'summaries' | 'knowledge' | 'settings';
+type Tab = 'prompt' | 'calls' | 'contacts' | 'calendar' | 'reminders' | 'summaries' | 'knowledge' | 'whatsapp' | 'settings';
 
 const tabs: { key: Tab; label: string; icon: typeof FileText }[] = [
   { key: 'prompt', label: 'System Prompt', icon: FileText },
@@ -33,6 +34,7 @@ const tabs: { key: Tab; label: string; icon: typeof FileText }[] = [
   { key: 'reminders', label: 'תזכורות', icon: PhoneOutgoing },
   { key: 'summaries', label: 'סיכומים', icon: MessageSquare },
   { key: 'knowledge', label: 'ידע', icon: BookOpen },
+  { key: 'whatsapp', label: 'וואטסאפ', icon: MessageSquare },
   { key: 'settings', label: 'הגדרות', icon: Settings },
 ];
 
@@ -426,6 +428,11 @@ export default function AgentDetailPage() {
       {/* ===== Knowledge ===== */}
       {tab === 'knowledge' && id && (
         <KnowledgeTab agentId={id} />
+      )}
+
+      {/* ===== WhatsApp ===== */}
+      {tab === 'whatsapp' && id && agent && (
+        <WhatsappTab agentId={id} agent={agent} />
       )}
 
       {/* ===== Settings ===== */}
