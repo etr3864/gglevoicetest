@@ -59,6 +59,16 @@ router.get('/calls/:id/utterances', async (req, res) => {
   res.json({ data: utterances });
 });
 
+router.get('/calls/:id/whatsapp-messages', async (req, res) => {
+  const call = await loadCallAndAssertAccess(req.params.id, req.user);
+  const messages = await prisma.whatsappMessage.findMany({
+    where: { callId: call.id, direction: 'outbound' },
+    orderBy: { createdAt: 'asc' },
+    select: { id: true, content: true, createdAt: true, status: true },
+  });
+  res.json({ data: messages });
+});
+
 router.delete('/calls/:id', requireSuperAdmin, async (req, res) => {
   const { id } = req.params as { id: string };
   await prisma.call.delete({ where: { id } });

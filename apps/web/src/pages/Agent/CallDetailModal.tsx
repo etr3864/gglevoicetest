@@ -1,10 +1,17 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { X, Trash2, Clock, Phone, Play, Pause, Download, RefreshCw, FileText, PhoneIncoming, PhoneOutgoing } from 'lucide-react';
-import { useState, useRef, useEffect } from 'react';
+import { X, Trash2, Clock, Phone, Play, Pause, Download, RefreshCw, FileText, PhoneIncoming, PhoneOutgoing, MessageCircle } from 'lucide-react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import api from '../../lib/api';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { cn } from '../../lib/cn';
+
+interface Utterance { id: string; speaker: string; startMs: number; text: string }
+interface WhatsappMessage { id: string; content: string; createdAt: string; status: string }
+
+type TimelineItem =
+  | { type: 'utterance'; sortMs: number; data: Utterance }
+  | { type: 'whatsapp'; sortMs: number; data: WhatsappMessage }
 
 interface Props {
   callId: string;
@@ -29,6 +36,24 @@ export default function CallDetailModal({ callId, onClose }: Props) {
     queryFn: () => api.get(`/calls/${callId}/summary`).then(r => r.data.data),
     enabled: call?.status === 'completed',
   });
+
+  const { data: whatsappMessages } = useQuery<WhatsappMessage[]>({
+    queryKey: ['call-whatsapp-messages', callId],
+    queryFn: () => api.get(`/calls/${callId}/whatsapp-messages`).then(r => r.data.data),
+  });
+
+  const callStartMs = call?.startedAt ? new Date(call.startedAt).getTime() : null;
+
+  const timeline = useMemo<TimelineItem[]>(() => {
+    const items: TimelineItem[] = [];
+    for (const u of utterances ?? []) {
+      items.push({ type: 'utterance', sortMs: callStartMs ? callStartMs + u.startMs : u.startMs, data: u });
+    }
+    for (const m of whatsappMessages ?? []) {
+      items.push({ type: 'whatsapp', sortMs: new Date(m.createdAt).getTime(), data: m });
+    }
+    return items.sort((a, b) => a.sortMs - b.sortMs);
+  }, [utterances, whatsappMessages, callStartMs]);
 
   const remove = useMutation({
     mutationFn: () => api.delete(`/calls/${callId}`),
@@ -114,34 +139,61 @@ export default function CallDetailModal({ callId, onClose }: Props) {
           )}
 
           <div className="space-y-3">
-          {!utterances?.length && (
-            <div className="text-center py-8 text-[var(--text-muted)]">אין תמליל לשיחה זו</div>
-          )}
-          {utterances?.map((u: any) => (
-            <div
-              key={u.id}
-              className={`flex ${u.speaker === 'agent' ? 'justify-start' : 'justify-end'}`}
-            >
-              <div className={`max-w-[80%] rounded-xl px-4 py-2.5 text-sm ${
-                u.speaker === 'agent'
-                  ? 'bg-[var(--accent)]/10 border border-[var(--accent)]/20 text-[var(--text-primary)]'
-                  : 'bg-blue-500/10 border border-blue-500/20 text-[var(--text-primary)]'
-              }`}>
-                <div className="flex items-center justify-between gap-4 mb-1">
-                  <span className="text-xs text-[var(--text-muted)]">
-                    {call ? new Date(new Date(call.startedAt || call.createdAt).getTime() + u.startMs).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : ''}
-                  </span>
-                  <span className={`text-xs font-medium ${
-                    u.speaker === 'agent' ? 'text-[var(--accent)]' : 'text-blue-400'
-                  }`}>
-                    {u.speaker === 'agent' ? 'סוכן' : 'לקוח'}
-                  </span>
-                </div>
-                <p dir="rtl">{u.text}</p>
-              </div>
-            </div>
-          ))}
+            {timeline.length === 0 && (
+              <div className="text-center py-8 text-[var(--text-muted)]">אין תמליל לשיחה זו</div>
+            )}
+            {timeline.map((item) =>
+              item.type === 'utterance'
+                ? <UtteranceBubble key={`u-${item.data.id}`} utterance={item.data} call={call} />
+                : <WhatsappBubble key={`w-${item.data.id}`} message={item.data} />
+            )}
           </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function UtteranceBubble({ utterance: u, call }: { utterance: Utterance; call: any }) {
+  const isAgent = u.speaker === 'agent';
+  const time = call?.startedAt
+    ? new Date(new Date(call.startedAt).getTime() + u.startMs).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+    : '';
+
+  return (
+    <div className={`flex ${isAgent ? 'justify-start' : 'justify-end'}`}>
+      <div className={cn(
+        'max-w-[80%] rounded-xl px-4 py-2.5 text-sm',
+        isAgent
+          ? 'bg-[var(--accent)]/10 border border-[var(--accent)]/20'
+          : 'bg-blue-500/10 border border-blue-500/20'
+      )}>
+        <div className="flex items-center justify-between gap-4 mb-1">
+          <span className="text-xs text-[var(--text-muted)]">{time}</span>
+          <span className={`text-xs font-medium ${isAgent ? 'text-[var(--accent)]' : 'text-blue-400'}`}>
+            {isAgent ? 'סוכן' : 'לקוח'}
+          </span>
+        </div>
+        <p dir="rtl">{u.text}</p>
+      </div>
+    </div>
+  );
+}
+
+function WhatsappBubble({ message: m }: { message: WhatsappMessage }) {
+  const time = new Date(m.createdAt).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+  return (
+    <div className="flex justify-start">
+      <div className="max-w-[80%] rounded-xl px-4 py-2.5 text-sm bg-green-500/10 border border-green-500/25">
+        <div className="flex items-center justify-between gap-4 mb-1">
+          <span className="text-xs text-[var(--text-muted)]">{time}</span>
+          <span className="text-xs font-medium text-green-400">סוכן</span>
+        </div>
+        <p dir="rtl">{m.content}</p>
+        <div className="flex items-center justify-end gap-1 mt-1.5">
+          <MessageCircle className="w-3 h-3 text-green-500/60" />
+          <span className="text-[10px] text-green-500/60">נשלח בוואטסאפ</span>
         </div>
       </div>
     </div>
