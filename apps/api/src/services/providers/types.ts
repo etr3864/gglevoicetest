@@ -72,7 +72,6 @@ export interface ProviderConfig {
   openingMessage?: string;
   modelConfig: ModelConfig;
   tools?: ToolDefinition[];
-  ragCorpusResourceName?: string;
 }
 
 // --- Audio ---

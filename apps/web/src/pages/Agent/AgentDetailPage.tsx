@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowRight, Loader2, Bot,
   Terminal, Phone, Users, CalendarDays, Bell,
-  ScrollText, BookOpen, MessageCircle, Settings2,
+  ScrollText, MessageCircle, Settings2,
 } from 'lucide-react';
 import { useState, useEffect, useRef, useMemo } from 'react';
 import api from '../../lib/api';
@@ -21,12 +21,11 @@ import ContactsTab from './ContactsTab';
 import CalendarTab from './CalendarTab';
 import RemindersTab from './RemindersTab';
 import SummariesTab from './SummariesTab';
-import KnowledgeTab from './KnowledgeTab';
 import WhatsappTab from './WhatsappTab';
 import SettingsTab from './SettingsTab';
 import type { UserRole } from '@voice/shared';
 
-type Tab = 'prompt' | 'calls' | 'contacts' | 'calendar' | 'reminders' | 'summaries' | 'knowledge' | 'whatsapp' | 'settings';
+type Tab = 'prompt' | 'calls' | 'contacts' | 'calendar' | 'reminders' | 'summaries' | 'whatsapp' | 'settings';
 
 const allTabs: { key: Tab; label: string; icon: typeof Terminal; roles: UserRole[] }[] = [
   { key: 'prompt',    label: 'System Prompt', icon: Terminal,       roles: ['super_admin'] },
@@ -35,7 +34,6 @@ const allTabs: { key: Tab; label: string; icon: typeof Terminal; roles: UserRole
   { key: 'calendar',  label: 'יומן',           icon: CalendarDays,   roles: ['super_admin'] },
   { key: 'reminders', label: 'תזכורות',        icon: Bell,           roles: ['super_admin'] },
   { key: 'summaries', label: 'סיכומים',        icon: ScrollText,     roles: ['super_admin'] },
-  { key: 'knowledge', label: 'ידע',            icon: BookOpen,       roles: ['super_admin'] },
   { key: 'whatsapp',  label: 'וואטסאפ',        icon: MessageCircle,  roles: ['super_admin'] },
   { key: 'settings',  label: 'הגדרות',         icon: Settings2,      roles: ['super_admin'] },
 ];
@@ -298,10 +296,6 @@ export default function AgentDetailPage() {
           onSave={(data) => updateSettings.mutate(data)}
           isSaving={updateSettings.isPending}
         />
-      )}
-
-      {tab === 'knowledge' && id && (
-        <KnowledgeTab agentId={id} />
       )}
 
       {tab === 'whatsapp' && id && agent && (

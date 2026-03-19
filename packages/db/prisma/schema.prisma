@@ -27,62 +27,61 @@ model User {
 }
 
 model Agent {
-  id                   String        @id @default(uuid())
-  userId               String?       @map("user_id")
-  name                 String
-  apiKey               String?       @unique @map("api_key")
-  phoneNumber          String?       @unique @map("phone_number")
-  telnyxPhoneId        String?       @map("telnyx_phone_id")
-  telnyxAppId          String?       @map("telnyx_app_id")
-  status               String        @default("active")
-  voice                String        @default("Aoede")
-  basePrompt               String?       @map("base_prompt") @db.Text
-  openingMessage           String?       @map("opening_message") @db.Text
-  inboundSystemPrompt      String?       @map("inbound_system_prompt") @db.Text
-  inboundOpeningMessage    String?       @map("inbound_opening_message") @db.Text
-  summaryEnabled           Boolean       @default(false) @map("summary_enabled")
-  summaryPrompt            String?       @map("summary_prompt") @db.Text
-  summaryMinDuration       Int           @default(30) @map("summary_min_duration")
-  webhookUrl               String?       @map("webhook_url")
-  webhookSecret            String?       @map("webhook_secret")
-  webhookRetryCount        Int           @default(3) @map("webhook_retry_count")
-  webhookRetryDelay        Int           @default(60) @map("webhook_retry_delay")
-  appointmentWebhookUrl    String?       @map("appointment_webhook_url")
-  appointmentWebhookSecret String?       @map("appointment_webhook_secret")
-  modelConfig          Json?         @map("model_config")
-  activeHours          Json?         @map("active_hours")
-  calendarConfig       Json?         @map("calendar_config")
-  calendarInstructions    String?       @map("calendar_instructions") @db.Text
-  businessHours           Json?         @map("business_hours")
-  whatsappProvider        String?       @map("whatsapp_provider")
-  whatsappConfig          String?       @map("whatsapp_config") @db.Text
-  whatsappInstructions    String?       @map("whatsapp_instructions") @db.Text
-  whatsappContextMessages Int           @default(20) @map("whatsapp_context_messages")
-  createdAt               DateTime      @default(now()) @map("created_at")
-  user                    User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
-  calls                   Call[]
-  appointments            Appointment[]
-  summaries               CallSummary[]
-  scheduledReminders      ScheduledReminder[]
-  knowledgeBase           KnowledgeBase?
-  whatsappMessages        WhatsappMessage[]
-  usageMonthly            AgentUsageMonthly[]
+  id                       String              @id @default(uuid())
+  userId                   String?             @map("user_id")
+  name                     String
+  apiKey                   String?             @unique @map("api_key")
+  phoneNumber              String?             @unique @map("phone_number")
+  telnyxPhoneId            String?             @map("telnyx_phone_id")
+  telnyxAppId              String?             @map("telnyx_app_id")
+  status                   String              @default("active")
+  voice                    String              @default("Aoede")
+  basePrompt               String?             @map("base_prompt") @db.Text
+  openingMessage           String?             @map("opening_message") @db.Text
+  inboundSystemPrompt      String?             @map("inbound_system_prompt") @db.Text
+  inboundOpeningMessage    String?             @map("inbound_opening_message") @db.Text
+  summaryEnabled           Boolean             @default(false) @map("summary_enabled")
+  summaryPrompt            String?             @map("summary_prompt") @db.Text
+  summaryMinDuration       Int                 @default(30) @map("summary_min_duration")
+  webhookUrl               String?             @map("webhook_url")
+  webhookSecret            String?             @map("webhook_secret")
+  webhookRetryCount        Int                 @default(3) @map("webhook_retry_count")
+  webhookRetryDelay        Int                 @default(60) @map("webhook_retry_delay")
+  appointmentWebhookUrl    String?             @map("appointment_webhook_url")
+  appointmentWebhookSecret String?             @map("appointment_webhook_secret")
+  modelConfig              Json?               @map("model_config")
+  activeHours              Json?               @map("active_hours")
+  calendarConfig           Json?               @map("calendar_config")
+  calendarInstructions     String?             @map("calendar_instructions") @db.Text
+  businessHours            Json?               @map("business_hours")
+  whatsappProvider         String?             @map("whatsapp_provider")
+  whatsappConfig           String?             @map("whatsapp_config") @db.Text
+  whatsappInstructions     String?             @map("whatsapp_instructions") @db.Text
+  whatsappContextMessages  Int                 @default(20) @map("whatsapp_context_messages")
+  createdAt                DateTime            @default(now()) @map("created_at")
+  user                     User?               @relation(fields: [userId], references: [id], onDelete: SetNull)
+  calls                    Call[]
+  appointments             Appointment[]
+  summaries                CallSummary[]
+  scheduledReminders       ScheduledReminder[]
+  whatsappMessages         WhatsappMessage[]
+  usageMonthly             AgentUsageMonthly[]
 
   @@map("agents")
 }
 
 model Contact {
-  id               String        @id @default(uuid())
-  phone            String        @unique
-  name             String?
-  email            String?
-  gender           String?
-  notes            String?       @db.Text
-  metadata         Json?
-  totalCalls       Int           @default(0) @map("total_calls")
-  totalDurationSec Int           @default(0) @map("total_duration_sec")
-  lastCallAt       DateTime?     @map("last_call_at")
-  createdAt        DateTime      @default(now()) @map("created_at")
+  id                 String              @id @default(uuid())
+  phone              String              @unique
+  name               String?
+  email              String?
+  gender             String?
+  notes              String?             @db.Text
+  metadata           Json?
+  totalCalls         Int                 @default(0) @map("total_calls")
+  totalDurationSec   Int                 @default(0) @map("total_duration_sec")
+  lastCallAt         DateTime?           @map("last_call_at")
+  createdAt          DateTime            @default(now()) @map("created_at")
   calls              Call[]
   appointments       Appointment[]
   scheduledReminders ScheduledReminder[]
@@ -91,32 +90,32 @@ model Contact {
 }
 
 model Call {
-  id                 String        @id @default(uuid())
-  agentId            String        @map("agent_id")
-  contactId          String?       @map("contact_id")
-  callControlId      String?       @map("call_control_id")
+  id                 String              @id @default(uuid())
+  agentId            String              @map("agent_id")
+  contactId          String?             @map("contact_id")
+  callControlId      String?             @map("call_control_id")
   direction          String
-  callType           String        @default("regular") @map("call_type")
-  status             String        @default("queued")
+  callType           String              @default("regular") @map("call_type")
+  status             String              @default("queued")
   context            Json?
-  recordingUrl       String?       @map("recording_url")
-  recordingStatus    String?       @map("recording_status")
-  recordingDuration  Int?          @map("recording_duration")
-  recordingSizeBytes Int?          @map("recording_size_bytes")
-  telnyxRecordingId  String?       @unique @map("telnyx_recording_id")
-  retryCount         Int           @default(0) @map("retry_count")
-  durationSec        Int?          @map("duration_sec")
-  startedAt          DateTime?     @map("started_at")
-  endedAt            DateTime?     @map("ended_at")
-  audioInputTokens   Int?          @map("audio_input_tokens")
-  audioOutputTokens  Int?          @map("audio_output_tokens")
-  textInputTokens    Int?          @map("text_input_tokens")
-  textOutputTokens   Int?          @map("text_output_tokens")
-  telnyxBilledSec    Int?          @map("telnyx_billed_sec")
-  deepgramSec        Int?          @map("deepgram_sec")
-  createdAt          DateTime      @default(now()) @map("created_at")
-  agent              Agent         @relation(fields: [agentId], references: [id])
-  contact            Contact?      @relation(fields: [contactId], references: [id])
+  recordingUrl       String?             @map("recording_url")
+  recordingStatus    String?             @map("recording_status")
+  recordingDuration  Int?                @map("recording_duration")
+  recordingSizeBytes Int?                @map("recording_size_bytes")
+  telnyxRecordingId  String?             @unique @map("telnyx_recording_id")
+  retryCount         Int                 @default(0) @map("retry_count")
+  durationSec        Int?                @map("duration_sec")
+  startedAt          DateTime?           @map("started_at")
+  endedAt            DateTime?           @map("ended_at")
+  audioInputTokens   Int?                @map("audio_input_tokens")
+  audioOutputTokens  Int?                @map("audio_output_tokens")
+  textInputTokens    Int?                @map("text_input_tokens")
+  textOutputTokens   Int?                @map("text_output_tokens")
+  telnyxBilledSec    Int?                @map("telnyx_billed_sec")
+  deepgramSec        Int?                @map("deepgram_sec")
+  createdAt          DateTime            @default(now()) @map("created_at")
+  agent              Agent               @relation(fields: [agentId], references: [id])
+  contact            Contact?            @relation(fields: [contactId], references: [id])
   utterances         Utterance[]
   appointments       Appointment[]
   summary            CallSummary?
@@ -141,26 +140,26 @@ model Utterance {
 }
 
 model Appointment {
-  id            String   @id @default(uuid())
-  agentId       String   @map("agent_id")
-  contactId     String?  @map("contact_id")
-  callId        String?  @map("call_id")
-  googleEventId String?  @map("google_event_id")
-  title         String
-  description   String?  @db.Text
-  phone         String
-  startTime     DateTime @map("start_time")
-  endTime       DateTime @map("end_time")
-  duration      Int
-  status           String    @default("scheduled")
-  webhookStatus    String    @default("NONE") @map("webhook_status")
-  webhookAttempts  Int       @default(0) @map("webhook_attempts")
-  webhookLastError String?   @map("webhook_last_error") @db.Text
-  webhookSentAt    DateTime? @map("webhook_sent_at")
-  createdAt        DateTime  @default(now()) @map("created_at")
-  agent             Agent               @relation(fields: [agentId], references: [id])
-  contact           Contact?            @relation(fields: [contactId], references: [id])
-  call              Call?               @relation(fields: [callId], references: [id])
+  id                 String              @id @default(uuid())
+  agentId            String              @map("agent_id")
+  contactId          String?             @map("contact_id")
+  callId             String?             @map("call_id")
+  googleEventId      String?             @map("google_event_id")
+  title              String
+  description        String?             @db.Text
+  phone              String
+  startTime          DateTime            @map("start_time")
+  endTime            DateTime            @map("end_time")
+  duration           Int
+  status             String              @default("scheduled")
+  webhookStatus      String              @default("NONE") @map("webhook_status")
+  webhookAttempts    Int                 @default(0) @map("webhook_attempts")
+  webhookLastError   String?             @map("webhook_last_error") @db.Text
+  webhookSentAt      DateTime?           @map("webhook_sent_at")
+  createdAt          DateTime            @default(now()) @map("created_at")
+  agent              Agent               @relation(fields: [agentId], references: [id])
+  contact            Contact?            @relation(fields: [contactId], references: [id])
+  call               Call?               @relation(fields: [callId], references: [id])
   scheduledReminders ScheduledReminder[]
 
   @@index([agentId, startTime])
@@ -169,21 +168,21 @@ model Appointment {
 }
 
 model ScheduledReminder {
-  id              String    @id @default(uuid())
-  appointmentId   String    @map("appointment_id")
-  agentId         String    @map("agent_id")
-  contactId       String?   @map("contact_id")
-  callId          String?   @map("call_id")
-  ruleIndex       Int       @map("rule_index")
-  scheduledFor    DateTime  @map("scheduled_for")
-  status          String    @default("PENDING")
-  contentType     String    @map("content_type")
-  resolvedContent String?   @map("resolved_content") @db.Text
-  attempts        Int       @default(0)
-  lastAttemptAt   DateTime? @map("last_attempt_at")
-  lastError       String?   @map("last_error") @db.Text
-  bullmqJobId     String?   @map("bullmq_job_id")
-  createdAt       DateTime  @default(now()) @map("created_at")
+  id              String      @id @default(uuid())
+  appointmentId   String      @map("appointment_id")
+  agentId         String      @map("agent_id")
+  contactId       String?     @map("contact_id")
+  callId          String?     @map("call_id")
+  ruleIndex       Int         @map("rule_index")
+  scheduledFor    DateTime    @map("scheduled_for")
+  status          String      @default("PENDING")
+  contentType     String      @map("content_type")
+  resolvedContent String?     @map("resolved_content") @db.Text
+  attempts        Int         @default(0)
+  lastAttemptAt   DateTime?   @map("last_attempt_at")
+  lastError       String?     @map("last_error") @db.Text
+  bullmqJobId     String?     @map("bullmq_job_id")
+  createdAt       DateTime    @default(now()) @map("created_at")
   appointment     Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
   agent           Agent       @relation(fields: [agentId], references: [id])
   contact         Contact?    @relation(fields: [contactId], references: [id])
@@ -195,52 +194,19 @@ model ScheduledReminder {
   @@map("scheduled_reminders")
 }
 
-model KnowledgeBase {
-  id              String              @id @default(uuid())
-  agentId         String              @unique @map("agent_id")
-  vertexCorpusId  String              @map("vertex_corpus_id")
-  totalFiles      Int                 @default(0) @map("total_files")
-  totalSizeBytes  BigInt              @default(0) @map("total_size_bytes")
-  createdAt       DateTime            @default(now()) @map("created_at")
-  updatedAt       DateTime            @updatedAt @map("updated_at")
-  agent           Agent               @relation(fields: [agentId], references: [id], onDelete: Cascade)
-  documents       KnowledgeDocument[]
-
-  @@map("knowledge_bases")
-}
-
-model KnowledgeDocument {
-  id               String        @id @default(uuid())
-  knowledgeBaseId  String        @map("knowledge_base_id")
-  fileName         String        @map("file_name")
-  fileSizeBytes    BigInt        @map("file_size_bytes")
-  gcsUri           String        @map("gcs_uri")
-  vertexFileId     String?       @map("vertex_file_id")
-  vertexOperationId String?      @map("vertex_operation_id")
-  status           String        @default("processing")
-  errorMessage     String?       @map("error_message") @db.Text
-  createdAt        DateTime      @default(now()) @map("created_at")
-  updatedAt        DateTime      @updatedAt @map("updated_at")
-  knowledgeBase    KnowledgeBase @relation(fields: [knowledgeBaseId], references: [id], onDelete: Cascade)
-
-  @@index([knowledgeBaseId, status])
-  @@index([vertexOperationId])
-  @@map("knowledge_documents")
-}
-
 model WhatsappMessage {
-  id                String    @id @default(uuid())
-  agentId           String    @map("agent_id")
-  contactPhone      String    @map("contact_phone")
+  id                String   @id @default(uuid())
+  agentId           String   @map("agent_id")
+  contactPhone      String   @map("contact_phone")
   direction         String
-  status            String    @default("pending")
-  content           String    @db.Text
-  providerMessageId String?   @map("provider_message_id")
-  callId            String?   @map("call_id")
-  errorCode         String?   @map("error_code")
-  createdAt         DateTime  @default(now()) @map("created_at")
-  updatedAt         DateTime  @updatedAt @map("updated_at")
-  agent             Agent     @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  status            String   @default("pending")
+  content           String   @db.Text
+  providerMessageId String?  @map("provider_message_id")
+  callId            String?  @map("call_id")
+  errorCode         String?  @map("error_code")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+  agent             Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
 
   @@index([agentId, contactPhone, createdAt])
   @@index([callId])
@@ -270,35 +236,35 @@ model CallSummary {
 
 model PricingConfig {
   id                     String @id @default("singleton")
-  geminiAudioInputPer1M  Float  @default(3.00)  @map("gemini_audio_input_per_1m")
+  geminiAudioInputPer1M  Float  @default(3.00) @map("gemini_audio_input_per_1m")
   geminiAudioOutputPer1M Float  @default(12.00) @map("gemini_audio_output_per_1m")
-  geminiTextInputPer1M   Float  @default(0.50)  @map("gemini_text_input_per_1m")
-  geminiTextOutputPer1M  Float  @default(2.00)  @map("gemini_text_output_per_1m")
-  geminiSummaryPer1M     Float  @default(0.25)  @map("gemini_summary_per_1m")
+  geminiTextInputPer1M   Float  @default(0.50) @map("gemini_text_input_per_1m")
+  geminiTextOutputPer1M  Float  @default(2.00) @map("gemini_text_output_per_1m")
+  geminiSummaryPer1M     Float  @default(0.25) @map("gemini_summary_per_1m")
   telnyxCallPerMin       Float  @default(0.007) @map("telnyx_call_per_min")
   telnyxRecordingPerMin  Float  @default(0.002) @map("telnyx_recording_per_min")
   deepgramPerSec         Float  @default(0.000128) @map("deepgram_per_sec")
-  usdToIls               Float  @default(3.65)  @map("usd_to_ils")
+  usdToIls               Float  @default(3.65) @map("usd_to_ils")
 
   @@map("pricing_config")
 }
 
 model AgentUsageMonthly {
-  id                     String  @id @default(uuid())
-  agentId                String  @map("agent_id")
-  yearMonth              String  @map("year_month")
-  callCount              Int     @default(0) @map("call_count")
-  totalDurationSec       Int     @default(0) @map("total_duration_sec")
-  totalBilledSec         Int     @default(0) @map("total_billed_sec")
-  totalAudioInputTokens  Int     @default(0) @map("total_audio_input_tokens")
-  totalAudioOutputTokens Int     @default(0) @map("total_audio_output_tokens")
-  totalTextInputTokens   Int     @default(0) @map("total_text_input_tokens")
-  totalTextOutputTokens  Int     @default(0) @map("total_text_output_tokens")
-  totalSummaryTokens     Int     @default(0) @map("total_summary_tokens")
-  totalDeepgramSec       Int     @default(0) @map("total_deepgram_sec")
-  totalRecordingSec      Int     @default(0) @map("total_recording_sec")
-  whatsappMsgCount       Int     @default(0) @map("whatsapp_msg_count")
-  agent                  Agent   @relation(fields: [agentId], references: [id])
+  id                     String @id @default(uuid())
+  agentId                String @map("agent_id")
+  yearMonth              String @map("year_month")
+  callCount              Int    @default(0) @map("call_count")
+  totalDurationSec       Int    @default(0) @map("total_duration_sec")
+  totalBilledSec         Int    @default(0) @map("total_billed_sec")
+  totalAudioInputTokens  Int    @default(0) @map("total_audio_input_tokens")
+  totalAudioOutputTokens Int    @default(0) @map("total_audio_output_tokens")
+  totalTextInputTokens   Int    @default(0) @map("total_text_input_tokens")
+  totalTextOutputTokens  Int    @default(0) @map("total_text_output_tokens")
+  totalSummaryTokens     Int    @default(0) @map("total_summary_tokens")
+  totalDeepgramSec       Int    @default(0) @map("total_deepgram_sec")
+  totalRecordingSec      Int    @default(0) @map("total_recording_sec")
+  whatsappMsgCount       Int    @default(0) @map("whatsapp_msg_count")
+  agent                  Agent  @relation(fields: [agentId], references: [id])
 
   @@unique([agentId, yearMonth])
   @@map("agent_usage_monthly")

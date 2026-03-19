@@ -184,7 +184,6 @@ export async function buildProviderConfig(
         calendarInstructions: true,
         businessHours: true,
         modelConfig: true,
-        knowledgeBase: { select: { vertexCorpusId: true } },
         whatsappProvider: true,
         whatsappInstructions: true,
         whatsappContextMessages: true,
@@ -235,12 +234,6 @@ export async function buildProviderConfig(
     return null;
   }
 
-  const gcpProject = process.env.GCP_PROJECT_ID;
-  const ragLocation = process.env.GCP_RAG_LOCATION || 'europe-west4';
-  const ragCorpusResourceName = agent.knowledgeBase && agent.knowledgeBase.vertexCorpusId !== 'pending' && gcpProject
-    ? `projects/${gcpProject}/locations/${ragLocation}/ragCorpora/${agent.knowledgeBase.vertexCorpusId}`
-    : undefined;
-
   const tools = globalRegistry.getDefinitions().filter(t => {
     if (t.name === 'send_whatsapp') return !!agent.whatsappProvider;
     return true;
@@ -254,7 +247,6 @@ export async function buildProviderConfig(
     openingMessage,
     modelConfig: mergeModelConfig(agent.modelConfig as Partial<ModelConfig> | undefined),
     tools,
-    ragCorpusResourceName,
   };
 }
 
