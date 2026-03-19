@@ -105,13 +105,14 @@ export default function DashboardPage() {
 
   const dateRange = useMemo(() => presetToRange(preset, customRange), [preset, customRange]);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: ['dashboard', dateRange, selectedAgentId],
     queryFn: () =>
       api.get<{ data: DashboardStats }>('/dashboard', {
         params: { ...dateRange, ...(selectedAgentId && { agentId: selectedAgentId }) },
       }).then((r) => r.data.data),
     placeholderData: (prev) => prev,
+    retry: 1,
   });
 
   const s = data;
@@ -165,6 +166,12 @@ export default function DashboardPage() {
           )}
         </div>
       </div>
+
+      {isError && (
+        <div className="rounded-xl border border-red-500/20 bg-red-500/5 px-5 py-4 text-sm text-red-400 text-right">
+          שגיאה בטעינת הנתונים. נסה שוב.
+        </div>
+      )}
 
       {isLoading && !s ? (
         <div className="grid grid-cols-4 gap-4">
