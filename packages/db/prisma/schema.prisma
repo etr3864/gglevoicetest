@@ -268,6 +268,21 @@ model CallSummary {
   @@map("call_summaries")
 }
 
+model PricingConfig {
+  id                     String @id @default("singleton")
+  geminiAudioInputPer1M  Float  @default(3.00)  @map("gemini_audio_input_per_1m")
+  geminiAudioOutputPer1M Float  @default(12.00) @map("gemini_audio_output_per_1m")
+  geminiTextInputPer1M   Float  @default(0.50)  @map("gemini_text_input_per_1m")
+  geminiTextOutputPer1M  Float  @default(2.00)  @map("gemini_text_output_per_1m")
+  geminiSummaryPer1M     Float  @default(0.25)  @map("gemini_summary_per_1m")
+  telnyxCallPerMin       Float  @default(0.007) @map("telnyx_call_per_min")
+  telnyxRecordingPerMin  Float  @default(0.002) @map("telnyx_recording_per_min")
+  deepgramPerSec         Float  @default(0.000128) @map("deepgram_per_sec")
+  usdToIls               Float  @default(3.65)  @map("usd_to_ils")
+
+  @@map("pricing_config")
+}
+
 model AgentUsageMonthly {
   id                     String  @id @default(uuid())
   agentId                String  @map("agent_id")

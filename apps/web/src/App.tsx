@@ -7,6 +7,7 @@ import AgentDetailPage from './pages/Agent/AgentDetailPage';
 import AdminPage from './pages/Admin/AdminPage';
 import UsersPage from './pages/Users/UsersPage';
 import DashboardPage from './pages/Dashboard/DashboardPage';
+import SuperAdminDashboardPage from './pages/Dashboard/SuperAdminDashboardPage';
 import Layout from './components/Layout';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -28,6 +29,11 @@ function RoleRoute({ children, allowedRoles }: { children: React.ReactNode; allo
   return <>{children}</>;
 }
 
+function DashboardSwitch() {
+  const { hasRole } = useAuth();
+  return hasRole('super_admin') ? <SuperAdminDashboardPage /> : <DashboardPage />;
+}
+
 export default function App() {
   return (
     <Routes>
@@ -37,7 +43,7 @@ export default function App() {
         <Route path="agents/:id" element={<AgentDetailPage />} />
         <Route path="database" element={<RoleRoute allowedRoles={['super_admin']}><AdminPage /></RoleRoute>} />
         <Route path="users" element={<RoleRoute allowedRoles={['super_admin', 'admin']}><UsersPage /></RoleRoute>} />
-        <Route path="dashboard" element={<RoleRoute allowedRoles={['super_admin', 'admin']}><DashboardPage /></RoleRoute>} />
+        <Route path="dashboard" element={<RoleRoute allowedRoles={['super_admin', 'admin']}><DashboardSwitch /></RoleRoute>} />
       </Route>
     </Routes>
   );

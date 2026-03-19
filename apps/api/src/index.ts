@@ -34,6 +34,8 @@ import { startRagStatusWorker } from './workers/rag-status.worker';
 import { startWhatsappSendWorker } from './workers/whatsapp-send.worker';
 import { startRecordingCrons } from './services/recording/recording.cron';
 import dashboardRoutes from './routes/dashboard';
+import superAdminDashboardRoutes from './routes/super-admin-dashboard';
+import pricingRoutes from './routes/pricing';
 import { initPubSub, closePubSub } from './services/events/pubsub';
 import { sseManager } from './services/events/sse.manager';
 import { activeSessionCount } from './services/call/session';
@@ -107,6 +109,8 @@ app.use('/', authMiddleware, contactRoutes);
 app.use('/', authMiddleware, whatsappRoutes);
 app.use('/admin', authMiddleware, requireSuperAdmin, adminRoutes);
 app.use('/dashboard', authMiddleware, dashboardRoutes);
+app.use('/dashboard/super-admin', authMiddleware, superAdminDashboardRoutes);
+app.use('/dashboard/pricing', authMiddleware, pricingRoutes);
 
 app.use(errorHandler);
 
