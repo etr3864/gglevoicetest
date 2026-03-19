@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
 import { ChevronRight, ChevronLeft, Calendar } from 'lucide-react';
 import { cn } from '../../lib/cn';
 
@@ -55,6 +55,8 @@ export function DateRangePicker({ value, onChange, label }: DateRangePickerProps
   const today = startOfDay(new Date());
   const [open, setOpen] = useState(false);
   const [hovered, setHovered] = useState<Date | null>(null);
+  const [popupOffset, setPopupOffset] = useState<React.CSSProperties>({ right: 0 });
+  const popupRef = useRef<HTMLDivElement>(null);
   const [leftMonth, setLeftMonth] = useState(() => ({
     year: today.getFullYear(),
     month: today.getMonth() === 0 ? 11 : today.getMonth() - 1,
@@ -77,6 +79,17 @@ export function DateRangePicker({ value, onChange, label }: DateRangePickerProps
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  useLayoutEffect(() => {
+    if (!open || !popupRef.current) return;
+    const rect = popupRef.current.getBoundingClientRect();
+    const overflow = rect.left;
+    if (overflow < 8) {
+      setPopupOffset({ right: 'auto', left: 0 });
+    } else {
+      setPopupOffset({ right: 0 });
+    }
+  }, [open]);
 
   const handleDayClick = useCallback(
     (day: Date) => {
@@ -128,12 +141,13 @@ export function DateRangePicker({ value, onChange, label }: DateRangePickerProps
 
       {open && (
         <div
+          ref={popupRef}
           className={cn(
             'absolute top-full mt-2 z-50 rounded-xl shadow-2xl',
             'border border-[var(--border)] bg-[var(--bg-card)] p-4',
             'flex gap-4'
           )}
-          style={{ right: 0, minWidth: 560 }}
+          style={{ ...popupOffset, minWidth: 560 }}
         >
           <CalendarMonth
             year={leftMonth.year}
