@@ -16,15 +16,10 @@ export class GeminiMapper {
     if (tools?.length) {
       toolsPayload.push({ functionDeclarations: tools.map((t) => this.formatTool(t)) });
     }
-    if (config.ragCorpusResourceName) {
-      toolsPayload.push({
-        retrieval: {
-          vertexRagStore: {
-            ragResources: [{ ragCorpus: config.ragCorpusResourceName }],
-          },
-        },
-      });
-    }
+    // Note: Vertex RAG is currently disabled for Voice AI (Live API) to prevent 
+    // the model from throwing 'Unexpected function call: rag_retrieval' which causes connection drops.
+    // Voice agents require low latency, making sync RAG calls unviable.
+
     if (toolsPayload.length) {
       setup.tools = toolsPayload;
     }

@@ -241,10 +241,6 @@ export async function buildProviderConfig(
     ? `projects/${gcpProject}/locations/${ragLocation}/ragCorpora/${agent.knowledgeBase.vertexCorpusId}`
     : undefined;
 
-  if (ragCorpusResourceName) {
-    systemPrompt += '\n\nיש לך גישה למאגר ידע ייעודי עם מסמכים רלוונטיים. כאשר שאלה קשורה למידע שעשוי להיות במאגר — השתמש בו כדי לספק תשובות מדויקות ומבוססות.';
-  }
-
   const tools = globalRegistry.getDefinitions().filter(t => {
     if (t.name === 'send_whatsapp') return !!agent.whatsappProvider;
     return true;
