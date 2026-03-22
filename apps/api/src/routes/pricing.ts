@@ -13,6 +13,7 @@ const updateSchema = z.object({
   geminiTextInputPer1M: z.number().min(0).optional(),
   geminiTextOutputPer1M: z.number().min(0).optional(),
   geminiSummaryPer1M: z.number().min(0).optional(),
+  embeddingPer1M: z.number().min(0).optional(),
   telnyxCallPerMin: z.number().min(0).optional(),
   telnyxRecordingPerMin: z.number().min(0).optional(),
   deepgramPerSec: z.number().min(0).optional(),

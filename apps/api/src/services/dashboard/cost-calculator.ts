@@ -2,6 +2,7 @@ interface PricingConfig {
   geminiAudioInputPer1M: number;
   geminiAudioOutputPer1M: number;
   geminiSummaryPer1M: number;
+  embeddingPer1M: number;
   telnyxCallPerMin: number;
   telnyxRecordingPerMin: number;
   deepgramPerSec: number;
@@ -14,6 +15,7 @@ export interface UsageMetrics {
   totalTextInputTokens: number;
   totalTextOutputTokens: number;
   totalSummaryTokens: number;
+  totalEmbeddingTokens: number;
   totalBilledSec: number;
   totalRecordingSec: number;
   totalDeepgramSec: number;
@@ -22,6 +24,7 @@ export interface UsageMetrics {
 export interface CostBreakdownIls {
   geminiAudioCost: number;
   geminiTextCost: number;
+  embeddingCost: number;
   telnyxCallCost: number;
   telnyxRecordingCost: number;
   deepgramCost: number;
@@ -39,15 +42,18 @@ export function calculateCosts(usage: UsageMetrics, pricing: PricingConfig): Cos
     ((usage.totalTextInputTokens + usage.totalTextOutputTokens + usage.totalSummaryTokens) / 1_000_000) *
     pricing.geminiSummaryPer1M * usdToIls;
 
+  const embeddingCost = ((usage.totalEmbeddingTokens ?? 0) / 1_000_000) * pricing.embeddingPer1M * usdToIls;
+
   const telnyxCallCost = (usage.totalBilledSec / 60) * pricing.telnyxCallPerMin * usdToIls;
   const telnyxRecordingCost = (usage.totalRecordingSec / 60) * pricing.telnyxRecordingPerMin * usdToIls;
   const deepgramCost = usage.totalDeepgramSec * pricing.deepgramPerSec * usdToIls;
 
-  const totalCost = geminiAudioCost + geminiTextCost + telnyxCallCost + telnyxRecordingCost + deepgramCost;
+  const totalCost = geminiAudioCost + geminiTextCost + embeddingCost + telnyxCallCost + telnyxRecordingCost + deepgramCost;
 
   return {
     geminiAudioCost: round2(geminiAudioCost),
     geminiTextCost: round2(geminiTextCost),
+    embeddingCost: round2(embeddingCost),
     telnyxCallCost: round2(telnyxCallCost),
     telnyxRecordingCost: round2(telnyxRecordingCost),
     deepgramCost: round2(deepgramCost),

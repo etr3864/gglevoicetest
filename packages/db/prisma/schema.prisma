@@ -66,6 +66,7 @@ model Agent {
   scheduledReminders       ScheduledReminder[]
   whatsappMessages         WhatsappMessage[]
   usageMonthly             AgentUsageMonthly[]
+  knowledgeDocuments       KnowledgeDocument[]
 
   @@map("agents")
 }
@@ -241,6 +242,7 @@ model PricingConfig {
   geminiTextInputPer1M   Float  @default(0.50) @map("gemini_text_input_per_1m")
   geminiTextOutputPer1M  Float  @default(2.00) @map("gemini_text_output_per_1m")
   geminiSummaryPer1M     Float  @default(0.25) @map("gemini_summary_per_1m")
+  embeddingPer1M         Float  @default(0.15) @map("embedding_per_1m")
   telnyxCallPerMin       Float  @default(0.007) @map("telnyx_call_per_min")
   telnyxRecordingPerMin  Float  @default(0.002) @map("telnyx_recording_per_min")
   deepgramPerSec         Float  @default(0.000128) @map("deepgram_per_sec")
@@ -261,6 +263,7 @@ model AgentUsageMonthly {
   totalTextInputTokens   Int    @default(0) @map("total_text_input_tokens")
   totalTextOutputTokens  Int    @default(0) @map("total_text_output_tokens")
   totalSummaryTokens     Int    @default(0) @map("total_summary_tokens")
+  totalEmbeddingTokens   Int    @default(0) @map("total_embedding_tokens")
   totalDeepgramSec       Int    @default(0) @map("total_deepgram_sec")
   totalRecordingSec      Int    @default(0) @map("total_recording_sec")
   whatsappMsgCount       Int    @default(0) @map("whatsapp_msg_count")
@@ -268,4 +271,38 @@ model AgentUsageMonthly {
 
   @@unique([agentId, yearMonth])
   @@map("agent_usage_monthly")
+}
+
+model KnowledgeDocument {
+  id            String           @id @default(uuid())
+  agentId       String           @map("agent_id")
+  name          String
+  docType       String           @map("doc_type")
+  status        String           @default("processing")
+  errorMsg      String?          @map("error_msg") @db.Text
+  chunkCount    Int              @default(0) @map("chunk_count")
+  fileSizeBytes Int              @default(0) @map("file_size_bytes")
+  createdAt     DateTime         @default(now()) @map("created_at")
+  agent         Agent            @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  chunks        KnowledgeChunk[]
+
+  @@index([agentId, status])
+  @@map("knowledge_documents")
+}
+
+model KnowledgeChunk {
+  id         String            @id @default(uuid())
+  documentId String            @map("document_id")
+  agentId    String            @map("agent_id")
+  chunkType  String            @default("child") @map("chunk_type")
+  parentId   String?           @map("parent_id")
+  content    String            @db.Text
+  embedding  Unsupported("vector(1536)")?
+  importance Float             @default(0.5)
+  metadata   Json?
+  document   KnowledgeDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([agentId, chunkType])
+  @@index([parentId])
+  @@map("knowledge_chunks")
 }

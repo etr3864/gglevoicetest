@@ -17,6 +17,7 @@ export interface SuperAdminAgent {
   costs: {
     geminiAudioCost: number;
     geminiTextCost: number;
+    embeddingCost: number;
     telnyxCallCost: number;
     telnyxRecordingCost: number;
     deepgramCost: number;

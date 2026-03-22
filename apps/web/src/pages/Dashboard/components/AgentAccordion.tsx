@@ -1,7 +1,7 @@
 import {
   Phone, PhoneIncoming, PhoneOutgoing, Clock,
   Calendar, TrendingUp, PhoneMissed, PhoneCall,
-  Cpu, FileText, PhoneForwarded, Mic, DollarSign, Timer,
+  Cpu, FileText, PhoneForwarded, Mic, DollarSign, Timer, BookOpen,
 } from 'lucide-react';
 import { StatCard } from './StatCard';
 
@@ -17,6 +17,7 @@ interface PerformanceStats {
 interface CostsData {
   geminiAudioCost: number;
   geminiTextCost: number;
+  embeddingCost: number;
   telnyxCallCost: number;
   telnyxRecordingCost: number;
   deepgramCost: number;
@@ -70,6 +71,7 @@ export function AgentAccordion({ performance: p, costs: c }: AgentAccordionProps
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <StatCard label="Gemini Audio" value={ils(c.geminiAudioCost)} icon={Cpu} />
           <StatCard label="Gemini Text" value={ils(c.geminiTextCost)} icon={FileText} />
+          <StatCard label="Embedding" value={ils(c.embeddingCost ?? 0)} icon={BookOpen} />
           <StatCard label="Telnyx שיחות" value={ils(c.telnyxCallCost)} icon={PhoneForwarded} />
           <StatCard label="Telnyx הקלטות" value={ils(c.telnyxRecordingCost)} icon={Mic} />
           <StatCard label="Deepgram" value={ils(c.deepgramCost)} icon={Mic} />

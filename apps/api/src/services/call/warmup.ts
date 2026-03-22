@@ -10,6 +10,8 @@ import type { DeepgramTranscriber } from '../transcription';
 import { buildContactContext } from '../contact-context';
 import { buildSchedulingPrompt, buildWhatsappPrompt, buildWhatsappContextSection, resolveDirectionalPrompts } from './prompt-builder';
 import { SEND_WHATSAPP_DEFINITION } from '../tools/whatsapp-tool';
+import { SEARCH_KNOWLEDGE_DEFINITION, handleSearchKnowledge, QUERY_TABLE_DEFINITION, handleQueryTable } from '../tools/builtin';
+import { getWarmupContext } from '../knowledge/knowledge.service';
 import type { VoiceProvider, ProviderConfig, ProviderEvents, ToolResult } from '../providers/types';
 import { mergeModelConfig, type ModelConfig } from '../providers/types';
 
@@ -171,7 +173,7 @@ export async function buildProviderConfig(
   const systemPromptOverride = callContext?.__systemPrompt as string | undefined;
   const openingMessageOverride = callContext?.__openingMessage as string | undefined;
 
-  const [agent, contactCtx] = await Promise.all([
+  const [agent, contactCtx, knowledgeCtx] = await Promise.all([
     prisma.agent.findUnique({
       where: { id: agentId },
       select: {
@@ -190,6 +192,7 @@ export async function buildProviderConfig(
       },
     }),
     contactPhone && !systemPromptOverride ? buildContactContext(contactPhone) : null,
+    !systemPromptOverride ? getWarmupContext(agentId).catch(() => null) : null,
   ]);
 
   if (!agent) {
@@ -226,6 +229,10 @@ export async function buildProviderConfig(
         systemPrompt += await buildWhatsappContextSection(agentId, contactPhone, agent.whatsappContextMessages);
       }
     }
+
+    if (knowledgeCtx?.promptSection) {
+      systemPrompt += `\n\n${knowledgeCtx.promptSection}`;
+    }
   }
 
   const apiKey = geminiKeyPool.next();
@@ -234,8 +241,11 @@ export async function buildProviderConfig(
     return null;
   }
 
-  const tools = globalRegistry.getDefinitions().filter(t => {
+  const knowledgeMeta = knowledgeCtx?.meta;
+  const tools = globalRegistry.getDefinitions().filter((t) => {
     if (t.name === 'send_whatsapp') return !!agent.whatsappProvider;
+    if (t.name === 'search_knowledge') return !!(knowledgeMeta?.hasTextDocs);
+    if (t.name === 'query_table') return !!(knowledgeMeta?.hasTables);
     return true;
   });
 

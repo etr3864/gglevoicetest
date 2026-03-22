@@ -10,6 +10,7 @@ interface PricingConfig {
   geminiTextInputPer1M: number;
   geminiTextOutputPer1M: number;
   geminiSummaryPer1M: number;
+  embeddingPer1M: number;
   telnyxCallPerMin: number;
   telnyxRecordingPerMin: number;
   deepgramPerSec: number;
@@ -22,6 +23,7 @@ const FIELDS: { key: keyof PricingConfig; label: string; unit: string }[] = [
   { key: 'geminiTextInputPer1M', label: 'Gemini Text Input', unit: '$ / 1M tokens' },
   { key: 'geminiTextOutputPer1M', label: 'Gemini Text Output', unit: '$ / 1M tokens' },
   { key: 'geminiSummaryPer1M', label: 'Gemini Summary (blended)', unit: '$ / 1M tokens' },
+  { key: 'embeddingPer1M', label: 'Embedding (Vertex AI)', unit: '$ / 1M tokens' },
   { key: 'telnyxCallPerMin', label: 'Telnyx שיחות', unit: '$ / דקה' },
   { key: 'telnyxRecordingPerMin', label: 'Telnyx הקלטות', unit: '$ / דקה' },
   { key: 'deepgramPerSec', label: 'Deepgram', unit: '$ / שנייה' },

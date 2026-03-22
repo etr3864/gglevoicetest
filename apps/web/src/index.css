@@ -53,3 +53,11 @@ input, textarea, select {
 .animate-slide-up {
   animation: slide-up 0.2s ease-out;
 }
+
+@keyframes shimmer {
+  0%   { transform: translateX(300%); }
+  100% { transform: translateX(-300%); }
+}
+.animate-shimmer {
+  animation: shimmer 1.8s ease-in-out infinite;
+}

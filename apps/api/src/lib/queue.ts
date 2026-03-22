@@ -42,6 +42,7 @@ export const reminderQueue = new Queue('reminder-calls', {
 });
 
 export const whatsappSendQueue = createQueue('whatsapp-send');
+export const knowledgeQueue = createQueue('knowledge-processing');
 
 export async function scheduleReminderSafetyScan(): Promise<void> {
   await reminderQueue.add(

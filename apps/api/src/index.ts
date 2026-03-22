@@ -30,6 +30,8 @@ import { startWebhookWorker } from './workers/webhook.worker';
 import { startAppointmentWebhookWorker } from './workers/appointment-webhook.worker';
 import { startReminderWorker } from './workers/reminder.worker';
 import { startWhatsappSendWorker } from './workers/whatsapp-send.worker';
+import { startKnowledgeWorker } from './workers/knowledge.worker';
+import knowledgeRoutes from './routes/knowledge';
 import { startRecordingCrons } from './services/recording/recording.cron';
 import dashboardRoutes from './routes/dashboard';
 import superAdminDashboardRoutes from './routes/super-admin-dashboard';
@@ -108,6 +110,7 @@ app.use('/admin', authMiddleware, requireSuperAdmin, adminRoutes);
 app.use('/dashboard', authMiddleware, dashboardRoutes);
 app.use('/dashboard/super-admin', authMiddleware, superAdminDashboardRoutes);
 app.use('/dashboard/pricing', authMiddleware, pricingRoutes);
+app.use('/agents/:agentId/knowledge', authMiddleware, knowledgeRoutes);
 
 app.use(errorHandler);
 
@@ -134,6 +137,7 @@ async function start() {
     const appointmentWebhookWorker = startAppointmentWebhookWorker();
     const reminderWorker = startReminderWorker();
     const whatsappSendWorker = startWhatsappSendWorker();
+    const knowledgeWorker = startKnowledgeWorker();
     startRecordingCrons();
     attachWebSocket(server);
 
@@ -150,7 +154,7 @@ async function start() {
 
       log.info('All calls finished, shutting down');
       sseManager.shutdown();
-      await Promise.all([outboundWorker.close(), recordingWorker.close(), summaryWorker.close(), webhookWorker.close(), appointmentWebhookWorker.close(), reminderWorker.close(), whatsappSendWorker.close()]);
+      await Promise.all([outboundWorker.close(), recordingWorker.close(), summaryWorker.close(), webhookWorker.close(), appointmentWebhookWorker.close(), reminderWorker.close(), whatsappSendWorker.close(), knowledgeWorker.close()]);
       await Promise.all([drainWarmups(), closeMediaBridge()]);
       await closePubSub();
       server.close(() => process.exit(0));
