@@ -1,10 +1,10 @@
 import { generateText } from '../../lib/gemini-text';
 import type { ChunkDraft, ParsedTable } from './types';
 
-// Target token counts (approximate: 1 token ≈ 4 chars)
-const PARENT_MAX_CHARS = 5_000;  // ~1250 tokens
-const CHILD_MAX_CHARS  = 1_000;  // ~250 tokens
-const OVERLAP_CHARS    = 200;    // ~50 token overlap
+// Target sizes — Hebrew is ~3 chars/token, so keep parent well under 20k tokens
+const PARENT_MAX_CHARS = 3_000;  // ~1000 tokens (safe for Hebrew)
+const CHILD_MAX_CHARS  = 700;    // ~230 tokens
+const OVERLAP_CHARS    = 150;
 
 const SUMMARY_SYSTEM_PROMPT =
   'You are summarizing a business document for a voice AI assistant knowledge base. ' +
@@ -92,16 +92,31 @@ export async function generateDocumentSummary(content: string, docName: string):
   return { text: result.text, inputTokens: half, outputTokens: half };
 }
 
+function hardSplit(text: string, maxChars: number, overlap: number): string[] {
+  if (text.length <= maxChars) return [text];
+  const parts: string[] = [];
+  let start = 0;
+  while (start < text.length) {
+    const end = Math.min(start + maxChars, text.length);
+    parts.push(text.slice(start, end));
+    start = end - overlap;
+    if (start >= text.length) break;
+  }
+  return parts;
+}
+
 function splitIntoParents(text: string): string[] {
   const normalized = text.replace(/\r\n/g, '\n').replace(/\n{3,}/g, '\n\n');
-  const paragraphs = normalized.split(/\n\n+/);
+  // Force-split any paragraph that exceeds the parent limit before grouping
+  const rawParagraphs = normalized.split(/\n\n+/);
+  const paragraphs = rawParagraphs.flatMap((p) => hardSplit(p, PARENT_MAX_CHARS, OVERLAP_CHARS));
+
   const parents: string[] = [];
   let current = '';
 
   for (const para of paragraphs) {
     if (current.length + para.length > PARENT_MAX_CHARS && current.length > 0) {
       parents.push(current.trim());
-      // overlap: keep last paragraph of current as start of next
       const lastPara = current.split('\n\n').at(-1) ?? '';
       current = lastPara.slice(-OVERLAP_CHARS) + '\n\n' + para;
     } else {

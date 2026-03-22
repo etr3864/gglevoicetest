@@ -6,8 +6,10 @@ const log = createLogger('knowledge:embedding');
 
 const MODEL = 'text-multilingual-embedding-002';
 const DIMENSIONS = 768;
-const BATCH_SIZE = 250;
-const TIMEOUT_MS = 8_000;
+// Vertex AI: max 20,000 tokens per request total; Hebrew ≈ 3 chars/token
+// With PARENT_MAX_CHARS=3000 (~1000 tokens), 15 items × 1000 = 15,000 tokens — safe
+const BATCH_SIZE = 15;
+const TIMEOUT_MS = 10_000;
 
 // Token bucket: max 1500 req/min per Vertex AI quota
 const RATE_BUCKET = { tokens: 25, lastRefillMs: Date.now(), maxTokens: 25, refillPerMs: 25 / 1000 };
