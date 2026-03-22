@@ -49,9 +49,9 @@ CREATE INDEX "knowledge_chunks_parent_id_idx" ON "knowledge_chunks"("parent_id")
 -- GIN index for fast trigram search on Hebrew/English text
 CREATE INDEX "knowledge_chunks_content_trgm_idx" ON "knowledge_chunks" USING GIN ("content" gin_trgm_ops);
 
--- HNSW vector index — built after data is loaded (comment out and run manually on production if needed)
--- m=16 (connectivity), ef_construction=100 (build quality), cosine distance
-CREATE INDEX CONCURRENTLY IF NOT EXISTS "knowledge_chunks_embedding_hnsw_idx"
+-- HNSW vector index (CONCURRENTLY omitted — Prisma wraps migrations in a transaction)
+-- On tables that already have data, prefer: CREATE INDEX CONCURRENTLY outside a transaction
+CREATE INDEX IF NOT EXISTS "knowledge_chunks_embedding_hnsw_idx"
   ON "knowledge_chunks"
   USING hnsw ("embedding" vector_cosine_ops)
   WITH (m = 16, ef_construction = 100);
