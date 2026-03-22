@@ -12,7 +12,7 @@ const router = Router({ mergeParams: true });
 type KnowledgeParams = { agentId: string; documentId?: string };
 
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
-const MAX_FILES_PER_UPLOAD = 10;
+const MAX_FILES_PER_UPLOAD = 30;
 const MAX_DOCS_PER_AGENT = 30;
 const ALLOWED_EXTENSIONS = new Set(['pdf', 'docx', 'doc', 'txt', 'csv', 'xlsx', 'xls']);
 

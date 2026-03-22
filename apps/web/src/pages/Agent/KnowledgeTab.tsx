@@ -19,7 +19,7 @@ interface KnowledgeDocument {
 }
 
 const ACCEPTED = '.pdf,.docx,.doc,.txt,.csv,.xlsx,.xls';
-const MAX_FILES = 10;
+const MAX_FILES = 30;
 
 export default function KnowledgeTab({ agentId }: { agentId: string }) {
   const qc = useQueryClient();
@@ -234,7 +234,7 @@ function SupportedFormatsHint() {
         &nbsp;·&nbsp;
         <span className="text-zinc-400 font-medium">טבלאות:</span> CSV, XLSX
         &nbsp;·&nbsp;
-        עד 10 קבצים, 10MB לקובץ
+        עד 30 קבצים, 10MB לקובץ
       </p>
     </div>
   );
