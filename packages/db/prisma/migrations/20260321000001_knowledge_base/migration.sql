@@ -1,5 +1,4 @@
 -- Enable required extensions
--- NOTE: pgvector requires `cloudsql.enable_pgvector=on` flag set in Cloud SQL before this runs
 CREATE EXTENSION IF NOT EXISTS vector;
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
@@ -10,16 +9,17 @@ ALTER TABLE "pricing_config" ADD COLUMN "embedding_per_1m" DOUBLE PRECISION NOT 
 ALTER TABLE "agent_usage_monthly" ADD COLUMN "total_embedding_tokens" INTEGER NOT NULL DEFAULT 0;
 
 -- Knowledge documents table
+-- IDs are TEXT (not UUID) to match Prisma's default String @id convention
 CREATE TABLE "knowledge_documents" (
-  "id"             UUID        NOT NULL DEFAULT gen_random_uuid(),
-  "agent_id"       UUID        NOT NULL,
-  "name"           TEXT        NOT NULL,
-  "doc_type"       TEXT        NOT NULL,
-  "status"         TEXT        NOT NULL DEFAULT 'processing',
-  "error_msg"      TEXT,
-  "chunk_count"    INTEGER     NOT NULL DEFAULT 0,
-  "file_size_bytes" INTEGER    NOT NULL DEFAULT 0,
-  "created_at"     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  "id"              TEXT        NOT NULL DEFAULT gen_random_uuid()::text,
+  "agent_id"        TEXT        NOT NULL,
+  "name"            TEXT        NOT NULL,
+  "doc_type"        TEXT        NOT NULL,
+  "status"          TEXT        NOT NULL DEFAULT 'processing',
+  "error_msg"       TEXT,
+  "chunk_count"     INTEGER     NOT NULL DEFAULT 0,
+  "file_size_bytes" INTEGER     NOT NULL DEFAULT 0,
+  "created_at"      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   CONSTRAINT "knowledge_documents_pkey" PRIMARY KEY ("id"),
   CONSTRAINT "knowledge_documents_agent_id_fkey"
     FOREIGN KEY ("agent_id") REFERENCES "agents"("id") ON DELETE CASCADE
@@ -29,11 +29,11 @@ CREATE INDEX "knowledge_documents_agent_id_status_idx" ON "knowledge_documents"(
 
 -- Knowledge chunks table
 CREATE TABLE "knowledge_chunks" (
-  "id"          UUID    NOT NULL DEFAULT gen_random_uuid(),
-  "document_id" UUID    NOT NULL,
-  "agent_id"    UUID    NOT NULL,
+  "id"          TEXT    NOT NULL DEFAULT gen_random_uuid()::text,
+  "document_id" TEXT    NOT NULL,
+  "agent_id"    TEXT    NOT NULL,
   "chunk_type"  TEXT    NOT NULL DEFAULT 'child',
-  "parent_id"   UUID,
+  "parent_id"   TEXT,
   "content"     TEXT    NOT NULL,
   "embedding"   vector(768),
   "importance"  FLOAT8  NOT NULL DEFAULT 0.5,
@@ -50,7 +50,6 @@ CREATE INDEX "knowledge_chunks_parent_id_idx" ON "knowledge_chunks"("parent_id")
 CREATE INDEX "knowledge_chunks_content_trgm_idx" ON "knowledge_chunks" USING GIN ("content" gin_trgm_ops);
 
 -- HNSW vector index (CONCURRENTLY omitted — Prisma wraps migrations in a transaction)
--- On tables that already have data, prefer: CREATE INDEX CONCURRENTLY outside a transaction
 CREATE INDEX IF NOT EXISTS "knowledge_chunks_embedding_hnsw_idx"
   ON "knowledge_chunks"
   USING hnsw ("embedding" vector_cosine_ops)
