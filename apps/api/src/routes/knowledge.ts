@@ -1,10 +1,10 @@
 import { Router } from 'express';
 import multer from 'multer';
-import { z } from 'zod';
 import { prisma } from '@voice/db';
 import { AppError } from '../middleware/error-handler';
 import { knowledgeQueue } from '../lib/queue';
 import { listDocuments, listChunks, deleteDocument, checkAgentLimits } from '../services/knowledge/knowledge.service';
+import { uploadToGcs } from '../services/knowledge/storage.service';
 import { detectDocType } from '../services/knowledge/file-parsers';
 
 const router = Router({ mergeParams: true });
@@ -12,30 +12,22 @@ const router = Router({ mergeParams: true });
 type KnowledgeParams = { agentId: string; documentId?: string };
 
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
-const ALLOWED_MIMES = new Set([
-  'application/pdf',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  'text/plain',
-  'text/csv',
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  'application/vnd.ms-excel',
-  'application/octet-stream', // fallback for xlsx/csv from some clients
-]);
+const MAX_FILES_PER_UPLOAD = 10;
+const MAX_DOCS_PER_AGENT = 30;
+const ALLOWED_EXTENSIONS = new Set(['pdf', 'docx', 'doc', 'txt', 'csv', 'xlsx', 'xls']);
 
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: MAX_FILE_SIZE_BYTES, files: 10 },
+  limits: { fileSize: MAX_FILE_SIZE_BYTES, files: MAX_FILES_PER_UPLOAD },
   fileFilter: (_req, file, cb) => {
     const ext = file.originalname.split('.').pop()?.toLowerCase() ?? '';
-    const allowedExts = new Set(['pdf', 'docx', 'doc', 'txt', 'csv', 'xlsx', 'xls']);
-    if (!allowedExts.has(ext)) {
+    if (!ALLOWED_EXTENSIONS.has(ext)) {
       return cb(new AppError(400, 'INVALID_FILE_TYPE', `File type .${ext} is not supported`));
     }
     cb(null, true);
   },
 });
 
-// Ensure caller owns this agent
 async function assertAgentOwnership(agentId: string, userId: string, role: string): Promise<void> {
   if (role === 'super_admin') return;
   const agent = await prisma.agent.findFirst({ where: { id: agentId, userId } });
@@ -67,8 +59,10 @@ router.post('/', upload.array('files'), async (req, res) => {
   if (!files || files.length === 0) throw new AppError(400, 'NO_FILES', 'No files uploaded');
 
   const limits = await checkAgentLimits(agentId);
-  if (limits.docLimitReached) throw new AppError(429, 'DOC_LIMIT', 'Maximum document limit reached (30)');
-  if (limits.chunkLimitReached) throw new AppError(429, 'CHUNK_LIMIT', 'Maximum chunk limit reached (3000)');
+  if (limits.docLimitReached || limits.currentDocCount + files.length > MAX_DOCS_PER_AGENT) {
+    throw new AppError(429, 'DOC_LIMIT', `Maximum document limit reached (${MAX_DOCS_PER_AGENT})`);
+  }
+  if (limits.chunkLimitReached) throw new AppError(429, 'CHUNK_LIMIT', 'Maximum chunk limit reached');
 
   const created = await Promise.all(
     files.map(async (file) => {
@@ -83,13 +77,22 @@ router.post('/', upload.array('files'), async (req, res) => {
         },
       });
 
+      try {
+        await uploadToGcs(agentId, doc.id, file.originalname, file.buffer);
+      } catch (err) {
+        await prisma.knowledgeDocument.update({
+          where: { id: doc.id },
+          data: { status: 'error', errorMsg: 'File upload failed' },
+        }).catch(() => {});
+        throw err;
+      }
+
       await knowledgeQueue.add(
         'process',
         {
           documentId: doc.id,
           agentId,
           docType,
-          fileContent: file.buffer.toString('base64'),
           filename: file.originalname,
         },
         { jobId: `knowledge-${doc.id}`, attempts: 2, backoff: { type: 'fixed', delay: 5_000 } },

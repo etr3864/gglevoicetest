@@ -59,6 +59,8 @@ spec:
               value: "8"
             - name: GCS_RECORDING_BUCKET
               value: "voice-ai-recordings-gen-lang-0546829339"
+            - name: GCS_KNOWLEDGE_BUCKET
+              value: "voice-ai-knowledge-gen-lang-0546829339"
             - name: GOOGLE_APPLICATION_CREDENTIALS
               value: "/var/secrets/google/credentials.json"
           volumeMounts:

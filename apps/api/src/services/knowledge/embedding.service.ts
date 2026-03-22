@@ -1,5 +1,6 @@
 import { GoogleAuth } from 'google-auth-library';
 import { createLogger } from '../../lib/logger';
+import { redis } from '../../lib/redis';
 import type { EmbedBatchResult } from './types';
 
 const log = createLogger('knowledge:embedding');
@@ -7,12 +8,13 @@ const log = createLogger('knowledge:embedding');
 const MODEL = 'text-multilingual-embedding-002';
 const DIMENSIONS = 768;
 // Vertex AI: max 20,000 tokens per request total; Hebrew ≈ 3 chars/token
-// With PARENT_MAX_CHARS=3000 (~1000 tokens), 15 items × 1000 = 15,000 tokens — safe
 const BATCH_SIZE = 15;
 const TIMEOUT_MS = 10_000;
 
-// Token bucket: max 1500 req/min per Vertex AI quota
-const RATE_BUCKET = { tokens: 25, lastRefillMs: Date.now(), maxTokens: 25, refillPerMs: 25 / 1000 };
+// Distributed rate limit: 20 req/s shared across all pods (Vertex AI quota: 1500 req/min)
+const RATE_KEY = 'embedding:rate';
+const RATE_WINDOW_MS = 1_000;
+const RATE_MAX_PER_WINDOW = 20;
 
 const auth = new GoogleAuth({ scopes: ['https://www.googleapis.com/auth/cloud-platform'] });
 
@@ -23,33 +25,33 @@ async function getAccessToken(): Promise<string> {
   return token.token;
 }
 
-function buildEndpoint(): string {
+let cachedEndpoint: string | null = null;
+
+function getEndpoint(): string {
+  if (cachedEndpoint) return cachedEndpoint;
   const project = process.env.GCP_PROJECT_ID;
   const location = process.env.GCP_LOCATION || 'europe-west3';
   if (!project) throw new Error('GCP_PROJECT_ID missing');
-  return `https://${location}-aiplatform.googleapis.com/v1/projects/${project}/locations/${location}/publishers/google/models/${MODEL}:predict`;
-}
-
-function acquireRateLimitToken(): boolean {
-  const now = Date.now();
-  const elapsed = now - RATE_BUCKET.lastRefillMs;
-  RATE_BUCKET.tokens = Math.min(RATE_BUCKET.maxTokens, RATE_BUCKET.tokens + elapsed * RATE_BUCKET.refillPerMs);
-  RATE_BUCKET.lastRefillMs = now;
-  if (RATE_BUCKET.tokens < 1) return false;
-  RATE_BUCKET.tokens -= 1;
-  return true;
+  cachedEndpoint = `https://${location}-aiplatform.googleapis.com/v1/projects/${project}/locations/${location}/publishers/google/models/${MODEL}:predict`;
+  return cachedEndpoint;
 }
 
 async function waitForRateLimit(): Promise<void> {
-  while (!acquireRateLimitToken()) {
+  for (let attempt = 0; attempt < 50; attempt++) {
+    const now = Date.now();
+    const windowKey = `${RATE_KEY}:${Math.floor(now / RATE_WINDOW_MS)}`;
+    const count = await redis.incr(windowKey);
+    if (count === 1) await redis.pexpire(windowKey, RATE_WINDOW_MS * 2);
+    if (count <= RATE_MAX_PER_WINDOW) return;
     await new Promise((r) => setTimeout(r, 100));
   }
+  log.warn('Rate limit wait exceeded 5s, proceeding anyway');
 }
 
 async function callEmbeddingApi(texts: string[], isQuery = false): Promise<EmbedBatchResult> {
   await waitForRateLimit();
 
-  const [accessToken, endpoint] = await Promise.all([getAccessToken(), Promise.resolve(buildEndpoint())]);
+  const [accessToken, endpoint] = await Promise.all([getAccessToken(), Promise.resolve(getEndpoint())]);
 
   const taskType = isQuery ? 'RETRIEVAL_QUERY' : 'RETRIEVAL_DOCUMENT';
   const body = {

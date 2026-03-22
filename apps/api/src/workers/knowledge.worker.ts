@@ -6,6 +6,7 @@ import { upsertMonthlyUsage } from '../services/usage/usage.service';
 import { embedTexts } from '../services/knowledge/embedding.service';
 import { processTextFile, processTableFile } from '../services/knowledge/document-processor';
 import { insertChunks } from '../services/knowledge/knowledge.service';
+import { downloadFromGcs } from '../services/knowledge/storage.service';
 import type { ChunkDraft, ChunkWithEmbedding } from '../services/knowledge/types';
 
 const log = createLogger('knowledge-worker');
@@ -14,7 +15,6 @@ export interface KnowledgeJobData {
   documentId: string;
   agentId: string;
   docType: 'text' | 'table';
-  fileContent: string; // base64 for binary, utf-8 text for text
   filename: string;
 }
 
@@ -40,11 +40,11 @@ export function startKnowledgeWorker() {
 }
 
 async function processDocument(job: { data: KnowledgeJobData }): Promise<void> {
-  const { documentId, agentId, docType, fileContent, filename } = job.data;
+  const { documentId, agentId, docType, filename } = job.data;
 
   log.info('Processing knowledge document', { documentId, docType, filename });
 
-  const buffer = Buffer.from(fileContent, 'base64');
+  const buffer = await downloadFromGcs(agentId, documentId, filename);
   const chunks = await buildChunks(docType, buffer, filename);
 
   if (chunks.length === 0) {
@@ -52,18 +52,20 @@ async function processDocument(job: { data: KnowledgeJobData }): Promise<void> {
     return;
   }
 
-  // Assign stable IDs and resolve parent UUIDs
   const chunksWithIds = assignIds(chunks, documentId, agentId);
 
-  // Embed only chunks that need vectors (parent + child + table rows)
-  const embeddableChunks = chunksWithIds.filter((c) => c.chunkType !== 'summary' || c.embedding === null);
-  const textsToEmbed = chunksWithIds.map((c) => c.content);
+  // Embed only child chunks — summaries and parents are never searched by vector
+  const childIndices = new Set(
+    chunksWithIds.map((c, i) => (c.chunkType === 'child' ? i : -1)).filter((i) => i >= 0),
+  );
+  const textsToEmbed = chunksWithIds.filter((_, i) => childIndices.has(i)).map((c) => c.content);
 
   const { vectors, tokenCount } = await embedTexts(textsToEmbed);
 
+  let vecIdx = 0;
   const finalChunks: ChunkWithEmbedding[] = chunksWithIds.map((c, i) => ({
     ...c,
-    embedding: vectors[i] ?? null,
+    embedding: childIndices.has(i) ? (vectors[vecIdx++] ?? null) : null,
   }));
 
   await insertChunks(finalChunks);
@@ -73,13 +75,12 @@ async function processDocument(job: { data: KnowledgeJobData }): Promise<void> {
     data: { status: 'ready', chunkCount: finalChunks.length },
   });
 
-  // Track embedding tokens (non-blocking)
   if (tokenCount > 0) {
     upsertMonthlyUsage(agentId, { totalEmbeddingTokens: tokenCount })
       .catch((err) => log.error('Failed to track embedding tokens', err, { documentId }));
   }
 
-  log.info('Document processed', { documentId, chunks: finalChunks.length, tokens: tokenCount });
+  log.info('Document processed', { documentId, chunks: finalChunks.length, embeddedChunks: textsToEmbed.length, tokens: tokenCount });
 }
 
 async function buildChunks(docType: 'text' | 'table', buffer: Buffer, filename: string): Promise<ChunkDraft[]> {
@@ -101,7 +102,6 @@ async function buildChunks(docType: 'text' | 'table', buffer: Buffer, filename: 
 }
 
 function assignIds(chunks: ChunkDraft[], documentId: string, agentId: string): ChunkWithEmbedding[] {
-  // First pass: assign UUIDs to parent chunks so children can reference them
   const parentUuids: string[] = [];
   for (const chunk of chunks) {
     if (chunk.chunkType === 'parent') {

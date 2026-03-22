@@ -1,6 +1,7 @@
 import { prisma, Prisma } from '@voice/db';
 import { createLogger } from '../../lib/logger';
 import { embedQuery } from './embedding.service';
+import { deleteDocumentFiles } from './storage.service';
 import type { SearchResult, KnowledgeMeta, WarmupContext, ChunkWithEmbedding } from './types';
 
 const log = createLogger('knowledge:service');
@@ -34,19 +35,22 @@ async function runTwoPhaseSearch(
 
   type RawRow = { id: string; content: string; parent_id: string | null; chunk_type: string; metadata: unknown; cosine: number };
 
-  const [candidates] = await prisma.$transaction([
-    prisma.$queryRaw<RawRow[]>`
+  // Enable iterative scan so HNSW index respects WHERE filters efficiently
+  // Phase 1: HNSW index scan → Phase 2: re-score with trigram similarity
+  const candidates = await prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SET LOCAL hnsw.iterative_scan = relaxed_order`;
+    return tx.$queryRaw<RawRow[]>`
       WITH candidates AS (
         SELECT
           kc.id, kc.content, kc.parent_id, kc.chunk_type, kc.metadata,
-          1 - (kc.embedding <=> ${Prisma.raw(`'${vecStr}'::vector`)}) AS cosine
+          1 - (kc.embedding <=> ${vecStr}::vector) AS cosine
         FROM knowledge_chunks kc
         JOIN knowledge_documents kd ON kd.id = kc.document_id
         WHERE kc.agent_id = ${agentId}
           AND kc.chunk_type = 'child'
           ${tableOnly ? Prisma.sql`AND kd.doc_type = 'table'` : Prisma.sql``}
           AND kc.embedding IS NOT NULL
-        ORDER BY kc.embedding <=> ${Prisma.raw(`'${vecStr}'::vector`)}
+        ORDER BY kc.embedding <=> ${vecStr}::vector
         LIMIT ${SEARCH_CANDIDATES}
       )
       SELECT
@@ -55,8 +59,8 @@ async function runTwoPhaseSearch(
       FROM candidates c
       ORDER BY final_score DESC
       LIMIT ${SEARCH_TOP_K}
-    `,
-  ] as [Prisma.PrismaPromise<RawRow[]>]);
+    `;
+  });
 
   if (!candidates || candidates.length === 0) return [];
 
@@ -153,7 +157,11 @@ export async function getKnowledgeMeta(agentId: string): Promise<KnowledgeMeta> 
   };
 }
 
-export async function checkAgentLimits(agentId: string): Promise<{ docLimitReached: boolean; chunkLimitReached: boolean }> {
+export async function checkAgentLimits(agentId: string): Promise<{
+  docLimitReached: boolean;
+  chunkLimitReached: boolean;
+  currentDocCount: number;
+}> {
   const [docCount, chunkCount] = await Promise.all([
     prisma.knowledgeDocument.count({ where: { agentId, status: { not: 'error' } } }),
     prisma.$queryRaw<[{ cnt: bigint }]>`
@@ -163,56 +171,47 @@ export async function checkAgentLimits(agentId: string): Promise<{ docLimitReach
   return {
     docLimitReached:   docCount >= MAX_DOCS_PER_AGENT,
     chunkLimitReached: Number(chunkCount[0].cnt) >= MAX_CHUNKS_PER_AGENT,
+    currentDocCount:   docCount,
   };
 }
 
 // ─── Write ───────────────────────────────────────────────────────────────────
 
+const BULK_INSERT_SIZE = 50;
+
 export async function insertChunks(chunks: ChunkWithEmbedding[]): Promise<void> {
-  for (let i = 0; i < chunks.length; i += 50) {
-    const batch = chunks.slice(i, i + 50);
-    await Promise.all(batch.map(insertSingleChunk));
+  for (let i = 0; i < chunks.length; i += BULK_INSERT_SIZE) {
+    const batch = chunks.slice(i, i + BULK_INSERT_SIZE);
+    await bulkInsertBatch(batch);
   }
 }
 
-async function insertSingleChunk(chunk: ChunkWithEmbedding): Promise<void> {
-  const vecStr = chunk.embedding ? `[${chunk.embedding.join(',')}]` : null;
-  const metaJson = chunk.metadata ? JSON.stringify(chunk.metadata) : null;
+async function bulkInsertBatch(batch: ChunkWithEmbedding[]): Promise<void> {
+  if (batch.length === 0) return;
 
-  if (vecStr) {
-    await prisma.$executeRaw`
-      INSERT INTO knowledge_chunks (id, document_id, agent_id, chunk_type, parent_id, content, embedding, importance, metadata)
-      VALUES (
-        ${chunk.id},
-        ${chunk.documentId},
-        ${chunk.agentId},
-        ${chunk.chunkType},
-        ${chunk.parentId ?? null},
-        ${chunk.content},
-        ${Prisma.raw(`'${vecStr}'::vector`)},
-        ${chunk.importance},
-        ${metaJson ? Prisma.raw(`'${metaJson.replace(/'/g, "''")}'::jsonb`) : null}
-      )
-    `;
-  } else {
-    await prisma.$executeRaw`
-      INSERT INTO knowledge_chunks (id, document_id, agent_id, chunk_type, parent_id, content, importance, metadata)
-      VALUES (
-        ${chunk.id},
-        ${chunk.documentId},
-        ${chunk.agentId},
-        ${chunk.chunkType},
-        ${chunk.parentId ?? null},
-        ${chunk.content},
-        ${chunk.importance},
-        ${metaJson ? Prisma.raw(`'${metaJson.replace(/'/g, "''")}'::jsonb`) : null}
-      )
-    `;
-  }
+  // Content is the only user-controlled field — parameterized via $1, $2...
+  // All other fields are system-generated (UUIDs, enums, embeddings from Vertex AI)
+  const contentParams = batch.map((c) => c.content);
+  const placeholders = batch.map((c, i) => {
+    const vec = c.embedding ? `'[${c.embedding.join(',')}]'::vector` : 'NULL';
+    const meta = c.metadata ? `'${JSON.stringify(c.metadata).replace(/'/g, "''")}'::jsonb` : 'NULL';
+    const pid = c.parentId ? `'${c.parentId}'` : 'NULL';
+    return `('${c.id}', '${c.documentId}', '${c.agentId}', '${c.chunkType}', ${pid}, $${i + 1}, ${vec}, ${c.importance}, ${meta})`;
+  });
+
+  const sql = `INSERT INTO knowledge_chunks (id, document_id, agent_id, chunk_type, parent_id, content, embedding, importance, metadata) VALUES ${placeholders.join(', ')}`;
+  await prisma.$executeRawUnsafe(sql, ...contentParams);
 }
 
 export async function deleteDocument(documentId: string, agentId: string): Promise<void> {
+  const doc = await prisma.knowledgeDocument.findFirst({
+    where: { id: documentId, agentId },
+    select: { name: true },
+  });
+  if (!doc) return;
+
   await prisma.knowledgeDocument.deleteMany({ where: { id: documentId, agentId } });
+  await deleteDocumentFiles(agentId, documentId);
   log.info('Document deleted', { documentId, agentId });
 }
 

@@ -33,6 +33,7 @@ import { startWhatsappSendWorker } from './workers/whatsapp-send.worker';
 import { startKnowledgeWorker } from './workers/knowledge.worker';
 import knowledgeRoutes from './routes/knowledge';
 import { startRecordingCrons } from './services/recording/recording.cron';
+import { startKnowledgeCrons } from './services/knowledge/knowledge.cron';
 import dashboardRoutes from './routes/dashboard';
 import superAdminDashboardRoutes from './routes/super-admin-dashboard';
 import pricingRoutes from './routes/pricing';
@@ -139,6 +140,7 @@ async function start() {
     const whatsappSendWorker = startWhatsappSendWorker();
     const knowledgeWorker = startKnowledgeWorker();
     startRecordingCrons();
+    startKnowledgeCrons();
     attachWebSocket(server);
 
     server.listen(PORT, '0.0.0.0', () => {
