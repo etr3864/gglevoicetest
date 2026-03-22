@@ -4,7 +4,7 @@ CREATE EXTENSION IF NOT EXISTS vector;
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
 -- Add embedding cost field to pricing config
-ALTER TABLE "pricing_config" ADD COLUMN "embedding_per_1m" DOUBLE PRECISION NOT NULL DEFAULT 0.15;
+ALTER TABLE "pricing_config" ADD COLUMN "embedding_per_1m" DOUBLE PRECISION NOT NULL DEFAULT 0.10;
 
 -- Add embedding token tracking to usage
 ALTER TABLE "agent_usage_monthly" ADD COLUMN "total_embedding_tokens" INTEGER NOT NULL DEFAULT 0;
@@ -35,7 +35,7 @@ CREATE TABLE "knowledge_chunks" (
   "chunk_type"  TEXT    NOT NULL DEFAULT 'child',
   "parent_id"   UUID,
   "content"     TEXT    NOT NULL,
-  "embedding"   vector(1536),
+  "embedding"   vector(768),
   "importance"  FLOAT8  NOT NULL DEFAULT 0.5,
   "metadata"    JSONB,
   CONSTRAINT "knowledge_chunks_pkey" PRIMARY KEY ("id"),
@@ -55,3 +55,5 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS "knowledge_chunks_embedding_hnsw_idx"
   ON "knowledge_chunks"
   USING hnsw ("embedding" vector_cosine_ops)
   WITH (m = 16, ef_construction = 100);
+-- Note: text-multilingual-embedding-002 outputs 768-dim vectors (Matryoshka)
+-- Pricing: $0.10 per 1M input tokens (Vertex AI, 2026)

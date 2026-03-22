@@ -4,8 +4,8 @@ import type { EmbedBatchResult } from './types';
 
 const log = createLogger('knowledge:embedding');
 
-const MODEL = 'gemini-embedding-001';
-const DIMENSIONS = 1536;
+const MODEL = 'text-multilingual-embedding-002';
+const DIMENSIONS = 768;
 const BATCH_SIZE = 250;
 const TIMEOUT_MS = 8_000;
 
@@ -44,13 +44,14 @@ async function waitForRateLimit(): Promise<void> {
   }
 }
 
-async function callEmbeddingApi(texts: string[]): Promise<EmbedBatchResult> {
+async function callEmbeddingApi(texts: string[], isQuery = false): Promise<EmbedBatchResult> {
   await waitForRateLimit();
 
   const [accessToken, endpoint] = await Promise.all([getAccessToken(), Promise.resolve(buildEndpoint())]);
 
+  const taskType = isQuery ? 'RETRIEVAL_QUERY' : 'RETRIEVAL_DOCUMENT';
   const body = {
-    instances: texts.map((content) => ({ content })),
+    instances: texts.map((content) => ({ content, task_type: taskType })),
     parameters: { outputDimensionality: DIMENSIONS },
   };
 
@@ -97,7 +98,7 @@ export async function embedTexts(texts: string[]): Promise<EmbedBatchResult> {
 }
 
 export async function embedQuery(text: string): Promise<{ vector: number[]; tokenCount: number }> {
-  const result = await callEmbeddingApi([text]);
+  const result = await callEmbeddingApi([text], true);
   return { vector: result.vectors[0], tokenCount: result.tokenCount };
 }
 

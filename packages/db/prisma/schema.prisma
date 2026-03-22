@@ -242,7 +242,7 @@ model PricingConfig {
   geminiTextInputPer1M   Float  @default(0.50) @map("gemini_text_input_per_1m")
   geminiTextOutputPer1M  Float  @default(2.00) @map("gemini_text_output_per_1m")
   geminiSummaryPer1M     Float  @default(0.25) @map("gemini_summary_per_1m")
-  embeddingPer1M         Float  @default(0.15) @map("embedding_per_1m")
+  embeddingPer1M         Float  @default(0.10) @map("embedding_per_1m")
   telnyxCallPerMin       Float  @default(0.007) @map("telnyx_call_per_min")
   telnyxRecordingPerMin  Float  @default(0.002) @map("telnyx_recording_per_min")
   deepgramPerSec         Float  @default(0.000128) @map("deepgram_per_sec")
@@ -297,7 +297,7 @@ model KnowledgeChunk {
   chunkType  String            @default("child") @map("chunk_type")
   parentId   String?           @map("parent_id")
   content    String            @db.Text
-  embedding  Unsupported("vector(1536)")?
+  embedding  Unsupported("vector(768)")?
   importance Float             @default(0.5)
   metadata   Json?
   document   KnowledgeDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
