@@ -187,12 +187,48 @@ function UtteranceBubble({ utterance: u, call }: { utterance: Utterance; call: a
   );
 }
 
-const MEDIA_ICONS: Record<string, typeof Image> = { image: Image, video: Video };
+const MEDIA_META: Record<string, { icon: typeof Image; label: string; bg: string; iconColor: string }> = {
+  image: { icon: Image, label: 'תמונה',  bg: 'bg-blue-500/15 border-blue-500/30',   iconColor: 'text-blue-400' },
+  video: { icon: Video, label: 'סרטון',  bg: 'bg-purple-500/15 border-purple-500/30', iconColor: 'text-purple-400' },
+  file:  { icon: File,  label: 'קובץ',   bg: 'bg-orange-500/15 border-orange-500/30', iconColor: 'text-orange-400' },
+};
 
 function WhatsappBubble({ message: m }: { message: WhatsappMessage }) {
   const time = new Date(m.createdAt).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-  const isMedia = !!m.mediaType;
-  const MediaIcon = m.mediaType ? (MEDIA_ICONS[m.mediaType] ?? File) : null;
+  const media = m.mediaType ? (MEDIA_META[m.mediaType] ?? MEDIA_META.file) : null;
+
+  if (media) {
+    const MediaIcon = media.icon;
+    return (
+      <div className="flex justify-start">
+        <div className={cn('max-w-[80%] rounded-xl text-sm border overflow-hidden', media.bg)}>
+          <div className="flex items-center gap-3 px-3 py-2.5">
+            <div className={cn('w-9 h-9 rounded-lg flex items-center justify-center shrink-0 bg-white/5', media.iconColor)}>
+              <MediaIcon className="w-5 h-5" />
+            </div>
+            <div className="min-w-0 flex-1" dir="rtl">
+              <p className="text-xs font-semibold text-white/80 mb-0.5">{media.label} נשלח</p>
+              <p className="text-sm text-white font-medium truncate">{m.mediaName || '—'}</p>
+            </div>
+          </div>
+
+          {m.content && (
+            <div className="px-3 pb-2.5 border-t border-white/5">
+              <p className="text-xs text-white/60 mt-2" dir="rtl">{m.content}</p>
+            </div>
+          )}
+
+          <div className="flex items-center justify-between px-3 pb-2">
+            <div className="flex items-center gap-1">
+              <MessageCircle className="w-3 h-3 text-white/30" />
+              <span className="text-[10px] text-white/30">וואטסאפ</span>
+            </div>
+            <span className="text-[10px] text-white/30">{time}</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex justify-start">
@@ -201,19 +237,10 @@ function WhatsappBubble({ message: m }: { message: WhatsappMessage }) {
           <span className="text-xs text-[var(--text-muted)]">{time}</span>
           <span className="text-xs font-medium text-green-400">סוכן</span>
         </div>
-
-        {isMedia && MediaIcon ? (
-          <div className="flex items-center gap-2 py-1">
-            <MediaIcon className="w-4 h-4 text-green-400 shrink-0" />
-            <span className="font-medium text-[var(--text-primary)]" dir="rtl">{m.mediaName}</span>
-          </div>
-        ) : null}
-
-        {m.content ? <p dir="rtl" className={isMedia ? 'text-xs text-[var(--text-secondary)] mt-0.5' : ''}>{m.content}</p> : null}
-
+        {m.content && <p dir="rtl">{m.content}</p>}
         <div className="flex items-center justify-end gap-1 mt-1.5">
           <MessageCircle className="w-3 h-3 text-green-500/60" />
-          <span className="text-[10px] text-green-500/60">{isMedia ? `מדיה • וואטסאפ` : 'נשלח בוואטסאפ'}</span>
+          <span className="text-[10px] text-green-500/60">נשלח בוואטסאפ</span>
         </div>
       </div>
     </div>

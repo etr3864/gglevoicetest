@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Upload, Trash2, AlertCircle, CheckCircle2, Loader2,
@@ -192,6 +192,12 @@ function MediaCard({
   const { toast } = useToast();
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({ name: item.name, description: item.description, caption: item.caption ?? '' });
+
+  useEffect(() => {
+    if (!editing) {
+      setForm({ name: item.name, description: item.description, caption: item.caption ?? '' });
+    }
+  }, [item.name, item.description, item.caption, editing]);
 
   const update = useMutation({
     mutationFn: () => api.patch(`/agents/${agentId}/media/${item.id}`, {
