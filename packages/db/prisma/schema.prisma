@@ -66,7 +66,11 @@ model Agent {
   scheduledReminders       ScheduledReminder[]
   whatsappMessages         WhatsappMessage[]
   usageMonthly             AgentUsageMonthly[]
-  knowledgeDocuments       KnowledgeDocument[]
+  knowledgeDocuments        KnowledgeDocument[]
+  mediaEnabled              Boolean    @default(true) @map("media_enabled")
+  mediaInstructions         String?    @map("media_instructions") @db.Text
+  mediaAnalysisInstructions String?    @map("media_analysis_instructions") @db.Text
+  mediaItems                MediaItem[]
 
   @@map("agents")
 }
@@ -204,6 +208,9 @@ model WhatsappMessage {
   content           String   @db.Text
   providerMessageId String?  @map("provider_message_id")
   callId            String?  @map("call_id")
+  mediaItemId       String?  @map("media_item_id")
+  mediaType         String?  @map("media_type")
+  mediaName         String?  @map("media_name")
   errorCode         String?  @map("error_code")
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @updatedAt @map("updated_at")
@@ -247,6 +254,7 @@ model PricingConfig {
   telnyxRecordingPerMin  Float  @default(0.002) @map("telnyx_recording_per_min")
   deepgramPerSec         Float  @default(0.000128) @map("deepgram_per_sec")
   usdToIls               Float  @default(3.65) @map("usd_to_ils")
+  mediaAnalysisPer1M     Float  @default(0.075) @map("media_analysis_per_1m")
 
   @@map("pricing_config")
 }
@@ -264,9 +272,10 @@ model AgentUsageMonthly {
   totalTextOutputTokens  Int    @default(0) @map("total_text_output_tokens")
   totalSummaryTokens     Int    @default(0) @map("total_summary_tokens")
   totalEmbeddingTokens   Int    @default(0) @map("total_embedding_tokens")
-  totalDeepgramSec       Int    @default(0) @map("total_deepgram_sec")
-  totalRecordingSec      Int    @default(0) @map("total_recording_sec")
-  whatsappMsgCount       Int    @default(0) @map("whatsapp_msg_count")
+  totalDeepgramSec             Int    @default(0) @map("total_deepgram_sec")
+  totalRecordingSec            Int    @default(0) @map("total_recording_sec")
+  whatsappMsgCount             Int    @default(0) @map("whatsapp_msg_count")
+  totalMediaAnalysisTokens     Int    @default(0) @map("total_media_analysis_tokens")
   agent                  Agent  @relation(fields: [agentId], references: [id])
 
   @@unique([agentId, yearMonth])
@@ -288,6 +297,29 @@ model KnowledgeDocument {
 
   @@index([agentId, status])
   @@map("knowledge_documents")
+}
+
+model MediaItem {
+  id                String   @id @default(uuid())
+  agentId           String   @map("agent_id")
+  mediaType         String   @map("media_type")
+  name              String
+  description       String   @default("") @db.Text
+  caption           String?  @db.Text
+  gcsPath           String   @map("gcs_path")
+  thumbnailPath     String?  @map("thumbnail_path")
+  originalSizeBytes Int      @map("original_size_bytes")
+  fileSizeBytes     Int      @map("file_size_bytes")
+  wasCompressed     Boolean  @default(false) @map("was_compressed")
+  mimeType          String   @map("mime_type")
+  status            String   @default("processing")
+  errorMsg          String?  @map("error_msg")
+  embedding         Unsupported("vector(768)")?
+  createdAt         DateTime @default(now()) @map("created_at")
+  agent             Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@index([agentId, mediaType, status])
+  @@map("media_items")
 }
 
 model KnowledgeChunk {

@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { X, Trash2, Clock, Phone, Play, Pause, Download, RefreshCw, FileText, PhoneIncoming, PhoneOutgoing, MessageCircle } from 'lucide-react';
+import { X, Trash2, Clock, Phone, Play, Pause, Download, RefreshCw, FileText, PhoneIncoming, PhoneOutgoing, MessageCircle, Image, Video, File } from 'lucide-react';
 import { useState, useRef, useEffect, useMemo } from 'react';
 import api from '../../lib/api';
 import { Button } from '../../components/ui/Button';
@@ -7,7 +7,14 @@ import { Badge } from '../../components/ui/Badge';
 import { cn } from '../../lib/cn';
 
 interface Utterance { id: string; speaker: string; startMs: number; text: string }
-interface WhatsappMessage { id: string; content: string; createdAt: string; status: string }
+interface WhatsappMessage {
+  id: string;
+  content: string;
+  createdAt: string;
+  status: string;
+  mediaType?: string | null;
+  mediaName?: string | null;
+}
 
 type TimelineItem =
   | { type: 'utterance'; sortMs: number; data: Utterance }
@@ -180,8 +187,12 @@ function UtteranceBubble({ utterance: u, call }: { utterance: Utterance; call: a
   );
 }
 
+const MEDIA_ICONS: Record<string, typeof Image> = { image: Image, video: Video };
+
 function WhatsappBubble({ message: m }: { message: WhatsappMessage }) {
   const time = new Date(m.createdAt).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const isMedia = !!m.mediaType;
+  const MediaIcon = m.mediaType ? (MEDIA_ICONS[m.mediaType] ?? File) : null;
 
   return (
     <div className="flex justify-start">
@@ -190,10 +201,19 @@ function WhatsappBubble({ message: m }: { message: WhatsappMessage }) {
           <span className="text-xs text-[var(--text-muted)]">{time}</span>
           <span className="text-xs font-medium text-green-400">סוכן</span>
         </div>
-        <p dir="rtl">{m.content}</p>
+
+        {isMedia && MediaIcon ? (
+          <div className="flex items-center gap-2 py-1">
+            <MediaIcon className="w-4 h-4 text-green-400 shrink-0" />
+            <span className="font-medium text-[var(--text-primary)]" dir="rtl">{m.mediaName}</span>
+          </div>
+        ) : null}
+
+        {m.content ? <p dir="rtl" className={isMedia ? 'text-xs text-[var(--text-secondary)] mt-0.5' : ''}>{m.content}</p> : null}
+
         <div className="flex items-center justify-end gap-1 mt-1.5">
           <MessageCircle className="w-3 h-3 text-green-500/60" />
-          <span className="text-[10px] text-green-500/60">נשלח בוואטסאפ</span>
+          <span className="text-[10px] text-green-500/60">{isMedia ? `מדיה • וואטסאפ` : 'נשלח בוואטסאפ'}</span>
         </div>
       </div>
     </div>

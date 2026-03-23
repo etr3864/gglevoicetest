@@ -8,8 +8,10 @@ import {
   SEARCH_KNOWLEDGE_DEFINITION, handleSearchKnowledge,
   QUERY_TABLE_DEFINITION, handleQueryTable,
 } from './knowledge-tool';
+import { SEND_MEDIA_DEFINITION, handleSendMedia } from './media-tool';
 
 export { SEARCH_KNOWLEDGE_DEFINITION, handleSearchKnowledge, QUERY_TABLE_DEFINITION, handleQueryTable };
+export { SEND_MEDIA_DEFINITION };
 
 export function registerBuiltinTools(): void {
   registerCalendarTools();
@@ -17,6 +19,7 @@ export function registerBuiltinTools(): void {
   globalRegistry.register(SEND_WHATSAPP_DEFINITION, handleSendWhatsapp);
   globalRegistry.register(SEARCH_KNOWLEDGE_DEFINITION, handleSearchKnowledge);
   globalRegistry.register(QUERY_TABLE_DEFINITION, handleQueryTable);
+  globalRegistry.register(SEND_MEDIA_DEFINITION, handleSendMedia);
   globalRegistry.register(
     {
       name: 'end_call',

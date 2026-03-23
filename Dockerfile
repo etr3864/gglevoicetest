@@ -76,7 +76,7 @@ COPY --from=builder /app/apps/api/dist         ./apps/api/dist
 COPY packages/db/prisma ./packages/db/prisma
 RUN pnpm dlx prisma@6 generate --schema=packages/db/prisma/schema.prisma
 
-RUN apk add --no-cache tzdata
+RUN apk add --no-cache tzdata ffmpeg
 
 RUN chown -R nodejs:nodejs /app
 USER nodejs

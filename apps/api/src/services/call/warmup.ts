@@ -8,10 +8,11 @@ import { GeminiProvider, geminiKeyPool } from '../providers';
 import { globalRegistry } from '../tools';
 import type { DeepgramTranscriber } from '../transcription';
 import { buildContactContext } from '../contact-context';
-import { buildSchedulingPrompt, buildWhatsappPrompt, buildWhatsappContextSection, resolveDirectionalPrompts } from './prompt-builder';
+import { buildSchedulingPrompt, buildWhatsappPrompt, buildWhatsappContextSection, buildMediaPrompt, resolveDirectionalPrompts } from './prompt-builder';
 import { SEND_WHATSAPP_DEFINITION } from '../tools/whatsapp-tool';
-import { SEARCH_KNOWLEDGE_DEFINITION, handleSearchKnowledge, QUERY_TABLE_DEFINITION, handleQueryTable } from '../tools/builtin';
+import { SEARCH_KNOWLEDGE_DEFINITION, handleSearchKnowledge, QUERY_TABLE_DEFINITION, handleQueryTable, SEND_MEDIA_DEFINITION } from '../tools/builtin';
 import { getWarmupContext } from '../knowledge/knowledge.service';
+import { getMediaContext } from '../media/media.service';
 import type { VoiceProvider, ProviderConfig, ProviderEvents, ToolResult } from '../providers/types';
 import { mergeModelConfig, type ModelConfig } from '../providers/types';
 
@@ -173,7 +174,7 @@ export async function buildProviderConfig(
   const systemPromptOverride = callContext?.__systemPrompt as string | undefined;
   const openingMessageOverride = callContext?.__openingMessage as string | undefined;
 
-  const [agent, contactCtx, knowledgeCtx] = await Promise.all([
+  const [agent, contactCtx, knowledgeCtx, mediaCtx] = await Promise.all([
     prisma.agent.findUnique({
       where: { id: agentId },
       select: {
@@ -189,10 +190,13 @@ export async function buildProviderConfig(
         whatsappProvider: true,
         whatsappInstructions: true,
         whatsappContextMessages: true,
+        mediaEnabled: true,
+        mediaInstructions: true,
       },
     }),
     contactPhone && !systemPromptOverride ? buildContactContext(contactPhone) : null,
     !systemPromptOverride ? getWarmupContext(agentId).catch(() => null) : null,
+    !systemPromptOverride ? getMediaContext(agentId).catch(() => null) : null,
   ]);
 
   if (!agent) {
@@ -233,6 +237,10 @@ export async function buildProviderConfig(
     if (knowledgeCtx?.promptSection) {
       systemPrompt += `\n\n${knowledgeCtx.promptSection}`;
     }
+
+    if (mediaCtx && agent.mediaEnabled) {
+      systemPrompt += buildMediaPrompt(agent, mediaCtx);
+    }
   }
 
   const apiKey = geminiKeyPool.next();
@@ -246,6 +254,7 @@ export async function buildProviderConfig(
     if (t.name === 'send_whatsapp') return !!agent.whatsappProvider;
     if (t.name === 'search_knowledge') return !!(knowledgeMeta?.hasTextDocs);
     if (t.name === 'query_table') return !!(knowledgeMeta?.hasTables);
+    if (t.name === 'send_media') return !!(agent.mediaEnabled && agent.whatsappProvider && mediaCtx?.hasMedia);
     return true;
   });
 

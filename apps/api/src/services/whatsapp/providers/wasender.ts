@@ -1,4 +1,4 @@
-import type { WhatsappProvider, SendResult, WasenderConfig } from './types';
+import type { WhatsappProvider, SendResult, WasenderConfig, MediaPayload } from './types';
 
 const SEND_URL = 'https://www.wasenderapi.com/api/send-message';
 
@@ -11,17 +11,28 @@ export class WasenderWhatsappProvider implements WhatsappProvider {
   constructor(private readonly config: WasenderConfig) {}
 
   async send(to: string, text: string, timeoutMs = 10_000): Promise<SendResult> {
-    const body = JSON.stringify({ to, text });
+    return this.post({ to, text }, timeoutMs);
+  }
 
+  async sendMedia(to: string, media: MediaPayload, timeoutMs = 60_000): Promise<SendResult> {
+    const body: Record<string, string | undefined> = { to };
+
+    if (media.type === 'image') body.imageUrl = media.url;
+    else if (media.type === 'video') body.videoUrl = media.url;
+    else { body.documentUrl = media.url; body.fileName = media.filename; }
+
+    if (media.caption) body.text = media.caption;
+
+    return this.post(body, timeoutMs);
+  }
+
+  private async post(payload: Record<string, string | undefined>, timeoutMs: number): Promise<SendResult> {
     let response: Response;
     try {
       response = await fetch(SEND_URL, {
         method: 'POST',
-        headers: {
-          Authorization: `Bearer ${this.config.apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body,
+        headers: { Authorization: `Bearer ${this.config.apiKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
         signal: AbortSignal.timeout(timeoutMs),
       });
     } catch (err) {
@@ -39,9 +50,7 @@ export class WasenderWhatsappProvider implements WhatsappProvider {
     try {
       const err = await response.json() as { message?: string };
       errorMessage = err.message ?? errorMessage;
-    } catch {
-      // ignore
-    }
+    } catch { /* ignore */ }
 
     return { ok: false, retryable, code: String(response.status), message: errorMessage };
   }

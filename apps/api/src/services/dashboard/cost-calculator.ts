@@ -3,6 +3,7 @@ interface PricingConfig {
   geminiAudioOutputPer1M: number;
   geminiSummaryPer1M: number;
   embeddingPer1M: number;
+  mediaAnalysisPer1M: number;
   telnyxCallPerMin: number;
   telnyxRecordingPerMin: number;
   deepgramPerSec: number;
@@ -16,6 +17,7 @@ export interface UsageMetrics {
   totalTextOutputTokens: number;
   totalSummaryTokens: number;
   totalEmbeddingTokens: number;
+  totalMediaAnalysisTokens: number;
   totalBilledSec: number;
   totalRecordingSec: number;
   totalDeepgramSec: number;
@@ -25,6 +27,7 @@ export interface CostBreakdownIls {
   geminiAudioCost: number;
   geminiTextCost: number;
   embeddingCost: number;
+  mediaAnalysisCost: number;
   telnyxCallCost: number;
   telnyxRecordingCost: number;
   deepgramCost: number;
@@ -43,17 +46,19 @@ export function calculateCosts(usage: UsageMetrics, pricing: PricingConfig): Cos
     pricing.geminiSummaryPer1M * usdToIls;
 
   const embeddingCost = ((usage.totalEmbeddingTokens ?? 0) / 1_000_000) * pricing.embeddingPer1M * usdToIls;
+  const mediaAnalysisCost = ((usage.totalMediaAnalysisTokens ?? 0) / 1_000_000) * (pricing.mediaAnalysisPer1M ?? 0.075) * usdToIls;
 
   const telnyxCallCost = (usage.totalBilledSec / 60) * pricing.telnyxCallPerMin * usdToIls;
   const telnyxRecordingCost = (usage.totalRecordingSec / 60) * pricing.telnyxRecordingPerMin * usdToIls;
   const deepgramCost = usage.totalDeepgramSec * pricing.deepgramPerSec * usdToIls;
 
-  const totalCost = geminiAudioCost + geminiTextCost + embeddingCost + telnyxCallCost + telnyxRecordingCost + deepgramCost;
+  const totalCost = geminiAudioCost + geminiTextCost + embeddingCost + mediaAnalysisCost + telnyxCallCost + telnyxRecordingCost + deepgramCost;
 
   return {
     geminiAudioCost: round2(geminiAudioCost),
     geminiTextCost: round2(geminiTextCost),
     embeddingCost: round2(embeddingCost),
+    mediaAnalysisCost: round2(mediaAnalysisCost),
     telnyxCallCost: round2(telnyxCallCost),
     telnyxRecordingCost: round2(telnyxRecordingCost),
     deepgramCost: round2(deepgramCost),

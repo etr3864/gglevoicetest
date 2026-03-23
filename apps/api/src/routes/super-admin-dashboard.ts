@@ -84,6 +84,7 @@ interface UsageRow {
   total_text_output_tokens: bigint;
   total_summary_tokens: bigint;
   total_embedding_tokens: bigint;
+  total_media_analysis_tokens: bigint;
   total_billed_sec: bigint;
   total_recording_sec: bigint;
   total_deepgram_sec: bigint;
@@ -109,6 +110,7 @@ async function fetchUsageByAgent(from: Date | null, to: Date | null) {
       SUM(total_text_output_tokens)::bigint AS total_text_output_tokens,
       SUM(total_summary_tokens)::bigint AS total_summary_tokens,
       SUM(total_embedding_tokens)::bigint AS total_embedding_tokens,
+      SUM(total_media_analysis_tokens)::bigint AS total_media_analysis_tokens,
       SUM(total_billed_sec)::bigint AS total_billed_sec,
       SUM(total_recording_sec)::bigint AS total_recording_sec,
       SUM(total_deepgram_sec)::bigint AS total_deepgram_sec
@@ -123,6 +125,7 @@ function groupUsageByAgent(rows: UsageRow[]) {
     totalAudioInputTokens: number; totalAudioOutputTokens: number;
     totalTextInputTokens: number; totalTextOutputTokens: number;
     totalSummaryTokens: number; totalEmbeddingTokens: number;
+    totalMediaAnalysisTokens: number;
     totalBilledSec: number; totalRecordingSec: number; totalDeepgramSec: number;
   }>();
   for (const r of rows) {
@@ -133,6 +136,7 @@ function groupUsageByAgent(rows: UsageRow[]) {
       totalTextOutputTokens: Number(r.total_text_output_tokens),
       totalSummaryTokens: Number(r.total_summary_tokens),
       totalEmbeddingTokens: Number(r.total_embedding_tokens),
+      totalMediaAnalysisTokens: Number(r.total_media_analysis_tokens),
       totalBilledSec: Number(r.total_billed_sec),
       totalRecordingSec: Number(r.total_recording_sec),
       totalDeepgramSec: Number(r.total_deepgram_sec),
@@ -191,7 +195,7 @@ async function fetchPerformance(agentId: string, from: Date | null, to: Date | n
 }
 
 function zeroCosts(): CostBreakdownIls {
-  return { geminiAudioCost: 0, geminiTextCost: 0, embeddingCost: 0, telnyxCallCost: 0, telnyxRecordingCost: 0, deepgramCost: 0, totalCost: 0 };
+  return { geminiAudioCost: 0, geminiTextCost: 0, embeddingCost: 0, mediaAnalysisCost: 0, telnyxCallCost: 0, telnyxRecordingCost: 0, deepgramCost: 0, totalCost: 0 };
 }
 
 function round2(n: number): number {

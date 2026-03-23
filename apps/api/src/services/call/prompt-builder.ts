@@ -1,6 +1,7 @@
 import type { BusinessHours } from '@voice/shared';
 import { formatNow } from '../../lib/date';
 import { getContextMessages } from '../whatsapp/whatsapp.service';
+import type { MediaContext } from '../media/types';
 
 interface AgentPromptData {
   basePrompt: string | null;
@@ -124,7 +125,7 @@ export async function buildWhatsappContextSection(
   const messages = await getContextMessages(agentId, contactPhone, limit);
   if (messages.length === 0) return '';
 
-  const lines = messages.map(m => {
+  const lines = messages.map((m: { direction: string; content: string; createdAt: Date }) => {
     const direction = m.direction === 'outbound' ? 'Agent' : 'Customer';
     const date = m.createdAt.toISOString().slice(0, 16).replace('T', ' ');
     return `[${date}] ${direction}: ${m.content}`;
@@ -138,6 +139,33 @@ export async function buildWhatsappContextSection(
   }
 
   return `\n\n--- WhatsApp History ---\n${text}`;
+}
+
+const MEDIA_INJECT_THRESHOLD = 15;
+
+interface AgentMediaData {
+  mediaEnabled: boolean;
+  mediaInstructions: string | null;
+}
+
+export function buildMediaPrompt(agent: AgentMediaData, mediaCtx: MediaContext): string {
+  if (!agent.mediaEnabled || !mediaCtx.hasMedia) return '';
+
+  const lines = ['\n\n--- ספריית מדיה ---'];
+
+  if (mediaCtx.items && mediaCtx.totalCount <= MEDIA_INJECT_THRESHOLD) {
+    lines.push('יש לך קבצי מדיה זמינים. כשרלוונטי, שלח אותם ישירות ב-send_media עם ה-ID המדויק:');
+    for (const item of mediaCtx.items) {
+      const caption = item.caption ? ` [כיתוב: "${item.caption}"]` : '';
+      lines.push(`• ID:${item.id} [${item.mediaType}] ${item.name} — ${item.description}${caption}`);
+    }
+  } else {
+    lines.push(`יש לך ${mediaCtx.totalCount} קבצי מדיה זמינים. השתמש ב-send_media(query) כדי למצוא ולשלוח תמונות, סרטונים או מסמכים.`);
+  }
+
+  if (agent.mediaInstructions) lines.push(agent.mediaInstructions);
+
+  return lines.join('\n');
 }
 
 function formatBusinessHours(hours: BusinessHours): string {

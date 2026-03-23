@@ -21,9 +21,10 @@
     "onlyBuiltDependencies": [
       "@prisma/client",
       "@prisma/engines",
-      "prisma",
       "esbuild",
-      "msgpackr-extract"
+      "msgpackr-extract",
+      "prisma",
+      "sharp"
     ]
   }
 }

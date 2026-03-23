@@ -2,6 +2,7 @@ import { prisma } from '@voice/db';
 import { normalizePhone } from '../../lib/phone';
 import { whatsappSendQueue } from '../../lib/queue';
 import { upsertMonthlyUsage } from '../usage/usage.service';
+import type { MediaContextItem } from '../media/types';
 
 export async function sendMessage(
   agentId: string,
@@ -44,6 +45,52 @@ export async function sendMessage(
       },
     );
 
+    upsertMonthlyUsage(agentId, { whatsappMsgCount: 1 }).catch(() => {});
+  } catch (err) {
+    await prisma.whatsappMessage.update({
+      where: { id: row.id },
+      data: { status: 'failed', errorCode: 'ENQUEUE_FAILED' },
+    });
+    throw err;
+  }
+}
+
+export async function sendMediaMessage(
+  agentId: string,
+  contactPhone: string,
+  mediaItem: MediaContextItem & { gcsPath: string },
+  captionOverride: string | undefined,
+  callId?: string,
+): Promise<void> {
+  const agent = await prisma.agent.findUnique({
+    where: { id: agentId },
+    select: { whatsappProvider: true },
+  });
+  if (!agent?.whatsappProvider) throw new Error('Agent has no WhatsApp provider configured');
+
+  const phone = normalizePhone(contactPhone);
+  const caption = captionOverride ?? mediaItem.caption ?? '';
+
+  const row = await prisma.whatsappMessage.create({
+    data: {
+      agentId,
+      contactPhone: phone,
+      direction: 'outbound',
+      status: 'pending',
+      content: caption,
+      callId: callId ?? null,
+      mediaItemId: mediaItem.id,
+      mediaType: mediaItem.mediaType,
+      mediaName: mediaItem.name,
+    },
+  });
+
+  try {
+    await whatsappSendQueue.add(
+      'send',
+      { messageId: row.id, isMedia: true },
+      { jobId: row.id, attempts: 5, backoff: { type: 'exponential', delay: 2000 }, removeOnComplete: 1000, removeOnFail: 500 },
+    );
     upsertMonthlyUsage(agentId, { whatsappMsgCount: 1 }).catch(() => {});
   } catch (err) {
     await prisma.whatsappMessage.update({
