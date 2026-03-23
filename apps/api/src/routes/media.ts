@@ -16,9 +16,9 @@ const VIDEO_EXTS = new Set(['mp4', 'mov', 'avi', 'mkv', 'webm']);
 const FILE_EXTS  = new Set(['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt']);
 
 const SIZE_LIMITS: Record<string, number> = {
-  image: 10 * 1024 * 1024,
-  video: 50 * 1024 * 1024,
-  file:  25 * 1024 * 1024,
+  image:  10 * 1024 * 1024,
+  video: 500 * 1024 * 1024,
+  file:   25 * 1024 * 1024,
 };
 
 function detectMediaType(filename: string): MediaType | null {
@@ -31,7 +31,7 @@ function detectMediaType(filename: string): MediaType | null {
 
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 50 * 1024 * 1024, files: 30 },
+  limits: { fileSize: 500 * 1024 * 1024, files: 30 },
   fileFilter: (_req, file, cb) => {
     if (!detectMediaType(file.originalname)) {
       return cb(new AppError(400, 'INVALID_FILE_TYPE', `Unsupported file type: ${file.originalname}`));
@@ -39,6 +39,16 @@ const upload = multer({
     cb(null, true);
   },
 });
+
+function handleUpload(req: any, res: any, next: any) {
+  upload.array('files')(req, res, (err: any) => {
+    if (err?.code === 'LIMIT_FILE_SIZE') {
+      return next(new AppError(400, 'FILE_TOO_LARGE', 'הקובץ גדול מדי (מקסימום 500MB לסרטון, 10MB לתמונה, 25MB לקובץ)'));
+    }
+    if (err) return next(err);
+    next();
+  });
+}
 
 function assertSuperAdmin(req: Express.Request): void {
   if (req.user?.role !== 'super_admin') throw new AppError(403, 'FORBIDDEN', 'Super admin only');
@@ -95,7 +105,7 @@ router.get('/', async (req, res) => {
 });
 
 // POST /agents/:agentId/media — upload files
-router.post('/', upload.array('files'), async (req, res) => {
+router.post('/', handleUpload, async (req, res) => {
   assertSuperAdmin(req as any);
   const { agentId } = req.params as Params;
 
