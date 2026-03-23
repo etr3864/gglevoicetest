@@ -29,17 +29,17 @@ import type { UserRole } from '@voice/shared';
 
 type Tab = 'prompt' | 'calls' | 'contacts' | 'calendar' | 'reminders' | 'summaries' | 'whatsapp' | 'knowledge' | 'media' | 'settings';
 
-const allTabs: { key: Tab; label: string; icon: typeof Terminal; roles: UserRole[] }[] = [
-  { key: 'prompt',    label: 'System Prompt', icon: Terminal,       roles: ['super_admin'] },
-  { key: 'calls',     label: 'שיחות',         icon: Phone,          roles: ['super_admin', 'admin', 'employee'] },
-  { key: 'contacts',  label: 'אנשי קשר',      icon: Users,          roles: ['super_admin', 'admin'] },
-  { key: 'calendar',  label: 'יומן',           icon: CalendarDays,   roles: ['super_admin'] },
-  { key: 'reminders', label: 'תזכורות',        icon: Bell,           roles: ['super_admin'] },
-  { key: 'summaries', label: 'סיכומים',        icon: ScrollText,     roles: ['super_admin'] },
-  { key: 'whatsapp',  label: 'וואטסאפ',       icon: MessageCircle,  roles: ['super_admin'] },
-  { key: 'knowledge', label: 'בסיס ידע',      icon: BookOpen,       roles: ['super_admin'] },
-  { key: 'media',     label: 'מדיה',           icon: ImagePlay,      roles: ['super_admin'] },
-  { key: 'settings',  label: 'הגדרות',        icon: Settings2,      roles: ['super_admin'] },
+const allTabs: { key: Tab; label: string; icon: typeof Terminal; roles: UserRole[]; group: number }[] = [
+  { key: 'calls',     label: 'שיחות',        icon: Phone,         roles: ['super_admin', 'admin', 'employee'], group: 1 },
+  { key: 'contacts',  label: 'אנשי קשר',     icon: Users,         roles: ['super_admin', 'admin'],            group: 1 },
+  { key: 'calendar',  label: 'יומן',          icon: CalendarDays,  roles: ['super_admin'],                     group: 1 },
+  { key: 'reminders', label: 'תזכורות',       icon: Bell,          roles: ['super_admin'],                     group: 1 },
+  { key: 'whatsapp',  label: 'וואטסאפ',      icon: MessageCircle, roles: ['super_admin'],                     group: 2 },
+  { key: 'summaries', label: 'סיכומים',       icon: ScrollText,    roles: ['super_admin'],                     group: 2 },
+  { key: 'knowledge', label: 'בסיס ידע',     icon: BookOpen,      roles: ['super_admin'],                     group: 3 },
+  { key: 'media',     label: 'מדיה',          icon: ImagePlay,     roles: ['super_admin'],                     group: 3 },
+  { key: 'settings',  label: 'הגדרות',       icon: Settings2,     roles: ['super_admin'],                     group: 4 },
+  { key: 'prompt',    label: 'System Prompt', icon: Terminal,      roles: ['super_admin'],                     group: 4 },
 ];
 
 export default function AgentDetailPage() {
@@ -227,21 +227,26 @@ export default function AgentDetailPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 border-b border-[var(--border)]">
-        {tabs.map(({ key, label, icon: Icon }) => (
-          <button
-            key={key}
-            onClick={() => setTab(key)}
-            className={cn(
-              'flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors -mb-px',
-              tab === key
-                ? 'border-[var(--accent)] text-[var(--accent)]'
-                : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+      <div className="flex items-end gap-0.5 border-b border-[var(--border)] overflow-x-auto scrollbar-none">
+        {tabs.map(({ key, label, icon: Icon, group }, index) => (
+          <>
+            {index > 0 && tabs[index - 1].group !== group && (
+              <div key={`sep-${group}`} className="w-px h-4 bg-[var(--border)] self-center mx-1 shrink-0" />
             )}
-          >
-            <Icon className="w-4 h-4" />
-            {label}
-          </button>
+            <button
+              key={key}
+              onClick={() => setTab(key)}
+              className={cn(
+                'flex items-center gap-1.5 px-3 py-2.5 text-xs font-medium border-b-2 transition-colors -mb-px whitespace-nowrap shrink-0',
+                tab === key
+                  ? 'border-[var(--accent)] text-[var(--accent)]'
+                  : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+              )}
+            >
+              <Icon className="w-3.5 h-3.5" />
+              {label}
+            </button>
+          </>
         ))}
       </div>
 

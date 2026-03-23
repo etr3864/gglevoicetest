@@ -16,7 +16,8 @@ export const SEND_MEDIA_DEFINITION: ToolDefinition = {
   description:
     'Find and send a media file (image, video, document) to the customer via WhatsApp. ' +
     'Use when the customer asks for visual materials, price lists, documents or videos. ' +
-    'Provide a descriptive query or the exact media ID if you see it in the media list.',
+    'Provide a descriptive query or the exact media ID from the media list. ' +
+    'To send multiple items: call this tool separately for each one with a unique query or ID — never use an empty query.',
   parameters: {
     query: {
       type: 'string',

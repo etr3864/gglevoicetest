@@ -154,13 +154,20 @@ export function buildMediaPrompt(agent: AgentMediaData, mediaCtx: MediaContext):
   const lines = ['\n\n--- ספריית מדיה ---'];
 
   if (mediaCtx.items && mediaCtx.totalCount <= MEDIA_INJECT_THRESHOLD) {
-    lines.push('יש לך קבצי מדיה זמינים. כשרלוונטי, שלח אותם ישירות ב-send_media עם ה-ID המדויק:');
+    lines.push(
+      'יש לך קבצי מדיה זמינים לשליחה. שלח כל פריט ב-send_media עם ה-ID המדויק שלו.' +
+      ' לשליחת כמה פריטים — קרא send_media בנפרד לכל ID (לעולם אל תשלח query ריק):'
+    );
     for (const item of mediaCtx.items) {
       const caption = item.caption ? ` [כיתוב: "${item.caption}"]` : '';
       lines.push(`• ID:${item.id} [${item.mediaType}] ${item.name} — ${item.description}${caption}`);
     }
   } else {
-    lines.push(`יש לך ${mediaCtx.totalCount} קבצי מדיה זמינים. השתמש ב-send_media(query) כדי למצוא ולשלוח תמונות, סרטונים או מסמכים.`);
+    lines.push(
+      `יש לך ${mediaCtx.totalCount} קבצי מדיה זמינים.` +
+      ' השתמש ב-send_media עם תיאור ספציפי לכל פריט.' +
+      ' לשליחת כמה פריטים — קרא מספר פעמים עם תיאורים שונים ומיוחדים לכל אחד.'
+    );
   }
 
   if (agent.mediaInstructions) lines.push(agent.mediaInstructions);
