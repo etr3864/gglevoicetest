@@ -196,6 +196,21 @@ router.patch('/:itemId', async (req, res) => {
   res.json({ data: updated });
 });
 
+// GET /agents/:agentId/media/:itemId/url — fresh signed URL for preview
+router.get('/:itemId/url', async (req, res) => {
+  assertSuperAdmin(req as any);
+  const { agentId, itemId } = req.params as Params;
+
+  const item = await prisma.mediaItem.findFirst({
+    where: { id: itemId!, agentId, status: 'ready' },
+    select: { gcsPath: true, mimeType: true },
+  });
+  if (!item) throw new AppError(404, 'NOT_FOUND', 'Media item not found');
+
+  const url = await getSignedUrl(item.gcsPath, 60);
+  res.json({ data: { url, mimeType: item.mimeType } });
+});
+
 // POST /agents/:agentId/media/:itemId/retry — retry failed item
 router.post('/:itemId/retry', async (req, res) => {
   assertSuperAdmin(req as any);

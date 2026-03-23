@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Upload, Trash2, AlertCircle, CheckCircle2, Loader2,
   Image, Video, File, Pencil, Check, X, RefreshCw,
-  Settings2, ChevronDown, ChevronUp, CheckSquare, Square,
+  Settings2, ChevronDown, ChevronUp, CheckSquare, Square, Eye,
 } from 'lucide-react';
 import api from '../../lib/api';
 import { Button } from '../../components/ui/Button';
@@ -47,6 +47,7 @@ export default function MediaTab({ agentId }: { agentId: string }) {
   const { toast } = useToast();
   const [subTab, setSubTab] = useState<SubTab>('image');
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [previewItem, setPreviewItem] = useState<MediaItem | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const activeSubTab = SUB_TABS.find((t) => t.key === subTab);
@@ -218,6 +219,7 @@ export default function MediaTab({ agentId }: { agentId: string }) {
                 agentId={agentId}
                 isSelected={selected.has(item.id)}
                 onToggleSelect={() => toggleSelect(item.id)}
+                onPreview={() => setPreviewItem(item)}
                 onDelete={() => remove.mutate(item.id)}
                 onRetry={() => retry.mutate(item.id)}
                 isDeleting={remove.isPending && remove.variables === item.id}
@@ -227,17 +229,26 @@ export default function MediaTab({ agentId }: { agentId: string }) {
           </div>
         </div>
       )}
+
+      {previewItem && (
+        <PreviewModal
+          item={previewItem}
+          agentId={agentId}
+          onClose={() => setPreviewItem(null)}
+        />
+      )}
     </div>
   );
 }
 
 function MediaCard({
-  item, agentId, isSelected, onToggleSelect, onDelete, onRetry, isDeleting, isRetrying,
+  item, agentId, isSelected, onToggleSelect, onPreview, onDelete, onRetry, isDeleting, isRetrying,
 }: {
   item: MediaItem;
   agentId: string;
   isSelected: boolean;
   onToggleSelect: () => void;
+  onPreview: () => void;
   onDelete: () => void;
   onRetry: () => void;
   isDeleting: boolean;
@@ -279,13 +290,22 @@ function MediaCard({
 
       <div className="flex gap-3 p-3">
         <div className="relative w-14 h-14 shrink-0">
-          <div className="w-14 h-14 rounded-lg bg-zinc-700/60 flex items-center justify-center overflow-hidden">
+          <button
+            onClick={item.status === 'ready' ? onPreview : undefined}
+            disabled={item.status !== 'ready'}
+            className="w-14 h-14 rounded-lg bg-zinc-700/60 flex items-center justify-center overflow-hidden group/thumb relative disabled:cursor-default"
+          >
             {preview ? (
               <img src={preview} alt={item.name} className="w-full h-full object-cover" />
             ) : (
               <MediaTypeIcon type={item.mediaType} />
             )}
-          </div>
+            {item.status === 'ready' && (
+              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/thumb:opacity-100 transition-opacity flex items-center justify-center rounded-lg">
+                <Eye className="w-4 h-4 text-white" />
+              </div>
+            )}
+          </button>
           <button
             onClick={onToggleSelect}
             className="absolute -top-1 -right-1 w-5 h-5 rounded flex items-center justify-center bg-zinc-900/80 hover:bg-zinc-800 transition-colors"
@@ -320,9 +340,14 @@ function MediaCard({
               </button>
             )}
             {item.status === 'ready' && !editing && (
-              <button onClick={() => setEditing(true)} className="p-1.5 rounded text-zinc-500 hover:text-violet-400 hover:bg-violet-400/10 transition-colors">
-                <Pencil className="w-4 h-4" />
-              </button>
+              <>
+                <button onClick={onPreview} className="p-1.5 rounded text-zinc-500 hover:text-blue-400 hover:bg-blue-400/10 transition-colors" title="תצוגה מקדימה">
+                  <Eye className="w-4 h-4" />
+                </button>
+                <button onClick={() => setEditing(true)} className="p-1.5 rounded text-zinc-500 hover:text-violet-400 hover:bg-violet-400/10 transition-colors">
+                  <Pencil className="w-4 h-4" />
+                </button>
+              </>
             )}
             <button onClick={onDelete} disabled={isDeleting} className="p-1.5 rounded text-zinc-500 hover:text-red-400 hover:bg-red-400/10 transition-colors disabled:opacity-40">
               {isDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
@@ -464,6 +489,108 @@ function SettingsPanel({ agentId, settings }: { agentId: string; settings: Media
       <Button onClick={() => save.mutate()} disabled={save.isPending} className="w-full">
         {save.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : 'שמור הגדרות'}
       </Button>
+    </div>
+  );
+}
+
+const PREVIEW_TYPE_LABEL: Record<string, string> = { image: 'תמונה', video: 'סרטון', file: 'קובץ' };
+
+function PreviewModal({ item, agentId, onClose }: { item: MediaItem; agentId: string; onClose: () => void }) {
+  const [url, setUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [zoomed, setZoomed] = useState(false);
+
+  useEffect(() => {
+    setLoading(true);
+    api.get(`/agents/${agentId}/media/${item.id}/url`)
+      .then((r) => setUrl(r.data.data.url))
+      .catch(() => setUrl(null))
+      .finally(() => setLoading(false));
+  }, [item.id, agentId]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  const isPdf = item.mimeType === 'application/pdf';
+  const isPreviewable = item.mediaType === 'image' || item.mediaType === 'video' || isPdf;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-zinc-900 border border-zinc-700/60 rounded-2xl w-full max-w-3xl max-h-[90vh] flex flex-col shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-700/60 shrink-0">
+          <button onClick={onClose} className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors">
+            <X className="w-5 h-5" />
+          </button>
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-xs font-medium text-zinc-400 bg-zinc-800 px-2 py-0.5 rounded shrink-0">
+              {PREVIEW_TYPE_LABEL[item.mediaType] ?? item.mediaType}
+            </span>
+            <p className="text-sm font-medium text-white truncate" dir="rtl">{item.name}</p>
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-hidden flex items-center justify-center min-h-0 bg-zinc-950/60 relative">
+          {loading ? (
+            <Loader2 className="w-8 h-8 animate-spin text-zinc-500" />
+          ) : !url ? (
+            <p className="text-zinc-500 text-sm">לא ניתן לטעון את הקובץ</p>
+          ) : item.mediaType === 'image' ? (
+            <img
+              src={url}
+              alt={item.name}
+              onClick={() => setZoomed((z) => !z)}
+              className={cn(
+                'max-h-[65vh] rounded-lg transition-all duration-200',
+                zoomed ? 'max-w-none scale-150 cursor-zoom-out' : 'max-w-full cursor-zoom-in object-contain',
+              )}
+            />
+          ) : item.mediaType === 'video' ? (
+            <video
+              src={url}
+              controls
+              autoPlay
+              poster={item.thumbnailUrl ?? undefined}
+              className="max-h-[65vh] max-w-full rounded-lg"
+            />
+          ) : isPdf ? (
+            <iframe
+              src={url}
+              title={item.name}
+              className="w-full h-[65vh] rounded-lg border-0"
+            />
+          ) : (
+            <div className="flex flex-col items-center gap-3 py-10 text-zinc-400">
+              <File className="w-12 h-12 text-zinc-600" />
+              <p className="text-sm">תצוגה מקדימה אינה זמינה עבור סוג קובץ זה</p>
+              <a href={url} target="_blank" rel="noreferrer" className="text-xs text-violet-400 hover:underline">פתח בחלון חדש</a>
+            </div>
+          )}
+          {item.mediaType === 'image' && url && !loading && (
+            <p className="absolute bottom-2 left-1/2 -translate-x-1/2 text-[10px] text-zinc-600 pointer-events-none">
+              {zoomed ? 'לחץ לצמצום' : 'לחץ להגדלה'}
+            </p>
+          )}
+        </div>
+
+        <div className="flex items-center justify-between px-4 py-2.5 border-t border-zinc-700/60 shrink-0">
+          <span className="text-xs text-zinc-500">{new Date(item.createdAt).toLocaleDateString('he-IL')}</span>
+          <div className="flex items-center gap-3">
+            {!isPreviewable && url && (
+              <a href={url} target="_blank" rel="noreferrer" className="text-xs text-violet-400 hover:underline">פתח בחלון חדש</a>
+            )}
+            <span className="text-xs text-zinc-500">{formatBytes(item.fileSizeBytes)}{item.wasCompressed ? ' • דחוס' : ''}</span>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
