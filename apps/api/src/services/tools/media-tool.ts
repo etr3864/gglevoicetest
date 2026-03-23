@@ -34,6 +34,7 @@ export const handleSendMedia: ToolHandler = async (args, ctx) => {
   const query = String(args.query ?? '').trim();
   const captionOverride = args.caption ? String(args.caption).trim() : undefined;
 
+  if (!query) return { sent: false, reason: 'empty_query' };
   if (!ctx.contactPhone) return { sent: false, reason: 'no_contact_phone' };
 
   const agent = await prisma.agent.findUnique({
