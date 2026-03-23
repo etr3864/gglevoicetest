@@ -70,6 +70,18 @@ async function validateMimeType(buffer: Buffer, expectedType: MediaType): Promis
   return mime;
 }
 
+// GET /agents/:agentId/media/counts
+router.get('/counts', async (req, res) => {
+  assertSuperAdmin(req as any);
+  const { agentId } = req.params as Params;
+  const [image, video, file] = await Promise.all([
+    prisma.mediaItem.count({ where: { agentId, mediaType: 'image' } }),
+    prisma.mediaItem.count({ where: { agentId, mediaType: 'video' } }),
+    prisma.mediaItem.count({ where: { agentId, mediaType: 'file' } }),
+  ]);
+  res.json({ data: { image, video, file } });
+});
+
 // GET /agents/:agentId/media?type=image|video|file
 router.get('/', async (req, res) => {
   assertSuperAdmin(req as any);

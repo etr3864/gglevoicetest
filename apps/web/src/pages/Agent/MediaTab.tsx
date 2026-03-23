@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Upload, Trash2, AlertCircle, CheckCircle2, Loader2,
   Image, Video, File, Pencil, Check, X, RefreshCw,
-  Settings2, ChevronDown, ChevronUp,
+  Settings2, ChevronDown, ChevronUp, CheckSquare, Square,
 } from 'lucide-react';
 import api from '../../lib/api';
 import { Button } from '../../components/ui/Button';
@@ -46,9 +46,15 @@ export default function MediaTab({ agentId }: { agentId: string }) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const [subTab, setSubTab] = useState<SubTab>('image');
+  const [selected, setSelected] = useState<Set<string>>(new Set());
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const activeSubTab = SUB_TABS.find((t) => t.key === subTab);
+
+  const { data: counts } = useQuery<Record<string, number>>({
+    queryKey: ['media-counts', agentId],
+    queryFn: () => api.get(`/agents/${agentId}/media/counts`).then((r) => r.data.data),
+  });
 
   const { data: items = [], isLoading } = useQuery<MediaItem[]>({
     queryKey: ['media', agentId, subTab],
@@ -66,6 +72,8 @@ export default function MediaTab({ agentId }: { agentId: string }) {
     enabled: subTab === 'settings',
   });
 
+  useEffect(() => { setSelected(new Set()); }, [subTab]);
+
   const upload = useMutation({
     mutationFn: (files: File[]) => {
       const form = new FormData();
@@ -74,6 +82,7 @@ export default function MediaTab({ agentId }: { agentId: string }) {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['media', agentId, subTab] });
+      qc.invalidateQueries({ queryKey: ['media-counts', agentId] });
       toast('הקבצים הועלו ומעובדים', 'success');
     },
     onError: (err: any) => toast(err?.response?.data?.message || 'שגיאה בהעלאה', 'error'),
@@ -83,7 +92,19 @@ export default function MediaTab({ agentId }: { agentId: string }) {
     mutationFn: (id: string) => api.delete(`/agents/${agentId}/media/${id}`),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['media', agentId, subTab] });
+      qc.invalidateQueries({ queryKey: ['media-counts', agentId] });
       toast('נמחק', 'success');
+    },
+    onError: () => toast('שגיאה במחיקה', 'error'),
+  });
+
+  const bulkRemove = useMutation({
+    mutationFn: (ids: string[]) => Promise.all(ids.map((id) => api.delete(`/agents/${agentId}/media/${id}`))),
+    onSuccess: () => {
+      setSelected(new Set());
+      qc.invalidateQueries({ queryKey: ['media', agentId, subTab] });
+      qc.invalidateQueries({ queryKey: ['media-counts', agentId] });
+      toast(`נמחקו ${selected.size} פריטים`, 'success');
     },
     onError: () => toast('שגיאה במחיקה', 'error'),
   });
@@ -100,8 +121,22 @@ export default function MediaTab({ agentId }: { agentId: string }) {
     e.target.value = '';
   }
 
+  function toggleSelect(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    setSelected(selected.size === items.length ? new Set() : new Set(items.map((i) => i.id)));
+  }
+
+  const allSelected = items.length > 0 && selected.size === items.length;
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-base font-semibold text-white">ספריית מדיה</h3>
@@ -113,14 +148,7 @@ export default function MediaTab({ agentId }: { agentId: string }) {
             העלה
           </Button>
         )}
-        <input
-          ref={fileInputRef}
-          type="file"
-          multiple
-          accept={activeSubTab?.accept ?? ''}
-          onChange={handleFileChange}
-          className="hidden"
-        />
+        <input ref={fileInputRef} type="file" multiple accept={activeSubTab?.accept ?? ''} onChange={handleFileChange} className="hidden" />
       </div>
 
       <div className="flex gap-1 border-b border-zinc-700/60">
@@ -130,22 +158,26 @@ export default function MediaTab({ agentId }: { agentId: string }) {
             onClick={() => setSubTab(key)}
             className={cn(
               'flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 transition-colors -mb-px',
-              subTab === key
-                ? 'border-violet-500 text-violet-400'
-                : 'border-transparent text-zinc-400 hover:text-white',
+              subTab === key ? 'border-violet-500 text-violet-400' : 'border-transparent text-zinc-400 hover:text-white',
             )}
           >
             <Icon className="w-3.5 h-3.5" />
             {label}
+            {counts?.[key] != null && counts[key] > 0 && (
+              <span className={cn(
+                'min-w-[18px] h-[18px] rounded-full text-[10px] font-semibold flex items-center justify-center px-1',
+                subTab === key ? 'bg-violet-500/20 text-violet-300' : 'bg-zinc-700 text-zinc-400',
+              )}>
+                {counts[key]}
+              </span>
+            )}
           </button>
         ))}
         <button
           onClick={() => setSubTab('settings')}
           className={cn(
             'flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 transition-colors -mb-px ml-auto',
-            subTab === 'settings'
-              ? 'border-violet-500 text-violet-400'
-              : 'border-transparent text-zinc-400 hover:text-white',
+            subTab === 'settings' ? 'border-violet-500 text-violet-400' : 'border-transparent text-zinc-400 hover:text-white',
           )}
         >
           <Settings2 className="w-3.5 h-3.5" />
@@ -160,18 +192,39 @@ export default function MediaTab({ agentId }: { agentId: string }) {
       ) : items.length === 0 ? (
         <EmptyState type={subTab} onUpload={() => fileInputRef.current?.click()} />
       ) : (
-        <div className="grid grid-cols-1 gap-3">
-          {items.map((item) => (
-            <MediaCard
-              key={item.id}
-              item={item}
-              agentId={agentId}
-              onDelete={() => remove.mutate(item.id)}
-              onRetry={() => retry.mutate(item.id)}
-              isDeleting={remove.isPending && remove.variables === item.id}
-              isRetrying={retry.isPending && retry.variables === item.id}
-            />
-          ))}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between text-sm">
+            <button onClick={toggleSelectAll} className="flex items-center gap-1.5 text-zinc-400 hover:text-white transition-colors">
+              {allSelected ? <CheckSquare className="w-4 h-4 text-violet-400" /> : <Square className="w-4 h-4" />}
+              {allSelected ? 'בטל בחירה' : 'בחר הכל'}
+            </button>
+            {selected.size > 0 && (
+              <button
+                onClick={() => { if (confirm(`למחוק ${selected.size} פריטים?`)) bulkRemove.mutate([...selected]); }}
+                disabled={bulkRemove.isPending}
+                className="flex items-center gap-1.5 text-red-400 hover:text-red-300 transition-colors disabled:opacity-40"
+              >
+                {bulkRemove.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                מחק נבחרים ({selected.size})
+              </button>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 gap-3">
+            {items.map((item) => (
+              <MediaCard
+                key={item.id}
+                item={item}
+                agentId={agentId}
+                isSelected={selected.has(item.id)}
+                onToggleSelect={() => toggleSelect(item.id)}
+                onDelete={() => remove.mutate(item.id)}
+                onRetry={() => retry.mutate(item.id)}
+                isDeleting={remove.isPending && remove.variables === item.id}
+                isRetrying={retry.isPending && retry.variables === item.id}
+              />
+            ))}
+          </div>
         </div>
       )}
     </div>
@@ -179,10 +232,12 @@ export default function MediaTab({ agentId }: { agentId: string }) {
 }
 
 function MediaCard({
-  item, agentId, onDelete, onRetry, isDeleting, isRetrying,
+  item, agentId, isSelected, onToggleSelect, onDelete, onRetry, isDeleting, isRetrying,
 }: {
   item: MediaItem;
   agentId: string;
+  isSelected: boolean;
+  onToggleSelect: () => void;
   onDelete: () => void;
   onRetry: () => void;
   isDeleting: boolean;
@@ -216,16 +271,30 @@ function MediaCard({
   const preview = item.mediaType === 'image' ? item.previewUrl : item.thumbnailUrl;
 
   return (
-    <div className="bg-zinc-800/60 border border-zinc-700/50 rounded-xl overflow-hidden">
+    <div className={cn(
+      'border rounded-xl overflow-hidden transition-colors',
+      isSelected ? 'bg-violet-500/10 border-violet-500/40' : 'bg-zinc-800/60 border-zinc-700/50',
+    )}>
       {item.status === 'processing' && <ProcessingBar />}
 
       <div className="flex gap-3 p-3">
-        <div className="w-14 h-14 rounded-lg bg-zinc-700/60 flex items-center justify-center shrink-0 overflow-hidden">
-          {preview ? (
-            <img src={preview} alt={item.name} className="w-full h-full object-cover" />
-          ) : (
-            <MediaTypeIcon type={item.mediaType} />
-          )}
+        <div className="relative w-14 h-14 shrink-0">
+          <div className="w-14 h-14 rounded-lg bg-zinc-700/60 flex items-center justify-center overflow-hidden">
+            {preview ? (
+              <img src={preview} alt={item.name} className="w-full h-full object-cover" />
+            ) : (
+              <MediaTypeIcon type={item.mediaType} />
+            )}
+          </div>
+          <button
+            onClick={onToggleSelect}
+            className="absolute -top-1 -right-1 w-5 h-5 rounded flex items-center justify-center bg-zinc-900/80 hover:bg-zinc-800 transition-colors"
+          >
+            {isSelected
+              ? <CheckSquare className="w-4 h-4 text-violet-400" />
+              : <Square className="w-4 h-4 text-zinc-500 hover:text-zinc-300" />
+            }
+          </button>
         </div>
 
         <div className="flex-1 min-w-0">
