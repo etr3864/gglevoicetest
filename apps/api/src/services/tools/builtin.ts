@@ -110,11 +110,42 @@ export function registerBuiltinTools(): void {
 
   globalRegistry.register(
     {
+      name: 'save_contact',
+      description:
+        'Save the current caller as a contact. Call this at the start of every conversation to ensure the caller is recorded. ' +
+        'Provide any details you know — name, email, gender. All fields are optional.',
+      parameters: {
+        name:   { type: 'string', description: 'Full name' },
+        email:  { type: 'string', description: 'Email address' },
+        gender: { type: 'string', description: 'male / female' },
+        notes:  { type: 'string', description: 'Any relevant notes about this contact' },
+      },
+    },
+    async (args, ctx) => {
+      if (!ctx.contactPhone) return { saved: false, reason: 'no_phone' };
+      const data: Record<string, string> = {};
+      for (const key of ['name', 'email', 'gender', 'notes'] as const) {
+        if (typeof args[key] === 'string' && (args[key] as string).trim()) {
+          data[key] = (args[key] as string).trim();
+        }
+      }
+      const contact = await prisma.contact.upsert({
+        where:  { phone: ctx.contactPhone },
+        create: { phone: ctx.contactPhone, ...data },
+        update: data,
+        select: { id: true, name: true },
+      });
+      return { saved: true, contactId: contact.id, name: contact.name ?? null };
+    }
+  );
+
+  globalRegistry.register(
+    {
       name: 'update_contact',
       description: 'Update information about the current caller. Use whenever you learn new details like their name, email, or gender during the conversation.',
       parameters: {
-        name: { type: 'string', description: 'Full name' },
-        email: { type: 'string', description: 'Email address' },
+        name:   { type: 'string', description: 'Full name' },
+        email:  { type: 'string', description: 'Email address' },
         gender: { type: 'string', description: 'Gender: male / female' },
       },
     },
@@ -122,14 +153,15 @@ export function registerBuiltinTools(): void {
       if (!ctx.contactPhone) return { updated: false };
       const data: Record<string, string> = {};
       for (const key of ['name', 'email', 'gender'] as const) {
-        if (typeof args[key] === 'string' && args[key].trim()) {
-          data[key] = args[key].trim();
+        if (typeof args[key] === 'string' && (args[key] as string).trim()) {
+          data[key] = (args[key] as string).trim();
         }
       }
       if (Object.keys(data).length === 0) return { updated: false, reason: 'No fields provided' };
-      await prisma.contact.update({
-        where: { phone: ctx.contactPhone },
-        data,
+      await prisma.contact.upsert({
+        where:  { phone: ctx.contactPhone },
+        create: { phone: ctx.contactPhone, ...data },
+        update: data,
       });
       return { updated: true, fields: Object.keys(data) };
     }
