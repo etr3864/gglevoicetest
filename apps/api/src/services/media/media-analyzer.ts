@@ -5,12 +5,13 @@ import type { AnalysisContext, MediaAnalysisResult } from './types';
 const log = createLogger('media:analyzer');
 
 const auth = new GoogleAuth({ scopes: ['https://www.googleapis.com/auth/cloud-platform'] });
+const MEDIA_ANALYSIS_MODEL = process.env.MEDIA_ANALYSIS_MODEL || 'gemini-2.5-flash-lite';
 
 function getEndpoint(): string {
   const project = process.env.GCP_PROJECT_ID;
   const location = process.env.GCP_LOCATION || 'us-central1';
   if (!project) throw new Error('GCP_PROJECT_ID missing');
-  return `https://${location}-aiplatform.googleapis.com/v1/projects/${project}/locations/${location}/publishers/google/models/gemini-2.0-flash-001:generateContent`;
+  return `https://${location}-aiplatform.googleapis.com/v1/projects/${project}/locations/${location}/publishers/google/models/${MEDIA_ANALYSIS_MODEL}:generateContent`;
 }
 
 async function getAccessToken(): Promise<string> {
