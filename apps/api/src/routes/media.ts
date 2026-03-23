@@ -238,6 +238,9 @@ router.delete('/:itemId', async (req, res) => {
   const item = await prisma.mediaItem.findFirst({ where: { id: itemId!, agentId } });
   if (!item) throw new AppError(404, 'NOT_FOUND', 'Media item not found');
 
+  const job = await mediaQueue.getJob(itemId!);
+  await job?.remove().catch(() => {});
+
   await prisma.mediaItem.delete({ where: { id: itemId! } });
   await deleteMediaFiles(item.gcsPath, item.thumbnailPath);
 

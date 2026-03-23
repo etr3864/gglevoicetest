@@ -5,7 +5,7 @@ import { upsertMonthlyUsage } from '../services/usage/usage.service';
 import { embedTexts } from '../services/knowledge/embedding.service';
 import { compressIfNeeded } from '../services/media/media-compressor';
 import { analyzeImage, analyzeDocument } from '../services/media/media-analyzer';
-import { downloadMediaFile, uploadMediaFile, uploadThumbnail } from '../services/media/media-storage.service';
+import { downloadMediaFile, uploadMediaFile, uploadThumbnail, deleteMediaFiles } from '../services/media/media-storage.service';
 import type { MediaJobData } from '../services/media/types';
 
 const log = createLogger('media-worker');
@@ -47,8 +47,10 @@ async function fullProcessItem(data: MediaJobData): Promise<void> {
   });
 
   const buffer = await downloadMediaFile(gcsPath);
-
   const compression = await compressIfNeeded(buffer, mediaType, mimeType);
+
+  const stillExists = await prisma.mediaItem.findUnique({ where: { id: mediaItemId }, select: { id: true } });
+  if (!stillExists) return;
 
   let finalGcsPath = gcsPath;
   if (compression.wasCompressed) {
@@ -78,6 +80,12 @@ async function fullProcessItem(data: MediaJobData): Promise<void> {
   const { vectors } = await embedTexts([`${name} ${description}`]);
   const embedding = vectors[0];
   const vecStr = embedding ? `[${embedding.join(',')}]` : null;
+
+  const stillExistsAfterAI = await prisma.mediaItem.findUnique({ where: { id: mediaItemId }, select: { id: true } });
+  if (!stillExistsAfterAI) {
+    await deleteMediaFiles(finalGcsPath !== gcsPath ? finalGcsPath : '', thumbnailPath).catch(() => {});
+    return;
+  }
 
   const updateSql = vecStr
     ? `UPDATE media_items SET name=$1, description=$2, caption=$3, gcs_path=$4, thumbnail_path=$5, file_size_bytes=$6, was_compressed=$7, embedding='${vecStr}'::vector, status='ready', error_msg=NULL WHERE id=$8`

@@ -48,6 +48,7 @@ export default function MediaTab({ agentId }: { agentId: string }) {
   const [subTab, setSubTab] = useState<SubTab>('image');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [previewItem, setPreviewItem] = useState<MediaItem | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const activeSubTab = SUB_TABS.find((t) => t.key === subTab);
@@ -79,14 +80,24 @@ export default function MediaTab({ agentId }: { agentId: string }) {
     mutationFn: (files: File[]) => {
       const form = new FormData();
       files.forEach((f) => form.append('files', f));
-      return api.post(`/agents/${agentId}/media`, form, { headers: { 'Content-Type': 'multipart/form-data' } });
+      setUploadProgress(0);
+      return api.post(`/agents/${agentId}/media`, form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        onUploadProgress: (e: any) => {
+          if (e.total) setUploadProgress(Math.round((e.loaded / e.total) * 100));
+        },
+      });
     },
     onSuccess: () => {
+      setUploadProgress(null);
       qc.invalidateQueries({ queryKey: ['media', agentId, subTab] });
       qc.invalidateQueries({ queryKey: ['media-counts', agentId] });
       toast('הקבצים הועלו ומעובדים', 'success');
     },
-    onError: (err: any) => toast(err?.response?.data?.message || 'שגיאה בהעלאה', 'error'),
+    onError: (err: any) => {
+      setUploadProgress(null);
+      toast(err?.response?.data?.message || 'שגיאה בהעלאה', 'error');
+    },
   });
 
   const remove = useMutation({
@@ -144,10 +155,20 @@ export default function MediaTab({ agentId }: { agentId: string }) {
           <p className="text-sm text-zinc-400 mt-0.5">תמונות, סרטונים וקבצים לשליחה אוטומטית בשיחות</p>
         </div>
         {activeSubTab && (
-          <Button size="sm" onClick={() => fileInputRef.current?.click()} disabled={upload.isPending} className="gap-2">
-            {upload.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-            העלה
-          </Button>
+          <div className="flex flex-col items-end gap-1">
+            <Button size="sm" onClick={() => fileInputRef.current?.click()} disabled={upload.isPending} className="gap-2 relative overflow-hidden min-w-[80px]">
+              {upload.isPending
+                ? <><Loader2 className="w-4 h-4 animate-spin" />{uploadProgress !== null ? `${uploadProgress}%` : 'מעלה...'}</>
+                : <><Upload className="w-4 h-4" />העלה</>
+              }
+              {upload.isPending && uploadProgress !== null && (
+                <span
+                  className="absolute bottom-0 left-0 h-0.5 bg-white/40 transition-all duration-300"
+                  style={{ width: `${uploadProgress}%` }}
+                />
+              )}
+            </Button>
+          </div>
         )}
         <input ref={fileInputRef} type="file" multiple accept={activeSubTab?.accept ?? ''} onChange={handleFileChange} className="hidden" />
       </div>
@@ -286,8 +307,6 @@ function MediaCard({
       'border rounded-xl overflow-hidden transition-colors',
       isSelected ? 'bg-violet-500/10 border-violet-500/40' : 'bg-zinc-800/60 border-zinc-700/50',
     )}>
-      {item.status === 'processing' && <ProcessingBar />}
-
       <div className="flex gap-3 p-3">
         <div className="relative w-14 h-14 shrink-0">
           <button
@@ -356,6 +375,8 @@ function MediaCard({
           <span className="text-[10px] text-zinc-600">{formatBytes(item.fileSizeBytes)}{item.wasCompressed ? ' (דחוס)' : ''}</span>
         </div>
       </div>
+
+      {item.status === 'processing' && <ProcessingProgress item={item} />}
     </div>
   );
 }
@@ -595,10 +616,72 @@ function PreviewModal({ item, agentId, onClose }: { item: MediaItem; agentId: st
   );
 }
 
-function ProcessingBar() {
+function useElapsedSeconds(createdAt: string, active: boolean) {
+  const [elapsed, setElapsed] = useState(() =>
+    Math.floor((Date.now() - new Date(createdAt).getTime()) / 1000),
+  );
+  useEffect(() => {
+    if (!active) return;
+    const id = setInterval(() =>
+      setElapsed(Math.floor((Date.now() - new Date(createdAt).getTime()) / 1000)), 1000,
+    );
+    return () => clearInterval(id);
+  }, [createdAt, active]);
+  return elapsed;
+}
+
+const PROCESSING_STAGES: Record<string, { maxS: number; label: string; pct: number }[]> = {
+  image: [
+    { maxS: 4,   label: 'מעלה לשרת...',    pct: 10 },
+    { maxS: 14,  label: 'מנתח תמונה...',   pct: 50 },
+    { maxS: 25,  label: 'יוצר חיפוש...',   pct: 80 },
+    { maxS: 9999, label: 'מסיים...',        pct: 92 },
+  ],
+  video: [
+    { maxS: 4,   label: 'מעלה לשרת...',    pct: 5  },
+    { maxS: 60,  label: 'דוחס וידאו...',   pct: 15 },
+    { maxS: 120, label: 'מעבד וידאו...',   pct: 70 },
+    { maxS: 9999, label: 'מסיים...',        pct: 90 },
+  ],
+  file: [
+    { maxS: 4,   label: 'מעלה לשרת...',    pct: 10 },
+    { maxS: 12,  label: 'קורא תוכן...',    pct: 40 },
+    { maxS: 28,  label: 'מנתח מסמך...',    pct: 70 },
+    { maxS: 9999, label: 'מסיים...',        pct: 90 },
+  ],
+};
+
+function getStage(mediaType: string, elapsed: number) {
+  const stages = PROCESSING_STAGES[mediaType] ?? PROCESSING_STAGES.file;
+  return stages.find((s) => elapsed <= s.maxS) ?? stages[stages.length - 1];
+}
+
+function ProcessingProgress({ item }: { item: MediaItem }) {
+  const elapsed = useElapsedSeconds(item.createdAt, item.status === 'processing');
+  const stage = getStage(item.mediaType, elapsed);
+
+  const pct = Math.min(
+    stage.pct + (item.mediaType === 'video' && elapsed > 4
+      ? Math.min((elapsed - 4) / 120 * 55, 55)
+      : 0),
+    94,
+  );
+
   return (
-    <div className="h-0.5 bg-zinc-700 overflow-hidden">
-      <div className="h-full w-1/3 bg-gradient-to-r from-transparent via-violet-400 to-transparent animate-shimmer" />
+    <div className="px-3 pb-2.5 space-y-1.5">
+      <div className="flex items-center justify-between">
+        <span className="text-[11px] text-amber-400 flex items-center gap-1">
+          <Loader2 className="w-3 h-3 animate-spin" />
+          {stage.label}
+        </span>
+        <span className="text-[10px] text-zinc-500">{elapsed}ש'</span>
+      </div>
+      <div className="h-1 bg-zinc-700 rounded-full overflow-hidden">
+        <div
+          className="h-full bg-gradient-to-r from-violet-500 to-violet-400 rounded-full transition-all duration-1000 ease-out"
+          style={{ width: `${pct}%` }}
+        />
+      </div>
     </div>
   );
 }
