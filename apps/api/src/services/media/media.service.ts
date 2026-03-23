@@ -29,7 +29,7 @@ export async function searchMedia(agentId: string, query: string): Promise<Media
 
   type RawRow = { id: string; media_type: string; name: string; description: string; caption: string | null; score: number };
 
-  const rows = await prisma.$transaction(async (tx: typeof prisma) => {
+  const rows = await prisma.$transaction(async (tx) => {
     await tx.$executeRaw`SET LOCAL hnsw.iterative_scan = relaxed_order`;
     return tx.$queryRaw<RawRow[]>`
       WITH candidates AS (
