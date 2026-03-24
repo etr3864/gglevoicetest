@@ -22,6 +22,22 @@ function temperatureLabel(val: number): string {
   return Math.abs(closest - val) <= 0.15 ? TEMPERATURE_LABELS[closest] : '';
 }
 
+function noiseSensitivityLabel(ms: number): string {
+  if (ms <= 50)  return 'רגיש מאוד';
+  if (ms <= 150) return 'רגיש';
+  if (ms <= 300) return 'מאוזן';
+  if (ms <= 430) return 'עמיד';
+  return 'עמיד מאוד';
+}
+
+function responseDelayLabel(ms: number): string {
+  if (ms <= 200)  return 'מאוד מהיר';
+  if (ms <= 450)  return 'מהיר';
+  if (ms <= 750)  return 'מאוזן';
+  if (ms <= 1100) return 'אטי';
+  return 'מאוד אטי';
+}
+
 function Tooltip({ text }: { text: string }) {
   return (
     <span
@@ -119,10 +135,10 @@ export default function SettingsTab({ agent, form, setForm, voices, onSave, onDe
         <CardContent className="space-y-5">
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <span className="text-sm text-[var(--text-muted)]">{form.prefixPaddingMs}ms</span>
+              <span className="text-xs text-[var(--text-muted)]">{noiseSensitivityLabel(form.prefixPaddingMs)}</span>
               <div className="flex items-center">
-                <Tooltip text="כמה זמן דיבור רצוף נדרש לפני שהסוכן מפסיק ומקשיב. ערך גבוה = מתעלם משיעולים, נשימות ורעשי רקע קצרים." />
-                <label className="text-sm font-medium text-[var(--text-secondary)]">רגישות לרעשי רקע</label>
+                <Tooltip text="גבוה = הסוכן מתעלם מרעשים קצרים, שיעולים ונשימות. נמוך = הסוכן שומע כל צליל ועוצר מיידית." />
+                <label className="text-sm font-medium text-[var(--text-secondary)]">עמידות לרעשי רקע</label>
               </div>
             </div>
             <input
@@ -135,17 +151,17 @@ export default function SettingsTab({ agent, form, setForm, voices, onSave, onDe
               className="w-full accent-violet-500"
             />
             <div className="flex justify-between text-xs text-[var(--text-muted)] mt-1">
-              <span>עמיד לרעשים</span>
               <span>רגיש לכל צליל</span>
+              <span>עמיד לרעשים</span>
             </div>
           </div>
 
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <span className="text-sm text-[var(--text-muted)]">{form.silenceDurationMs}ms</span>
+              <span className="text-xs text-[var(--text-muted)]">{responseDelayLabel(form.silenceDurationMs)}</span>
               <div className="flex items-center">
-                <Tooltip text="כמה שתיקה נדרשת לפני שהסוכן מבין שסיימת ומגיב. ערך נמוך = מהיר אבל עלול להיכנס לאמצע משפט. ערך גבוה = ממתין, מתאים לאנשים שמהססים." />
-                <label className="text-sm font-medium text-[var(--text-secondary)]">מהירות תגובה</label>
+                <Tooltip text="כמה שתיקה נדרשת לפני שהסוכן מגיב. נמוך = עונה מהר, גבוה = ממתין שתסיים לדבר לחלוטין." />
+                <label className="text-sm font-medium text-[var(--text-secondary)]">עיכוב לפני תגובה</label>
               </div>
             </div>
             <input
@@ -158,8 +174,8 @@ export default function SettingsTab({ agent, form, setForm, voices, onSave, onDe
               className="w-full accent-violet-500"
             />
             <div className="flex justify-between text-xs text-[var(--text-muted)] mt-1">
-              <span>ממתין בסבלנות</span>
-              <span>מהיר מאוד</span>
+              <span>עונה מהר</span>
+              <span>ממתין לסיום</span>
             </div>
           </div>
         </CardContent>
