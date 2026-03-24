@@ -135,7 +135,9 @@ export default function SettingsTab({ agent, form, setForm, voices, onSave, onDe
         <CardContent className="space-y-5">
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <span className="text-xs text-[var(--text-muted)]">{noiseSensitivityLabel(form.prefixPaddingMs)}</span>
+              <span className="text-xs text-[var(--text-muted)]">
+                {noiseSensitivityLabel(form.prefixPaddingMs)} ({form.prefixPaddingMs}ms)
+              </span>
               <div className="flex items-center">
                 <Tooltip text="גבוה = הסוכן מתעלם מרעשים קצרים, שיעולים ונשימות. נמוך = הסוכן שומע כל צליל ועוצר מיידית." />
                 <label className="text-sm font-medium text-[var(--text-secondary)]">עמידות לרעשי רקע</label>
@@ -158,7 +160,9 @@ export default function SettingsTab({ agent, form, setForm, voices, onSave, onDe
 
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <span className="text-xs text-[var(--text-muted)]">{responseDelayLabel(form.silenceDurationMs)}</span>
+              <span className="text-xs text-[var(--text-muted)]">
+                {responseDelayLabel(form.silenceDurationMs)} ({form.silenceDurationMs}ms)
+              </span>
               <div className="flex items-center">
                 <Tooltip text="כמה שתיקה נדרשת לפני שהסוכן מגיב. נמוך = עונה מהר, גבוה = ממתין שתסיים לדבר לחלוטין." />
                 <label className="text-sm font-medium text-[var(--text-secondary)]">עיכוב לפני תגובה</label>
