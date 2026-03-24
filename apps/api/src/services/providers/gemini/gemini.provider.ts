@@ -167,6 +167,7 @@ export class GeminiProvider implements VoiceProvider {
       return;
     }
 
+    const t0 = Date.now();
     this.reconnecting = true;
     this.reconnectAttempts++;
 
@@ -190,7 +191,11 @@ export class GeminiProvider implements VoiceProvider {
       }
 
       this.reconnecting = false;
-      log.info('Reconnect complete', { withResumption: hasResumptionToken });
+      log.info('Reconnect complete', {
+        withResumption: hasResumptionToken,
+        reconnectMs: Date.now() - t0,
+        bufferedChunks: chunks.length,
+      });
     } catch (err) {
       this.reconnecting = false;
       this.state.clearAudioBuffer();
