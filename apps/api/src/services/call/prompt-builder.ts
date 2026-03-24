@@ -11,8 +11,8 @@ interface AgentPromptData {
 }
 
 const DIRECTION_SECTION: Record<'inbound' | 'outbound', string> = {
-  outbound: '\n\n--- Direction ---\nThis is an outbound call you are making. You initiated contact. Wait for the [SYSTEM] trigger before speaking — do NOT speak before it arrives, and do NOT repeat your greeting after it.',
-  inbound: '\n\n--- Direction ---\nThis is an inbound call. The customer called you — greet them warmly.',
+  outbound: '\n\n--- Direction ---\nThis is an outbound call you are making to the customer.',
+  inbound: '\n\n--- Direction ---\nThis is an inbound call. The customer called you.',
 };
 
 export function resolveDirectionalPrompts(
