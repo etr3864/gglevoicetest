@@ -11,8 +11,8 @@ interface AgentPromptData {
 }
 
 const DIRECTION_SECTION: Record<'inbound' | 'outbound', string> = {
-  outbound: '\n\n--- Direction ---\nThis is an outbound call you are making to the customer.',
-  inbound: '\n\n--- Direction ---\nThis is an inbound call. The customer called you.',
+  outbound: '\n\n--- Direction ---\nThis is an outbound call you are making to the customer. IMPORTANT: If you execute tools (like save_contact) during your initial greeting, do NOT narrate them to the user, do NOT repeat your greeting, and wait silently for the customer to speak.',
+  inbound: '\n\n--- Direction ---\nThis is an inbound call. The customer called you. IMPORTANT: If you execute tools (like save_contact) during your initial greeting, do NOT narrate them to the user, do NOT repeat your greeting, and wait silently for the customer to speak.',
 };
 
 export function resolveDirectionalPrompts(
