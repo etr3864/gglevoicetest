@@ -17,6 +17,15 @@ const RECONNECT_COOLDOWN_MS = 5_000;
 const MAX_BUFFER_CHUNKS = 200;
 const STABLE_SESSION_MS = 60_000;
 
+const SILENT_TOOLS = new Set([
+  'save_contact',
+  'update_contact',
+  'get_contact_info',
+  'save_note',
+  'end_call',
+  'transfer_call',
+]);
+
 export class GeminiProvider implements VoiceProvider {
   readonly type = 'gemini' as const;
 
@@ -313,16 +322,18 @@ export class GeminiProvider implements VoiceProvider {
             log.info('Discarding tool result — cancelled during execution', { name: call.name });
             return null;
           }
+
+          const silent = SILENT_TOOLS.has(call.name);
           
           if (result.error) {
             log.warn('Tool execution returned error', { name: call.name, error: result.error });
-            return { id: result.callId, name: call.name, response: { error: result.error } };
+            return { id: result.callId, name: call.name, response: { error: result.error }, silent };
           }
 
-          return { id: result.callId, name: call.name, response: { result: result.result } };
+          return { id: result.callId, name: call.name, response: { result: result.result }, silent };
         } catch (err) {
           log.error('Tool execution threw exception', err, { name: call.name });
-          return { id, name: call.name, response: { error: err instanceof Error ? err.message : 'Unknown execution error' } };
+          return { id, name: call.name, response: { error: err instanceof Error ? err.message : 'Unknown execution error' }, silent: SILENT_TOOLS.has(call.name) };
         }
       })
     );
