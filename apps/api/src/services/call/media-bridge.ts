@@ -156,7 +156,10 @@ async function initializeCallBridge(
   });
 
   if (!conn.greetingPreloaded) {
+    log.info('Cold path — calling startConversation', { callId: session.callId });
     conn.provider.startConversation();
+  } else {
+    log.info('Warm path — greeting already preloaded, skipping startConversation', { callId: session.callId });
   }
 }
 
