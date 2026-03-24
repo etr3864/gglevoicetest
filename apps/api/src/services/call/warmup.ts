@@ -158,7 +158,7 @@ async function doWarmup(
         return fetchContactForWarmup(call.id, contactPhone);
       }
       if (call.name === 'save_contact' || call.name === 'update_contact') {
-        return saveContactForWarmup(call.id, call.args, contactPhone);
+        return saveContactForWarmup(call.id, call.arguments, contactPhone);
       }
       log.warn('Unexpected tool call during warmup — ignoring', { tool: call.name });
       return Promise.resolve({ callId: call.id, result: null, error: 'Tool unavailable during warmup' });
