@@ -133,5 +133,5 @@ export function buildAnswerParams(streamUrl: string) {
 }
 
 export function buildDialStreamParams(streamUrl: string) {
-  return { ...buildBaseStreamParams(streamUrl), stream_establish_before_call_originate: true };
+  return buildBaseStreamParams(streamUrl);
 }
