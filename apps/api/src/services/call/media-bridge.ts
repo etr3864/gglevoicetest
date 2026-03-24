@@ -24,7 +24,7 @@ interface ActiveConnection {
   transcriber: DeepgramTranscriber | null;
   agentTranscriber: DeepgramTranscriber | null;
   greetingPreloaded: boolean;
-  interruptRef: { enabled: boolean };
+  interruptRef: { enabled: boolean; greetingLive: boolean };
   downsampleCarry: Buffer;
 }
 
@@ -35,7 +35,7 @@ interface BridgeContext {
   hasDeepgram: boolean;
   agentTranscriber: DeepgramTranscriber | null;
   sendToTelnyx: (payload: Buffer) => void;
-  interruptRef: { enabled: boolean };
+  interruptRef: { enabled: boolean; greetingLive: boolean };
 }
 
 const activeConnections = new Map<string, ActiveConnection>();
@@ -182,11 +182,12 @@ async function buildActiveConnection(
   const sendToTelnyx = makeSendToTelnyx(telnyxWs);
   const transcriber = createTranscriber(callControlId, 'customer');
   const agentTranscriber = createTranscriber(callControlId, 'agent');
-  const interruptRef = { enabled: false };
+  const interruptRef = { enabled: false, greetingLive: false };
   const ctx: BridgeContext = { session, callControlId, telnyxWs, hasDeepgram: !!transcriber, agentTranscriber, sendToTelnyx, interruptRef };
   const events = buildProviderEvents(ctx);
 
   if (prewarmed) {
+    interruptRef.greetingLive = !prewarmed.greetingComplete;
     prewarmed.provider.setEvents(events);
     prewarmed.provider.setCallActiveCheck?.(() => activeConnections.has(callControlId));
 
@@ -318,17 +319,23 @@ function buildProviderEvents(ctx: BridgeContext): ProviderEvents {
     contactPhone: session.contactPhone || undefined,
   };
 
+  let agentTurnCount = 0;
+  let customerSpoke = false;
+
   return {
     onReady: () => {},
 
     onAudio: (chunk: { data: Buffer }) => {
-      if (chunk.data.length > 0) {
+      if (chunk.data.length === 0) return;
+      const muted = !interruptRef.enabled && !interruptRef.greetingLive;
+      if (!muted) {
         sendToTelnyx(chunk.data);
         agentTranscriber?.sendAudio(chunk.data);
       }
     },
 
     onTranscript: async (entry) => {
+      if (entry.speaker === 'customer') customerSpoke = true;
       if (entry.speaker === 'customer' || !hasDeepgram) {
         await addTranscript(callControlId, entry);
       }
@@ -363,11 +370,21 @@ function buildProviderEvents(ctx: BridgeContext): ProviderEvents {
     },
 
     onTurnComplete: () => {
-      interruptRef.enabled = true;
+      agentTurnCount++;
+      if (agentTurnCount > 1 && !customerSpoke) {
+        log.warn('Duplicate agent turn before customer spoke', {
+          callId: session.callId, turn: agentTurnCount,
+        });
+      }
+
+      if (interruptRef.greetingLive) {
+        interruptRef.greetingLive = false;
+      } else {
+        interruptRef.enabled = true;
+      }
     },
 
     onUsage: (usage) => {
-      // Overwrite with latest cumulative snapshot from Gemini
       redis.set(`call:usage:${callControlId}`, JSON.stringify(usage), 'EX', 7200).catch(() => {});
     },
   };

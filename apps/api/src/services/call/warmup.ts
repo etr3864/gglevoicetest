@@ -55,6 +55,7 @@ interface WarmEntry {
   transcriber: DeepgramTranscriber | null;
   timer: NodeJS.Timeout;
   preloadedAudio: Buffer[];
+  greetingComplete: boolean;
 }
 
 const pending = new Map<string, Promise<WarmEntry | null>>();
@@ -186,7 +187,7 @@ async function doWarmup(
     expire(callId);
   }, WARMUP_TTL_MS);
 
-  return { provider, transcriber: null, timer, preloadedAudio };
+  return { provider, transcriber: null, timer, preloadedAudio, greetingComplete: greetingDone };
 }
 
 export async function buildProviderConfig(

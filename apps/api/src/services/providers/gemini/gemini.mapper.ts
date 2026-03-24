@@ -40,11 +40,12 @@ export class GeminiMapper {
   static buildStartConversationPayload(openingMessage?: string): Record<string, unknown> {
     const customInstruction = openingMessage?.trim();
     const text = [
-      '[SYSTEM] The call just connected. The customer is live on the line and waiting.',
-      'If you have NOT greeted the user yet in this conversation, start speaking immediately with your opening greeting.',
-      'If you HAVE already greeted the user earlier in this conversation, do NOT greet them again. Just wait for them to speak or continue the conversation naturally.',
-      'Do NOT say "no problem", "sure", "of course", or any affirmation — just begin.',
-      customInstruction ? `Your required opening greeting is: "${customInstruction}"` : 'Follow your system prompt instructions for the greeting.',
+      '[SYSTEM] The call has connected.',
+      customInstruction
+        ? `Say exactly this greeting: "${customInstruction}"`
+        : 'Greet the customer according to your system prompt.',
+      'Say the greeting once, then stop and wait silently for the customer to respond.',
+      'Do NOT repeat the greeting. Do NOT add anything after it. Do NOT speak again until the customer speaks.',
     ].join(' ');
 
     return {
