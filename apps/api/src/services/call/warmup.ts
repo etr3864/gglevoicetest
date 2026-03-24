@@ -148,29 +148,21 @@ async function doWarmup(
 
   const preloadedAudio: Buffer[] = [];
   const provider = new GeminiProvider();
-  let turnCount = 0;
-  let audioChunksInCurrentTurn = 0;
+  let greetingDone = false;
 
   const warmupEvents: ProviderEvents = {
     ...BASE_NO_OP_EVENTS,
-    onReady: () => {
-      log.info('Warmup onReady — calling startConversation', { callId });
-      provider.startConversation();
-    },
+    onReady: () => { provider.startConversation(); },
     onAudio: (chunk) => {
-      preloadedAudio.push(chunk.data);
-      audioChunksInCurrentTurn++;
+      if (!greetingDone) preloadedAudio.push(chunk.data);
     },
     onTurnComplete: () => {
-      turnCount++;
-      log.info('Warmup turnComplete', { callId, turnCount, audioChunksInTurn: audioChunksInCurrentTurn, totalChunks: preloadedAudio.length });
-      audioChunksInCurrentTurn = 0;
-    },
-    onInterrupt: () => {
-      log.info('Warmup interrupted', { callId, turnCount, totalChunks: preloadedAudio.length });
+      if (!greetingDone) {
+        greetingDone = true;
+        log.info('Warmup greeting ready', { callId, chunks: preloadedAudio.length });
+      }
     },
     onToolCall: (call) => {
-      log.info('Warmup tool call', { callId, tool: call.name, turnCount });
       if (call.name === 'get_contact_info') {
         return fetchContactForWarmup(call.id, contactPhone);
       }
