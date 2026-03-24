@@ -19,6 +19,18 @@ import { mergeModelConfig, type ModelConfig } from '../providers/types';
 const log = createLogger('warmup');
 
 const WARMUP_TTL_MS = 60_000;
+
+function resolveVadSensitivity(vad: NonNullable<ModelConfig['vad']>): NonNullable<ModelConfig['vad']> {
+  const prefix  = Math.min(Math.max(vad.prefixPaddingMs  ?? 0,   0),   500);
+  const silence = Math.min(Math.max(vad.silenceDurationMs ?? 150, 100), 1500);
+  return {
+    ...vad,
+    prefixPaddingMs:          prefix,
+    silenceDurationMs:        silence,
+    startOfSpeechSensitivity: prefix  > 150 ? 'START_SENSITIVITY_LOW' : 'START_SENSITIVITY_HIGH',
+    endOfSpeechSensitivity:   silence > 400 ? 'END_SENSITIVITY_LOW'   : 'END_SENSITIVITY_HIGH',
+  };
+}
 const CLAIM_WAIT_MS = 5_000;
 
 // Gemini Live API system instruction limit is ~8192 tokens.
@@ -258,13 +270,16 @@ export async function buildProviderConfig(
     return true;
   });
 
+  const modelConfig = mergeModelConfig(agent.modelConfig as Partial<ModelConfig> | undefined);
+  if (modelConfig.vad) modelConfig.vad = resolveVadSensitivity(modelConfig.vad);
+
   return {
     apiKey,
     model: GEMINI_MODEL,
     voice: agent.voice || DEFAULT_VOICE,
     systemPrompt: capSystemPrompt(systemPrompt),
     openingMessage,
-    modelConfig: mergeModelConfig(agent.modelConfig as Partial<ModelConfig> | undefined),
+    modelConfig,
     tools,
   };
 }

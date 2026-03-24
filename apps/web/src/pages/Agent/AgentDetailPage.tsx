@@ -118,6 +118,8 @@ export default function AgentDetailPage() {
     telnyxPhoneId: '',
     telnyxAppId: '',
     temperature: 0.7,
+    prefixPaddingMs: 0,
+    silenceDurationMs: 150,
   });
 
   useEffect(() => {
@@ -142,6 +144,8 @@ export default function AgentDetailPage() {
         telnyxPhoneId: agent.telnyxPhoneId || '',
         telnyxAppId: agent.telnyxAppId || '',
         temperature: agent.modelConfig?.generation?.temperature ?? 0.7,
+        prefixPaddingMs: agent.modelConfig?.vad?.prefixPaddingMs ?? 0,
+        silenceDurationMs: agent.modelConfig?.vad?.silenceDurationMs ?? 150,
       });
     }
   }, [agent]);

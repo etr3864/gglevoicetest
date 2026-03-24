@@ -22,6 +22,17 @@ function temperatureLabel(val: number): string {
   return Math.abs(closest - val) <= 0.15 ? TEMPERATURE_LABELS[closest] : '';
 }
 
+function Tooltip({ text }: { text: string }) {
+  return (
+    <span
+      className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-[var(--bg-secondary)] text-[var(--text-muted)] text-[10px] cursor-help mr-1"
+      title={text}
+    >
+      ?
+    </span>
+  );
+}
+
 interface SettingsTabProps {
   agent: any;
   form: any;
@@ -102,6 +113,59 @@ export default function SettingsTab({ agent, form, setForm, voices, onSave, onDe
       </Card>
 
       <Card>
+        <div className="px-5 pt-4 pb-2">
+          <h3 className="font-semibold text-[var(--text-primary)]">הגדרות קול</h3>
+        </div>
+        <CardContent className="space-y-5">
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-sm text-[var(--text-muted)]">{form.prefixPaddingMs}ms</span>
+              <div className="flex items-center">
+                <Tooltip text="כמה זמן דיבור רצוף נדרש לפני שהסוכן מפסיק ומקשיב. ערך גבוה = מתעלם משיעולים, נשימות ורעשי רקע קצרים." />
+                <label className="text-sm font-medium text-[var(--text-secondary)]">רגישות לרעשי רקע</label>
+              </div>
+            </div>
+            <input
+              type="range"
+              min={0}
+              max={500}
+              step={10}
+              value={form.prefixPaddingMs}
+              onChange={(e) => setForm((f: any) => ({ ...f, prefixPaddingMs: parseInt(e.target.value) }))}
+              className="w-full accent-violet-500"
+            />
+            <div className="flex justify-between text-xs text-[var(--text-muted)] mt-1">
+              <span>עמיד לרעשים</span>
+              <span>רגיש לכל צליל</span>
+            </div>
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-sm text-[var(--text-muted)]">{form.silenceDurationMs}ms</span>
+              <div className="flex items-center">
+                <Tooltip text="כמה שתיקה נדרשת לפני שהסוכן מבין שסיימת ומגיב. ערך נמוך = מהיר אבל עלול להיכנס לאמצע משפט. ערך גבוה = ממתין, מתאים לאנשים שמהססים." />
+                <label className="text-sm font-medium text-[var(--text-secondary)]">מהירות תגובה</label>
+              </div>
+            </div>
+            <input
+              type="range"
+              min={100}
+              max={1500}
+              step={50}
+              value={form.silenceDurationMs}
+              onChange={(e) => setForm((f: any) => ({ ...f, silenceDurationMs: parseInt(e.target.value) }))}
+              className="w-full accent-violet-500"
+            />
+            <div className="flex justify-between text-xs text-[var(--text-muted)] mt-1">
+              <span>ממתין בסבלנות</span>
+              <span>מהיר מאוד</span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
         <div className="px-5 pt-4 pb-2 flex items-center gap-2">
           <h3 className="font-semibold text-[var(--text-primary)]">טלפוניה (Telnyx)</h3>
           <PhoneCall className="w-4 h-4 text-[var(--text-muted)]" />
@@ -159,7 +223,10 @@ export default function SettingsTab({ agent, form, setForm, voices, onSave, onDe
             phoneNumber: form.phoneNumber || null,
             telnyxPhoneId: form.telnyxPhoneId || null,
             telnyxAppId: form.telnyxAppId || null,
-            modelConfig: { generation: { temperature: form.temperature } },
+            modelConfig: {
+              generation: { temperature: form.temperature },
+              vad: { prefixPaddingMs: form.prefixPaddingMs, silenceDurationMs: form.silenceDurationMs },
+            },
           })}
           disabled={isSaving}
         >

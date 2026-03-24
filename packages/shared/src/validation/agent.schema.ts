@@ -8,6 +8,10 @@ const modelConfigSchema = z.object({
     presencePenalty: z.number().min(-2).max(2).optional(),
     frequencyPenalty: z.number().min(-2).max(2).optional(),
   }).optional(),
+  vad: z.object({
+    prefixPaddingMs: z.number().int().min(0).max(500),
+    silenceDurationMs: z.number().int().min(100).max(1500),
+  }).optional(),
 }).optional();
 
 export const createAgentSchema = z.object({

@@ -79,6 +79,18 @@ router.patch('/:id', async (req, res) => {
     data.calendarConfig = { ...(existing?.calendarConfig as Record<string, unknown> ?? {}), ...(data.calendarConfig as Record<string, unknown>) };
   }
 
+  if (data.modelConfig !== undefined) {
+    const existing = await prisma.agent.findUnique({ where: { id }, select: { modelConfig: true } });
+    const prev = (existing?.modelConfig ?? {}) as Record<string, unknown>;
+    const next = data.modelConfig as Record<string, unknown>;
+    data.modelConfig = {
+      ...prev,
+      ...next,
+      ...(next.generation ? { generation: { ...(prev.generation as object ?? {}), ...(next.generation as object) } } : {}),
+      ...(next.vad        ? { vad:        { ...(prev.vad        as object ?? {}), ...(next.vad        as object) } } : {}),
+    };
+  }
+
   if (data.whatsappConfig !== undefined) {
     if (data.whatsappConfig === null) {
       data.whatsappConfig = null;
