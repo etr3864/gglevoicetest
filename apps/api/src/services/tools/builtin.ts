@@ -112,7 +112,7 @@ export function registerBuiltinTools(): void {
     {
       name: 'save_contact',
       description:
-        'Save the current caller as a contact. Call this at the start of every conversation to ensure the caller is recorded. ' +
+        'Save or update contact details for the current caller when you learn new information during the conversation. ' +
         'Provide any details you know — name, email, gender. All fields are optional.',
       parameters: {
         name:   { type: 'string', description: 'Full name' },

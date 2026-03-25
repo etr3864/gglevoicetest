@@ -167,9 +167,6 @@ async function doWarmup(
       if (call.name === 'get_contact_info') {
         return fetchContactForWarmup(call.id, contactPhone);
       }
-      if (call.name === 'save_contact' || call.name === 'update_contact') {
-        return saveContactForWarmup(call.id, call.arguments, contactPhone);
-      }
       log.warn('Unexpected tool call during warmup — ignoring', { tool: call.name });
       return Promise.resolve({ callId: call.id, result: null, error: 'Tool unavailable during warmup' });
     },
@@ -308,27 +305,6 @@ async function fetchContactForWarmup(toolCallId: string, contactPhone: string | 
     };
   } catch {
     return { callId: toolCallId, result: null, error: 'Failed to fetch contact' };
-  }
-}
-
-async function saveContactForWarmup(toolCallId: string, args: Record<string, unknown>, contactPhone: string | null): Promise<ToolResult> {
-  if (!contactPhone) return { callId: toolCallId, result: { saved: false, reason: 'no_phone' } };
-  try {
-    const data: Record<string, string> = {};
-    for (const key of ['name', 'email', 'gender', 'notes'] as const) {
-      if (typeof args[key] === 'string' && (args[key] as string).trim()) {
-        data[key] = (args[key] as string).trim();
-      }
-    }
-    const contact = await prisma.contact.upsert({
-      where:  { phone: contactPhone },
-      create: { phone: contactPhone, ...data },
-      update: data,
-      select: { id: true, name: true },
-    });
-    return { callId: toolCallId, result: { saved: true, contactId: contact.id, name: contact.name ?? null } };
-  } catch {
-    return { callId: toolCallId, result: null, error: 'Failed to save contact' };
   }
 }
 

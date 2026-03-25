@@ -231,9 +231,15 @@ async function updateContactStats(session: CallSession, durationSec: number): Pr
   if (!session.contactPhone) return;
 
   try {
-    await prisma.contact.update({
+    await prisma.contact.upsert({
       where: { phone: session.contactPhone },
-      data: {
+      create: {
+        phone: session.contactPhone,
+        totalCalls: 1,
+        totalDurationSec: durationSec,
+        lastCallAt: new Date(),
+      },
+      update: {
         totalCalls: { increment: 1 },
         totalDurationSec: { increment: durationSec },
         lastCallAt: new Date(),
