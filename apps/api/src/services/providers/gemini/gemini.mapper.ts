@@ -86,8 +86,8 @@ export class GeminiMapper {
           response: {
             name: r.name,
             content: r.response,
+            ...(r.silent && { scheduling: 'SILENT' }),
           },
-          ...(r.silent && { scheduling: 'SILENT' }),
         })),
       },
     };

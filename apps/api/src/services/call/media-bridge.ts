@@ -319,9 +319,6 @@ function buildProviderEvents(ctx: BridgeContext): ProviderEvents {
     contactPhone: session.contactPhone || undefined,
   };
 
-  let agentTurnCount = 0;
-  let customerSpoke = false;
-
   return {
     onReady: () => {},
 
@@ -335,7 +332,6 @@ function buildProviderEvents(ctx: BridgeContext): ProviderEvents {
     },
 
     onTranscript: async (entry) => {
-      if (entry.speaker === 'customer') customerSpoke = true;
       if (entry.speaker === 'customer' || !hasDeepgram) {
         await addTranscript(callControlId, entry);
       }
@@ -370,13 +366,6 @@ function buildProviderEvents(ctx: BridgeContext): ProviderEvents {
     },
 
     onTurnComplete: () => {
-      agentTurnCount++;
-      if (agentTurnCount > 1 && !customerSpoke) {
-        log.warn('Duplicate agent turn before customer spoke', {
-          callId: session.callId, turn: agentTurnCount,
-        });
-      }
-
       if (interruptRef.greetingLive) {
         interruptRef.greetingLive = false;
       } else {
