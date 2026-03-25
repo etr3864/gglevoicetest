@@ -158,7 +158,7 @@ async function doWarmup(
       if (!greetingDone) preloadedAudio.push(chunk.data);
     },
     onTurnComplete: () => {
-      if (!greetingDone) {
+      if (!greetingDone && preloadedAudio.length > 0) {
         greetingDone = true;
         log.info('Warmup greeting ready', { callId, chunks: preloadedAudio.length });
       }

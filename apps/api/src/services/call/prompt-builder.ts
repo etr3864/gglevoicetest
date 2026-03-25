@@ -108,7 +108,7 @@ export function buildWhatsappPrompt(agent: AgentWhatsappData): string {
   }
 
   sections.push(
-    'After calling send_whatsapp, confirm to the customer verbally that the message was sent.',
+    'Tell the customer you are sending the message before calling send_whatsapp.',
     'If the tool returns sent: false, tell the customer there is a temporary issue with WhatsApp and you will try again.',
   );
 

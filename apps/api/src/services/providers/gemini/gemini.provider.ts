@@ -26,6 +26,8 @@ const SILENT_TOOLS = new Set([
   'transfer_call',
 ]);
 
+const SILENT_ON_SUCCESS = new Set(['send_whatsapp', 'send_media']);
+
 export class GeminiProvider implements VoiceProvider {
   readonly type = 'gemini' as const;
 
@@ -323,11 +325,12 @@ export class GeminiProvider implements VoiceProvider {
             return null;
           }
 
-          const silent = SILENT_TOOLS.has(call.name);
+          const silent = SILENT_TOOLS.has(call.name) ||
+            (SILENT_ON_SUCCESS.has(call.name) && (result.result as Record<string, unknown>)?.sent === true);
           
           if (result.error) {
             log.warn('Tool execution returned error', { name: call.name, error: result.error });
-            return { id: result.callId, name: call.name, response: { error: result.error }, silent };
+            return { id: result.callId, name: call.name, response: { error: result.error }, silent: false };
           }
 
           return { id: result.callId, name: call.name, response: { result: result.result }, silent };
