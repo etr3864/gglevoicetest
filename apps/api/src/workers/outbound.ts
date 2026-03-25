@@ -1,7 +1,7 @@
 import { prisma } from '@voice/db';
 import { createLogger } from '../lib/logger';
 import { normalizePhone } from '../lib/phone';
-import { createWorker } from '../lib/queue';
+import { createWorker, followupEvalQueue } from '../lib/queue';
 import { createOutboundCall } from '../services/telnyx';
 import { createSession, warmup } from '../services/call';
 import { publishCallEvent } from '../services/events/pubsub';
@@ -14,6 +14,8 @@ interface OutboundJob {
   contactId?: string;
   phone: string;
   context?: Record<string, unknown>;
+  type?: 'manual' | 'followup' | 'reminder';
+  contactFollowupId?: string;
 }
 
 function extractTelnyxError(err: unknown): { code?: string; reason?: string } {
@@ -51,14 +53,27 @@ export function startOutboundWorker() {
     ]);
   }, { concurrency: parseInt(process.env.OUTBOUND_CONCURRENCY || '20') });
 
-  worker.on('failed', (job, err) => {
+  worker.on('failed', async (job, err) => {
     const data = job?.data;
     log.error('Job failed', undefined, {
       jobId: job?.id,
       callId: data?.callId,
       phone: data?.phone,
+      type: data?.type,
       reason: err?.message?.slice(0, 150),
     });
+
+    if (data?.type === 'followup' && data.contactFollowupId && data.callId) {
+      try {
+        await prisma.call.update({
+          where: { id: data.callId },
+          data: { disposition: 'failed' },
+        });
+        await followupEvalQueue.add('evaluate', { callId: data.callId });
+      } catch (evalErr) {
+        log.error('Failed to enqueue followup evaluation after dial failure', evalErr, { callId: data.callId });
+      }
+    }
   });
 
   return worker;
@@ -68,8 +83,14 @@ async function validateAgent(callId: string, agentId: string) {
   const agent = await prisma.agent.findUnique({ where: { id: agentId } });
   const appId = agent?.telnyxAppId || process.env.TELNYX_APP_ID;
 
-  if (!agent || !agent.phoneNumber || !appId) {
-    const missing = !agent ? 'agent not found' : !agent.phoneNumber ? 'no phone number' : 'no Telnyx App ID';
+  if (!agent || !agent.phoneNumber || !appId || agent.status === 'inactive') {
+    const missing = !agent
+      ? 'agent not found'
+      : agent.status === 'inactive'
+        ? 'agent inactive'
+        : !agent.phoneNumber
+          ? 'no phone number'
+          : 'no Telnyx App ID';
     log.error('Agent validation failed', undefined, { callId, agentId, missing });
     const call = await prisma.call.update({ where: { id: callId }, data: { status: 'failed' } });
     await publishCallEvent(agentId, 'call_updated', { call });

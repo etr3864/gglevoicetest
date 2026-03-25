@@ -215,6 +215,11 @@ async function bookAppointment(
     },
   });
 
+  await prisma.call.update({
+    where: { id: ctx.callId },
+    data: { disposition: 'appointment_booked' },
+  });
+
   appointmentWebhookQueue
     .add('deliver', { appointmentId: appointment.id, event: 'appointment_booked' }, { jobId: `appt-webhook-${appointment.id}-booked` })
     .catch(() => {});

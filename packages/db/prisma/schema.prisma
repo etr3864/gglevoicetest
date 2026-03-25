@@ -71,6 +71,8 @@ model Agent {
   mediaInstructions         String?    @map("media_instructions") @db.Text
   mediaAnalysisInstructions String?    @map("media_analysis_instructions") @db.Text
   mediaItems                MediaItem[]
+  followupConfig           FollowupConfig?
+  contactFollowups         ContactFollowup[]
 
   @@map("agents")
 }
@@ -90,6 +92,7 @@ model Contact {
   calls              Call[]
   appointments       Appointment[]
   scheduledReminders ScheduledReminder[]
+  contactFollowups   ContactFollowup[]
 
   @@map("contacts")
 }
@@ -118,6 +121,8 @@ model Call {
   textOutputTokens   Int?                @map("text_output_tokens")
   telnyxBilledSec    Int?                @map("telnyx_billed_sec")
   deepgramSec        Int?                @map("deepgram_sec")
+  disposition        String?
+  callbackTime       DateTime?           @map("callback_time")
   createdAt          DateTime            @default(now()) @map("created_at")
   agent              Agent               @relation(fields: [agentId], references: [id])
   contact            Contact?            @relation(fields: [contactId], references: [id])
@@ -320,6 +325,61 @@ model MediaItem {
 
   @@index([agentId, mediaType, status])
   @@map("media_items")
+}
+
+model FollowupConfig {
+  id                  String         @id @default(uuid())
+  agentId             String         @unique @map("agent_id")
+  enabled             Boolean        @default(false)
+  generalInstruction  String         @default("") @map("general_instruction") @db.Text
+  activeHoursStart    String         @default("09:00") @map("active_hours_start")
+  activeHoursEnd      String         @default("21:00") @map("active_hours_end")
+  smartTimingEnabled  Boolean        @default(true) @map("smart_timing_enabled")
+  smartTimingMinCalls Int            @default(3) @map("smart_timing_min_calls")
+  createdAt           DateTime       @default(now()) @map("created_at")
+  updatedAt           DateTime       @updatedAt @map("updated_at")
+  agent               Agent          @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  steps               FollowupStep[]
+
+  @@map("followup_configs")
+}
+
+model FollowupStep {
+  id               String         @id @default(uuid())
+  followupConfigId String         @map("followup_config_id")
+  order            Int
+  delayMinutes     Int            @map("delay_minutes")
+  instruction      String         @db.Text
+  createdAt        DateTime       @default(now()) @map("created_at")
+  updatedAt        DateTime       @updatedAt @map("updated_at")
+  followupConfig   FollowupConfig @relation(fields: [followupConfigId], references: [id], onDelete: Cascade)
+
+  @@unique([followupConfigId, order])
+  @@map("followup_steps")
+}
+
+model ContactFollowup {
+  id               String    @id @default(uuid())
+  contactId        String    @map("contact_id")
+  agentId          String    @map("agent_id")
+  currentStepOrder Int       @map("current_step_order")
+  status           String    @default("PENDING")
+  lastDisposition  String?   @map("last_disposition")
+  lastCallId       String?   @map("last_call_id")
+  summaryForFollowup String? @map("summary_for_followup") @db.Text
+  scheduledFor     DateTime? @map("scheduled_for")
+  bullmqJobId      String?   @map("bullmq_job_id")
+  stepDelayMinutes Int?      @map("step_delay_minutes")
+  stepInstruction  String?   @map("step_instruction") @db.Text
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+  contact          Contact   @relation(fields: [contactId], references: [id])
+  agent            Agent     @relation(fields: [agentId], references: [id])
+
+  @@index([contactId, agentId])
+  @@index([status, scheduledFor])
+  @@index([agentId, status])
+  @@map("contact_followups")
 }
 
 model KnowledgeChunk {

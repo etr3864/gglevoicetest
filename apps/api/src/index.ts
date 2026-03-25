@@ -32,11 +32,15 @@ import { startReminderWorker } from './workers/reminder.worker';
 import { startWhatsappSendWorker } from './workers/whatsapp-send.worker';
 import { startKnowledgeWorker } from './workers/knowledge.worker';
 import { startMediaWorker } from './workers/media.worker';
+import { startFollowupEvaluationWorker } from './workers/followup-evaluation.worker';
+import { startFollowupExecutionWorker } from './workers/followup-execution.worker';
 import knowledgeRoutes from './routes/knowledge';
 import mediaRoutes from './routes/media';
+import followupRoutes from './routes/followup';
 import { startRecordingCrons } from './services/recording/recording.cron';
 import { startKnowledgeCrons } from './services/knowledge/knowledge.cron';
 import { startMediaCrons } from './services/media/media.cron';
+import { startFollowupCrons } from './services/followup/followup.cron';
 import dashboardRoutes from './routes/dashboard';
 import superAdminDashboardRoutes from './routes/super-admin-dashboard';
 import pricingRoutes from './routes/pricing';
@@ -116,6 +120,7 @@ app.use('/dashboard/super-admin', authMiddleware, superAdminDashboardRoutes);
 app.use('/dashboard/pricing', authMiddleware, pricingRoutes);
 app.use('/agents/:agentId/knowledge', authMiddleware, knowledgeRoutes);
 app.use('/agents/:agentId/media', authMiddleware, mediaRoutes);
+app.use('/agents/:agentId', authMiddleware, followupRoutes);
 
 app.use(errorHandler);
 
@@ -144,9 +149,12 @@ async function start() {
     const whatsappSendWorker = startWhatsappSendWorker();
     const knowledgeWorker = startKnowledgeWorker();
     const mediaWorker = startMediaWorker();
+    const followupEvalWorker = startFollowupEvaluationWorker();
+    const followupExecWorker = startFollowupExecutionWorker();
     startRecordingCrons();
     startKnowledgeCrons();
     startMediaCrons();
+    startFollowupCrons();
     attachWebSocket(server);
 
     server.listen(PORT, '0.0.0.0', () => {
@@ -162,7 +170,7 @@ async function start() {
 
       log.info('All calls finished, shutting down');
       sseManager.shutdown();
-      await Promise.all([outboundWorker.close(), recordingWorker.close(), summaryWorker.close(), webhookWorker.close(), appointmentWebhookWorker.close(), reminderWorker.close(), whatsappSendWorker.close(), knowledgeWorker.close(), mediaWorker.close()]);
+      await Promise.all([outboundWorker.close(), recordingWorker.close(), summaryWorker.close(), webhookWorker.close(), appointmentWebhookWorker.close(), reminderWorker.close(), whatsappSendWorker.close(), knowledgeWorker.close(), mediaWorker.close(), followupEvalWorker.close(), followupExecWorker.close()]);
       await Promise.all([drainWarmups(), closeMediaBridge()]);
       await closePubSub();
       server.close(() => process.exit(0));

@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowRight, Loader2, Bot,
   Terminal, Phone, Users, CalendarDays, Bell,
-  ScrollText, MessageCircle, Settings2, BookOpen, ImagePlay,
+  ScrollText, MessageCircle, Settings2, BookOpen, ImagePlay, RefreshCw,
 } from 'lucide-react';
 import { useState, useEffect, useRef, useMemo } from 'react';
 import api from '../../lib/api';
@@ -25,9 +25,10 @@ import WhatsappTab from './WhatsappTab';
 import SettingsTab from './SettingsTab';
 import KnowledgeTab from './KnowledgeTab';
 import MediaTab from './MediaTab';
+import FollowupTab from './FollowupTab';
 import type { UserRole } from '@voice/shared';
 
-type Tab = 'prompt' | 'calls' | 'contacts' | 'calendar' | 'reminders' | 'summaries' | 'whatsapp' | 'knowledge' | 'media' | 'settings';
+type Tab = 'prompt' | 'calls' | 'contacts' | 'calendar' | 'reminders' | 'followup' | 'summaries' | 'whatsapp' | 'knowledge' | 'media' | 'settings';
 
 const allTabs: { key: Tab; label: string; icon: typeof Terminal; roles: UserRole[]; group: number }[] = [
   { key: 'prompt',    label: 'System Prompt', icon: Terminal,      roles: ['super_admin'],                     group: 1 },
@@ -37,6 +38,7 @@ const allTabs: { key: Tab; label: string; icon: typeof Terminal; roles: UserRole
   { key: 'summaries', label: 'סיכומים',        icon: ScrollText,    roles: ['super_admin'],                     group: 2 },
   { key: 'whatsapp',  label: 'וואטסאפ',       icon: MessageCircle, roles: ['super_admin'],                     group: 3 },
   { key: 'reminders', label: 'תזכורות',        icon: Bell,          roles: ['super_admin'],                     group: 3 },
+  { key: 'followup',  label: 'פולואפ',         icon: RefreshCw,     roles: ['super_admin'],                     group: 3 },
   { key: 'knowledge', label: 'בסיס ידע',      icon: BookOpen,      roles: ['super_admin'],                     group: 3 },
   { key: 'media',     label: 'מדיה',           icon: ImagePlay,     roles: ['super_admin'],                     group: 3 },
   { key: 'settings',  label: 'הגדרות',        icon: Settings2,     roles: ['super_admin'],                     group: 4 },
@@ -313,6 +315,10 @@ export default function AgentDetailPage() {
 
       {tab === 'whatsapp' && id && agent && (
         <WhatsappTab agentId={id} agent={agent} />
+      )}
+
+      {tab === 'followup' && id && (
+        <FollowupTab agentId={id} />
       )}
 
       {tab === 'knowledge' && id && (

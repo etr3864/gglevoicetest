@@ -263,6 +263,10 @@ export async function buildProviderConfig(
     if (mediaCtx && agent.mediaEnabled) {
       systemPrompt += buildMediaPrompt(agent, mediaCtx);
     }
+
+    if (callContext?.callType === 'followup') {
+      systemPrompt += buildFollowupPromptSection(callContext);
+    }
   }
 
   const apiKey = geminiKeyPool.next();
@@ -306,6 +310,22 @@ async function fetchContactForWarmup(toolCallId: string, contactPhone: string | 
   } catch {
     return { callId: toolCallId, result: null, error: 'Failed to fetch contact' };
   }
+}
+
+function buildFollowupPromptSection(callContext: Record<string, unknown>): string {
+  const parts: string[] = ['\n\n--- Follow-up Call Instructions ---'];
+  parts.push('This is an automated follow-up call. Be natural, warm, and refer to previous interactions when relevant.');
+
+  const general = callContext.__followupGeneralInstruction as string | undefined;
+  if (general) parts.push(general);
+
+  const step = callContext.__followupStepInstruction as string | undefined;
+  if (step) parts.push(`\nStep instructions: ${step}`);
+
+  const lastDisposition = callContext.__followupLastDisposition as string | undefined;
+  if (lastDisposition) parts.push(`Previous call outcome: ${lastDisposition}`);
+
+  return parts.join('\n');
 }
 
 function cleanupEntry(entry: WarmEntry): void {

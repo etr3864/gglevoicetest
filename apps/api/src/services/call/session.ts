@@ -1,11 +1,12 @@
 import { prisma } from '@voice/db';
 import { createLogger } from '../../lib/logger';
 import { redis } from '../../lib/redis';
-import { summaryQueue } from '../../lib/queue';
+import { summaryQueue, followupEvalQueue } from '../../lib/queue';
 import type { TranscriptEntry, TokenUsage } from '../providers/types';
 import { publishCallEvent } from '../events/pubsub';
 import { handleReminderCallEnded } from '../reminders/reminder.service';
 import { upsertMonthlyUsage } from '../usage/usage.service';
+import { cancelActiveFollowup } from '../followup/followup.cancel';
 
 const log = createLogger('session');
 const SESSION_COUNT_KEY = 'call:session_count';
@@ -130,6 +131,9 @@ export async function endSession(callControlId: string): Promise<void> {
       .catch((err) => log.error('Failed to enqueue summary', err, { callId: session.callId }));
   }
 
+  handleFollowupAfterCall(session, durationSec)
+    .catch((err) => log.error('Failed to handle followup after call', err, { callId: session.callId }));
+
   const customerUtterances = transcripts.filter(t => t.speaker === 'customer').length;
   const agentUtterances = transcripts.filter(t => t.speaker === 'agent').length;
 
@@ -225,6 +229,50 @@ async function persistUtterances(session: CallSession, transcripts: TranscriptEn
   } catch (err) {
     log.error('Failed to save utterances', err, { callId: session.callId });
   }
+}
+
+const SHORT_CALL_THRESHOLD_SEC = 15;
+const FOLLOWUP_EVAL_DELAY_MS = 2000;
+
+async function handleFollowupAfterCall(session: CallSession, durationSec: number): Promise<void> {
+  const dncFlag = await redis.get(`dnc:${session.callId}`);
+  if (dncFlag) return;
+
+  const call = await prisma.call.findUnique({
+    where: { id: session.callId },
+    select: { status: true, disposition: true, contactId: true, callType: true },
+  });
+  if (!call) return;
+
+  const config = await prisma.followupConfig.findUnique({
+    where: { agentId: session.agentId },
+    select: { enabled: true },
+  });
+  if (!config?.enabled) return;
+
+  if (session.direction === 'inbound' && call.contactId) {
+    cancelActiveFollowup(call.contactId, session.agentId, 'inbound_call').catch(() => {});
+  }
+
+  if (call.disposition) return;
+
+  if (call.status === 'failed' || call.status === 'no_answer') {
+    await prisma.call.update({
+      where: { id: session.callId },
+      data: { disposition: call.status },
+    });
+  } else if (call.status === 'completed' && durationSec < SHORT_CALL_THRESHOLD_SEC) {
+    await prisma.call.update({
+      where: { id: session.callId },
+      data: { disposition: 'short_call' },
+    });
+  }
+
+  await followupEvalQueue.add(
+    'evaluate',
+    { callId: session.callId },
+    { delay: FOLLOWUP_EVAL_DELAY_MS, jobId: `followup-eval-${session.callId}` },
+  );
 }
 
 async function updateContactStats(session: CallSession, durationSec: number): Promise<void> {

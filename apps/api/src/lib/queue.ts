@@ -45,6 +45,21 @@ export const whatsappSendQueue = createQueue('whatsapp-send');
 export const knowledgeQueue = createQueue('knowledge-processing');
 export const mediaQueue = createQueue('media-processing');
 
+export const followupQueue = new Queue('followup-calls', {
+  connection,
+  defaultJobOptions: { removeOnComplete: 500, removeOnFail: 1000 },
+});
+export const followupEvalQueue = new Queue('followup-evaluation', {
+  connection,
+  defaultJobOptions: { removeOnComplete: 1000, removeOnFail: 500 },
+});
+
+export const OUTBOUND_PRIORITY = {
+  manual: 1,
+  followup: 3,
+  reminder: 5,
+} as const;
+
 export async function scheduleReminderSafetyScan(): Promise<void> {
   await reminderQueue.add(
     'safety-scan',

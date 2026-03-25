@@ -2,6 +2,7 @@ import { prisma } from '@voice/db';
 import { globalRegistry } from './registry';
 import type { ToolContext } from './registry';
 import { registerCalendarTools } from './calendar';
+import { registerFollowupTools } from './followup-tools';
 import { formatTimestamp } from '../../lib/date';
 import { SEND_WHATSAPP_DEFINITION, handleSendWhatsapp } from './whatsapp-tool';
 import {
@@ -15,6 +16,7 @@ export { SEND_MEDIA_DEFINITION };
 
 export function registerBuiltinTools(): void {
   registerCalendarTools();
+  registerFollowupTools();
 
   globalRegistry.register(SEND_WHATSAPP_DEFINITION, handleSendWhatsapp);
   globalRegistry.register(SEARCH_KNOWLEDGE_DEFINITION, handleSearchKnowledge);
