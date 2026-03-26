@@ -91,32 +91,25 @@ interface UsageRow {
 }
 
 async function fetchUsageByAgent(from: Date | null, to: Date | null) {
-  const conditions = ['1=1'];
-  if (from) {
-    const ym = from.toISOString().slice(0, 7);
-    conditions.push(`year_month >= '${ym}'`);
-  }
-  if (to) {
-    const ym = to.toISOString().slice(0, 7);
-    conditions.push(`year_month <= '${ym}'`);
-  }
-
-  return prisma.$queryRawUnsafe<UsageRow[]>(`
+  return prisma.$queryRaw<UsageRow[]>(Prisma.sql`
     SELECT
-      agent_id,
-      SUM(total_audio_input_tokens)::bigint AS total_audio_input_tokens,
-      SUM(total_audio_output_tokens)::bigint AS total_audio_output_tokens,
-      SUM(total_text_input_tokens)::bigint AS total_text_input_tokens,
-      SUM(total_text_output_tokens)::bigint AS total_text_output_tokens,
-      SUM(total_summary_tokens)::bigint AS total_summary_tokens,
-      SUM(total_embedding_tokens)::bigint AS total_embedding_tokens,
-      SUM(total_media_analysis_tokens)::bigint AS total_media_analysis_tokens,
-      SUM(total_billed_sec)::bigint AS total_billed_sec,
-      SUM(total_recording_sec)::bigint AS total_recording_sec,
-      SUM(total_deepgram_sec)::bigint AS total_deepgram_sec
-    FROM agent_usage_monthly
-    WHERE ${conditions.join(' AND ')}
-    GROUP BY agent_id
+      c.agent_id,
+      COALESCE(SUM(c.audio_input_tokens),  0)::bigint AS total_audio_input_tokens,
+      COALESCE(SUM(c.audio_output_tokens), 0)::bigint AS total_audio_output_tokens,
+      COALESCE(SUM(c.text_input_tokens),   0)::bigint AS total_text_input_tokens,
+      COALESCE(SUM(c.text_output_tokens),  0)::bigint AS total_text_output_tokens,
+      COALESCE(SUM(cs.token_count),        0)::bigint AS total_summary_tokens,
+      0::bigint                                        AS total_embedding_tokens,
+      0::bigint                                        AS total_media_analysis_tokens,
+      COALESCE(SUM(c.telnyx_billed_sec),   0)::bigint AS total_billed_sec,
+      COALESCE(SUM(c.recording_duration),  0)::bigint AS total_recording_sec,
+      COALESCE(SUM(c.deepgram_sec),        0)::bigint AS total_deepgram_sec
+    FROM calls c
+    LEFT JOIN call_summaries cs ON cs.call_id = c.id
+    WHERE c.status != 'queued'
+      ${from ? Prisma.sql`AND c.created_at >= ${from}` : Prisma.empty}
+      ${to ? Prisma.sql`AND c.created_at <= ${to}` : Prisma.empty}
+    GROUP BY c.agent_id
   `);
 }
 
