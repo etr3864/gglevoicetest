@@ -95,12 +95,6 @@ export default function FollowupTab({ agentId }: Props) {
     refetchInterval: 30_000,
   });
 
-  const { data: upcomingData } = useQuery({
-    queryKey: ['followup-upcoming', agentId],
-    queryFn: () => api.get(`/agents/${agentId}/followup/upcoming`).then(r => r.data.data),
-    refetchInterval: 60_000,
-  });
-
   if (configLoading) {
     return (
       <div className="flex items-center justify-center py-12 gap-2 text-[var(--text-secondary)]">
@@ -115,7 +109,6 @@ export default function FollowupTab({ agentId }: Props) {
       {stats && <StatsBar stats={stats} />}
       <ConfigSection agentId={agentId} config={config ?? null} qc={qc} toast={toast} />
       <StepsSection agentId={agentId} steps={config?.steps ?? []} qc={qc} toast={toast} />
-      {!!upcomingData?.length && <UpcomingSection data={upcomingData} />}
       <ActiveFollowupsSection
         agentId={agentId}
         data={activeData}
@@ -131,7 +124,6 @@ function StatsBar({ stats }: { stats: FollowupStats }) {
   const items = [
     { label: 'מתוזמנים', value: stats.scheduled, color: 'text-blue-400' },
     { label: 'ממתינים', value: stats.pending, color: 'text-blue-400' },
-    { label: 'מתבצעים', value: stats.executing, color: 'text-yellow-400' },
     { label: 'הושלמו', value: stats.completed, color: 'text-[var(--accent)]' },
     { label: 'הוסרו', value: stats.optedOut, color: 'text-red-400' },
   ];
@@ -219,21 +211,21 @@ function ConfigSection({
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">שעת סיום</label>
-            <input
-              type="time"
-              value={form.activeHoursEnd}
-              onChange={(e) => setForm(f => ({ ...f, activeHoursEnd: e.target.value }))}
-              className="w-full rounded-lg bg-[var(--bg-primary)] border border-[var(--border)] px-4 py-2.5 text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)] transition-colors"
-              dir="ltr"
-            />
-          </div>
-          <div>
             <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">שעת התחלה</label>
             <input
               type="time"
               value={form.activeHoursStart}
               onChange={(e) => setForm(f => ({ ...f, activeHoursStart: e.target.value }))}
+              className="w-full rounded-lg bg-[var(--bg-primary)] border border-[var(--border)] px-4 py-2.5 text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)] transition-colors"
+              dir="ltr"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">שעת סיום</label>
+            <input
+              type="time"
+              value={form.activeHoursEnd}
+              onChange={(e) => setForm(f => ({ ...f, activeHoursEnd: e.target.value }))}
               className="w-full rounded-lg bg-[var(--bg-primary)] border border-[var(--border)] px-4 py-2.5 text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)] transition-colors"
               dir="ltr"
             />
@@ -250,7 +242,7 @@ function ConfigSection({
 
         <div>
           <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">
-            מינימום דקות לקולבק
+            מינימום זמן המתנה לחזרה ללקוח (דקות)
           </label>
           <div className="flex items-center gap-2">
             <input
@@ -262,7 +254,7 @@ function ConfigSection({
               className="w-24 rounded-lg bg-[var(--bg-primary)] border border-[var(--border)] px-3 py-2.5 text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)] transition-colors"
               dir="ltr"
             />
-            <span className="text-xs text-[var(--text-muted)]">דקות מינימום בין קריאת schedule_callback לביצוע</span>
+            <span className="text-xs text-[var(--text-muted)]">אם הלקוח ביקש שתחזור אליו עוד דקה — בפועל תחזור לאחר מינימום זה</span>
           </div>
         </div>
 
@@ -377,7 +369,7 @@ function StepsSection({
                 <span className="text-sm font-medium text-[var(--text-primary)]">שלב {idx + 1}</span>
                 <span className="text-xs text-[var(--text-muted)] mr-2">
                   <Clock className="w-3 h-3 inline ml-1" />
-                  {formatDelay(step.delayMinutes)}
+                  יצא כ-{formatDelay(step.delayMinutes)} אחרי השיחה
                 </span>
               </div>
             </div>
@@ -386,7 +378,7 @@ function StepsSection({
           {editingId === step.id ? (
             <CardContent className="space-y-3 border-t border-[var(--border)]">
               <div>
-                <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">השהיה (דקות)</label>
+                <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">יצא אחרי (דקות)</label>
                 <input
                   type="number"
                   min={30}
@@ -436,7 +428,7 @@ function StepsSection({
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">השהיה (דקות)</label>
+              <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">יצא אחרי (דקות)</label>
               <input
                 type="number"
                 min={30}
@@ -459,35 +451,6 @@ function StepsSection({
         </CardContent>
       </Card>
     </div>
-  );
-}
-
-function UpcomingSection({ data }: { data: any[] }) {
-  return (
-    <Card>
-      <div className="px-5 pt-4 pb-2 flex items-center justify-between">
-        <span className="text-xs text-[var(--text-muted)]">{data.length} מתוזמנים</span>
-        <div className="flex items-center gap-2">
-          <Clock className="w-4 h-4 text-[var(--text-muted)]" />
-          <h3 className="font-semibold text-[var(--text-primary)]">פולואפים קרובים</h3>
-        </div>
-      </div>
-      <div className="divide-y divide-[var(--border)]">
-        {data.map((f: any) => (
-          <div key={f.id} className="px-5 py-3 flex items-center justify-between gap-3">
-            <span className="text-xs text-[var(--accent)] font-medium">
-              {f.scheduledFor ? formatRelativeTime(f.scheduledFor) : '—'}
-            </span>
-            <div className="text-left">
-              <p className="text-sm font-medium text-[var(--text-primary)]">
-                {f.contact?.name || f.contact?.phone || '—'}
-              </p>
-              <p className="text-xs text-[var(--text-muted)]">שלב {f.currentStepOrder}</p>
-            </div>
-          </div>
-        ))}
-      </div>
-    </Card>
   );
 }
 
@@ -519,9 +482,9 @@ function ActiveFollowupsSection({
     <Card>
       <div className="px-5 pt-4 pb-2 flex items-center justify-between">
         <span className="text-xs text-[var(--text-muted)]">
-          {data?.meta?.total ?? 0} פולואפים פעילים
+          {data?.meta?.total ?? 0} פולואפים
         </span>
-        <h3 className="font-semibold text-[var(--text-primary)]">פולואפים פעילים</h3>
+        <h3 className="font-semibold text-[var(--text-primary)]">פולואפים מתוזמנים</h3>
       </div>
       <div className="divide-y divide-[var(--border)]">
         {isLoading && (
@@ -532,7 +495,7 @@ function ActiveFollowupsSection({
         {!isLoading && !data?.data?.length && (
           <div className="px-6 py-10 text-center">
             <UserX className="w-8 h-8 mx-auto mb-2 text-[var(--text-muted)]" />
-            <p className="text-sm text-[var(--text-secondary)]">אין פולואפים פעילים</p>
+            <p className="text-sm text-[var(--text-secondary)]">אין פולואפים מתוזמנים</p>
             <p className="text-xs text-[var(--text-muted)] mt-1">פולואפים ייווצרו אוטומטית לאחר שיחות</p>
           </div>
         )}
