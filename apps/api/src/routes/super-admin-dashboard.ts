@@ -195,7 +195,17 @@ async function fetchPerformance(agentId: string, from: Date | null, to: Date | n
 }
 
 function zeroCosts(): CostBreakdownIls {
-  return { geminiAudioCost: 0, geminiTextCost: 0, embeddingCost: 0, mediaAnalysisCost: 0, telnyxCallCost: 0, telnyxRecordingCost: 0, deepgramCost: 0, totalCost: 0 };
+  return {
+    geminiAudioCost: 0,
+    geminiTextCost: 0,
+    embeddingCost: 0,
+    mediaAnalysisCost: 0,
+    telnyxCallCost: 0,
+    telnyxRecordingCost: 0,
+    telnyxStreamingCost: 0,
+    deepgramCost: 0,
+    totalCost: 0,
+  };
 }
 
 function round2(n: number): number {
