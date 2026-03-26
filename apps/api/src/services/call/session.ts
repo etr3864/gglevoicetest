@@ -254,18 +254,18 @@ async function handleFollowupAfterCall(session: CallSession, durationSec: number
     cancelActiveFollowup(call.contactId, session.agentId, 'inbound_call').catch(() => {});
   }
 
-  if (call.disposition) return;
-
-  if (call.status === 'failed' || call.status === 'no_answer') {
-    await prisma.call.update({
-      where: { id: session.callId },
-      data: { disposition: call.status },
-    });
-  } else if (call.status === 'completed' && durationSec < SHORT_CALL_THRESHOLD_SEC) {
-    await prisma.call.update({
-      where: { id: session.callId },
-      data: { disposition: 'short_call' },
-    });
+  if (!call.disposition) {
+    if (call.status === 'failed' || call.status === 'no_answer') {
+      await prisma.call.update({
+        where: { id: session.callId },
+        data: { disposition: call.status },
+      });
+    } else if (call.status === 'completed' && durationSec < SHORT_CALL_THRESHOLD_SEC) {
+      await prisma.call.update({
+        where: { id: session.callId },
+        data: { disposition: 'short_call' },
+      });
+    }
   }
 
   await followupEvalQueue.add(
