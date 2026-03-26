@@ -7,9 +7,9 @@ export type TimePreset = 'today' | '7d' | 'last-week' | '30d' | 'last-month' | '
 const PRESETS: { id: TimePreset; label: string; title: string }[] = [
   { id: 'today',      label: 'היום',    title: 'היום' },
   { id: '7d',         label: '7 ימים',  title: '7 ימים אחרונים' },
-  { id: 'last-week',  label: 'שבוע',    title: 'השבוע הנוכחי (א׳ עד היום)' },
+  { id: 'last-week',  label: 'השבוע',   title: 'השבוע הנוכחי (א׳ עד היום)' },
   { id: '30d',        label: '30 ימים', title: '30 ימים אחרונים' },
-  { id: 'last-month', label: 'חודש',    title: 'החודש הנוכחי (1 עד היום)' },
+  { id: 'last-month', label: 'החודש',   title: 'החודש הנוכחי (1 עד היום)' },
   { id: '90d',        label: '90 ימים', title: '90 ימים אחרונים' },
   { id: 'custom',     label: 'מותאם',   title: 'טווח מותאם' },
   { id: 'all',        label: 'הכל',     title: 'כל הזמנים' },
