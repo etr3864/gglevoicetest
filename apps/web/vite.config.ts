@@ -34,6 +34,7 @@ export default defineConfig({
       '/voices': 'http://localhost:3000',
       '/v1': 'http://localhost:3000',
       '/health': 'http://localhost:3000',
+      '/dashboard': 'http://localhost:3000',
     },
   },
 });

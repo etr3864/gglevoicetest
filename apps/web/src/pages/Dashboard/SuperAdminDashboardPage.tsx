@@ -23,12 +23,18 @@ export default function SuperAdminDashboardPage() {
 
   const dateRange = useMemo(() => presetToRange(preset, customRange), [preset, customRange]);
 
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ['super-admin-dashboard', dateRange],
+  const fromParam = dateRange.from ?? '';
+  const toParam = dateRange.to ?? '';
+
+  const { data, isLoading, isError, isFetching } = useQuery({
+    queryKey: ['super-admin-dashboard', fromParam, toParam],
     queryFn: () =>
-      api.get<{ data: SuperAdminDashboardData }>('/dashboard/super-admin', { params: dateRange })
-        .then((r) => r.data.data),
-    placeholderData: (prev) => prev,
+      api.get<{ data: SuperAdminDashboardData }>('/dashboard/super-admin', {
+        params: {
+          ...(fromParam ? { from: fromParam } : {}),
+          ...(toParam ? { to: toParam } : {}),
+        },
+      }).then((r) => r.data.data),
     retry: 1,
   });
 
@@ -37,7 +43,12 @@ export default function SuperAdminDashboardPage() {
   return (
     <div className="max-w-7xl mx-auto space-y-6" dir="rtl">
       <div className="flex items-center justify-between flex-wrap gap-4">
-        <h1 className="text-xl font-semibold text-[var(--text-primary)]">דשבורד מערכת</h1>
+        <div className="flex items-center gap-3">
+          <h1 className="text-xl font-semibold text-[var(--text-primary)]">דשבורד מערכת</h1>
+          {isFetching && !isLoading && (
+            <span className="text-xs text-[var(--text-muted)]">מעדכן…</span>
+          )}
+        </div>
         <TimeRangeFilter preset={preset} onPresetChange={setPreset} customRange={customRange} onCustomRangeChange={setCustomRange} />
       </div>
 

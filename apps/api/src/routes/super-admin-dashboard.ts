@@ -156,10 +156,14 @@ interface PerformanceStats {
 }
 
 async function fetchPerformance(agentId: string, from: Date | null, to: Date | null): Promise<PerformanceStats> {
-  const dateFilter = from || to ? { ...(from && { gte: from }), ...(to && { lte: to }) } : undefined;
+  const createdAt =
+    from || to ? { ...(from && { gte: from }), ...(to && { lte: to }) } : undefined;
 
-  const base: Prisma.CallWhereInput = { agentId, status: { not: 'queued' }, createdAt: dateFilter };
-  const apptWhere: Prisma.AppointmentWhereInput = { agentId, ...(dateFilter && { createdAt: dateFilter }) };
+  const base: Prisma.CallWhereInput = { agentId, status: { not: 'queued' } };
+  if (createdAt) base.createdAt = createdAt;
+
+  const apptWhere: Prisma.AppointmentWhereInput = { agentId };
+  if (createdAt) apptWhere.createdAt = createdAt;
 
   const [inAgg, outAgg, outAnswered, outNoAnswer, avgAgg, appts] = await Promise.all([
     prisma.call.aggregate({ where: { ...base, direction: 'inbound' }, _count: { id: true }, _sum: { durationSec: true } }),
