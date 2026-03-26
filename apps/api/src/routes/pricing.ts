@@ -16,6 +16,7 @@ const updateSchema = z.object({
   embeddingPer1M: z.number().min(0).optional(),
   telnyxCallPerMin: z.number().min(0).optional(),
   telnyxRecordingPerMin: z.number().min(0).optional(),
+  telnyxStreamingPerMin: z.number().min(0).optional(),
   deepgramPerSec: z.number().min(0).optional(),
   usdToIls: z.number().min(0).optional(),
 });

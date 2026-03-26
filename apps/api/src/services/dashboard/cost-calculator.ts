@@ -6,6 +6,7 @@ interface PricingConfig {
   mediaAnalysisPer1M: number;
   telnyxCallPerMin: number;
   telnyxRecordingPerMin: number;
+  telnyxStreamingPerMin: number;
   deepgramPerSec: number;
   usdToIls: number;
 }
@@ -30,6 +31,7 @@ export interface CostBreakdownIls {
   mediaAnalysisCost: number;
   telnyxCallCost: number;
   telnyxRecordingCost: number;
+  telnyxStreamingCost: number;
   deepgramCost: number;
   totalCost: number;
 }
@@ -50,9 +52,10 @@ export function calculateCosts(usage: UsageMetrics, pricing: PricingConfig): Cos
 
   const telnyxCallCost = (usage.totalBilledSec / 60) * pricing.telnyxCallPerMin * usdToIls;
   const telnyxRecordingCost = (usage.totalRecordingSec / 60) * pricing.telnyxRecordingPerMin * usdToIls;
+  const telnyxStreamingCost = (usage.totalBilledSec / 60) * (pricing.telnyxStreamingPerMin ?? 0.0035) * usdToIls;
   const deepgramCost = usage.totalDeepgramSec * pricing.deepgramPerSec * usdToIls;
 
-  const totalCost = geminiAudioCost + geminiTextCost + embeddingCost + mediaAnalysisCost + telnyxCallCost + telnyxRecordingCost + deepgramCost;
+  const totalCost = geminiAudioCost + geminiTextCost + embeddingCost + mediaAnalysisCost + telnyxCallCost + telnyxRecordingCost + telnyxStreamingCost + deepgramCost;
 
   return {
     geminiAudioCost: round2(geminiAudioCost),
@@ -61,6 +64,7 @@ export function calculateCosts(usage: UsageMetrics, pricing: PricingConfig): Cos
     mediaAnalysisCost: round2(mediaAnalysisCost),
     telnyxCallCost: round2(telnyxCallCost),
     telnyxRecordingCost: round2(telnyxRecordingCost),
+    telnyxStreamingCost: round2(telnyxStreamingCost),
     deepgramCost: round2(deepgramCost),
     totalCost: round2(totalCost),
   };

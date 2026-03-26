@@ -257,6 +257,7 @@ model PricingConfig {
   embeddingPer1M         Float  @default(0.10) @map("embedding_per_1m")
   telnyxCallPerMin       Float  @default(0.007) @map("telnyx_call_per_min")
   telnyxRecordingPerMin  Float  @default(0.002) @map("telnyx_recording_per_min")
+  telnyxStreamingPerMin  Float  @default(0.0035) @map("telnyx_streaming_per_min")
   deepgramPerSec         Float  @default(0.000128) @map("deepgram_per_sec")
   usdToIls               Float  @default(3.65) @map("usd_to_ils")
   mediaAnalysisPer1M     Float  @default(0.075) @map("media_analysis_per_1m")
