@@ -24,6 +24,8 @@ const SILENT_TOOLS = new Set([
   'save_note',
   'end_call',
   'transfer_call',
+  'schedule_callback',
+  'mark_do_not_call',
 ]);
 
 const SILENT_ON_SUCCESS = new Set(['send_whatsapp', 'send_media']);
