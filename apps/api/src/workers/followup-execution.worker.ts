@@ -56,6 +56,11 @@ async function executeFollowup(contactFollowupId: string): Promise<void> {
 
   const config = await prisma.followupConfig.findUnique({
     where: { agentId: followup.agentId },
+    select: {
+      enabled: true,
+      generalInstruction: true,
+      callbackOpeningMessage: true,
+    },
   });
 
   if (!config?.enabled) {
@@ -100,7 +105,12 @@ async function executeFollowup(contactFollowupId: string): Promise<void> {
 
     await publishCallEvent(followup.agentId, 'call_created', { call });
 
-    const callContext = buildFollowupCallContext(followup, config);
+    const step = await prisma.followupStep.findFirst({
+      where: { followupConfig: { agentId: followup.agentId }, order: followup.currentStepOrder },
+      select: { openingMessage: true },
+    });
+
+    const callContext = buildFollowupCallContext(followup, config, step?.openingMessage ?? null);
 
     const delay = Math.round(Math.random() * 15_000);
     await outboundQueue.add(
@@ -135,8 +145,16 @@ function buildFollowupCallContext(
   },
   config: {
     generalInstruction: string;
+    callbackOpeningMessage: string | null;
   },
+  stepOpeningMessage: string | null,
 ): Record<string, unknown> {
+  const openingMessage = resolveOpeningMessage(
+    followup.lastDisposition,
+    config.callbackOpeningMessage,
+    stepOpeningMessage,
+  );
+
   return {
     callType: 'followup',
     contactFollowupId: followup.id,
@@ -144,5 +162,17 @@ function buildFollowupCallContext(
     __followupStepInstruction: followup.stepInstruction || undefined,
     __followupStep: followup.currentStepOrder,
     __followupLastDisposition: followup.lastDisposition || undefined,
+    __openingMessage: openingMessage,
   };
+}
+
+function resolveOpeningMessage(
+  lastDisposition: string | null,
+  callbackOpeningMessage: string | null,
+  stepOpeningMessage: string | null,
+): string | undefined {
+  if (lastDisposition === 'callback_requested' && callbackOpeningMessage) {
+    return callbackOpeningMessage;
+  }
+  return stepOpeningMessage ?? undefined;
 }

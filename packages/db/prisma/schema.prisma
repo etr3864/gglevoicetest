@@ -334,9 +334,10 @@ model FollowupConfig {
   generalInstruction  String         @default("") @map("general_instruction") @db.Text
   activeHoursStart    String         @default("09:00") @map("active_hours_start")
   activeHoursEnd      String         @default("21:00") @map("active_hours_end")
-  smartTimingEnabled  Boolean        @default(true) @map("smart_timing_enabled")
-  smartTimingMinCalls Int            @default(3) @map("smart_timing_min_calls")
-  minCallbackMinutes  Int            @default(5) @map("min_callback_minutes")
+  smartTimingEnabled      Boolean        @default(true) @map("smart_timing_enabled")
+  smartTimingMinCalls     Int            @default(3) @map("smart_timing_min_calls")
+  minCallbackMinutes      Int            @default(5) @map("min_callback_minutes")
+  callbackOpeningMessage  String?        @map("callback_opening_message") @db.Text
   createdAt           DateTime       @default(now()) @map("created_at")
   updatedAt           DateTime       @updatedAt @map("updated_at")
   agent               Agent          @relation(fields: [agentId], references: [id], onDelete: Cascade)
@@ -351,6 +352,7 @@ model FollowupStep {
   order            Int
   delayMinutes     Int            @map("delay_minutes")
   instruction      String         @db.Text
+  openingMessage   String?        @map("opening_message") @db.Text
   createdAt        DateTime       @default(now()) @map("created_at")
   updatedAt        DateTime       @updatedAt @map("updated_at")
   followupConfig   FollowupConfig @relation(fields: [followupConfigId], references: [id], onDelete: Cascade)

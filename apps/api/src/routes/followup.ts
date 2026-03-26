@@ -10,6 +10,7 @@ type Params = { agentId: string; stepId?: string; followupId?: string; contactId
 
 const MAX_GENERAL_INSTRUCTION = 2000;
 const MAX_STEP_INSTRUCTION = 1000;
+const MAX_OPENING_MESSAGE = 500;
 const MIN_DELAY_MINUTES = 30;
 
 // --- Config ---
@@ -30,7 +31,7 @@ router.put('/followup/config', async (req, res) => {
   const { agentId } = req.params as Params;
   await assertAgentAccess(agentId, req.user!);
 
-  const { enabled, generalInstruction, activeHoursStart, activeHoursEnd, smartTimingEnabled, smartTimingMinCalls, minCallbackMinutes } =
+  const { enabled, generalInstruction, activeHoursStart, activeHoursEnd, smartTimingEnabled, smartTimingMinCalls, minCallbackMinutes, callbackOpeningMessage } =
     req.body;
 
   if (generalInstruction && generalInstruction.length > MAX_GENERAL_INSTRUCTION) {
@@ -41,6 +42,9 @@ router.put('/followup/config', async (req, res) => {
   }
   if (minCallbackMinutes !== undefined && (minCallbackMinutes < 1 || minCallbackMinutes > 1440)) {
     throw new AppError(400, 'VALIDATION_ERROR', 'minCallbackMinutes must be between 1 and 1440');
+  }
+  if (callbackOpeningMessage && callbackOpeningMessage.length > MAX_OPENING_MESSAGE) {
+    throw new AppError(400, 'VALIDATION_ERROR', `callbackOpeningMessage max ${MAX_OPENING_MESSAGE} chars`);
   }
 
   const config = await prisma.followupConfig.upsert({
@@ -54,6 +58,7 @@ router.put('/followup/config', async (req, res) => {
       smartTimingEnabled: smartTimingEnabled ?? true,
       smartTimingMinCalls: smartTimingMinCalls ?? 3,
       minCallbackMinutes: minCallbackMinutes ?? 5,
+      callbackOpeningMessage: callbackOpeningMessage ?? null,
     },
     update: {
       ...(enabled !== undefined && { enabled }),
@@ -63,6 +68,7 @@ router.put('/followup/config', async (req, res) => {
       ...(smartTimingEnabled !== undefined && { smartTimingEnabled }),
       ...(smartTimingMinCalls !== undefined && { smartTimingMinCalls }),
       ...(minCallbackMinutes !== undefined && { minCallbackMinutes }),
+      ...(callbackOpeningMessage !== undefined && { callbackOpeningMessage }),
     },
     include: { steps: { orderBy: { order: 'asc' } } },
   });
@@ -76,7 +82,7 @@ router.post('/followup/steps', async (req, res) => {
   const { agentId } = req.params as Params;
   await assertAgentAccess(agentId, req.user!);
 
-  const { delayMinutes, instruction } = req.body;
+  const { delayMinutes, instruction, openingMessage } = req.body;
 
   if (!delayMinutes || delayMinutes < MIN_DELAY_MINUTES) {
     throw new AppError(400, 'VALIDATION_ERROR', `delayMinutes must be >= ${MIN_DELAY_MINUTES}`);
@@ -87,23 +93,28 @@ router.post('/followup/steps', async (req, res) => {
   if (instruction.length > MAX_STEP_INSTRUCTION) {
     throw new AppError(400, 'VALIDATION_ERROR', `instruction max ${MAX_STEP_INSTRUCTION} chars`);
   }
+  if (openingMessage && openingMessage.length > MAX_OPENING_MESSAGE) {
+    throw new AppError(400, 'VALIDATION_ERROR', `openingMessage max ${MAX_OPENING_MESSAGE} chars`);
+  }
 
   const config = await prisma.followupConfig.findUnique({ where: { agentId } });
   if (!config) throw new AppError(404, 'NOT_FOUND', 'Followup config not found. Create config first.');
 
-  const lastStep = await prisma.followupStep.findFirst({
-    where: { followupConfigId: config.id },
-    orderBy: { order: 'desc' },
-  });
-
-  const step = await prisma.followupStep.create({
-    data: {
-      followupConfigId: config.id,
-      order: (lastStep?.order ?? 0) + 1,
-      delayMinutes,
-      instruction,
-    },
-  });
+  let step;
+  try {
+    const result = await prisma.$queryRaw<Array<{ max: number | null }>>`
+      SELECT MAX("order") as max FROM "followup_steps" WHERE "followup_config_id" = ${config.id}
+    `;
+    const nextOrder = (result[0]?.max ?? 0) + 1;
+    step = await prisma.followupStep.create({
+      data: { followupConfigId: config.id, order: nextOrder, delayMinutes, instruction, openingMessage: openingMessage ?? null },
+    });
+  } catch (err: any) {
+    if (err?.code === 'P2002') {
+      throw new AppError(409, 'CONFLICT', 'Step order conflict, please retry');
+    }
+    throw err;
+  }
 
   res.status(201).json({ data: step });
 });
@@ -119,6 +130,15 @@ router.put('/followup/steps/reorder', async (req, res) => {
 
   const config = await prisma.followupConfig.findUnique({ where: { agentId } });
   if (!config) throw new AppError(404, 'NOT_FOUND', 'Followup config not found');
+
+  const ownedSteps = await prisma.followupStep.findMany({
+    where: { followupConfigId: config.id },
+    select: { id: true },
+  });
+  const ownedIds = new Set(ownedSteps.map(s => s.id));
+  if (stepIds.some(id => !ownedIds.has(id))) {
+    throw new AppError(403, 'FORBIDDEN', 'One or more step IDs do not belong to this agent');
+  }
 
   await prisma.$transaction(
     stepIds.map((id, idx) =>
@@ -141,13 +161,16 @@ router.put('/followup/steps/:stepId', async (req, res) => {
   const { agentId, stepId } = req.params as Params;
   await assertAgentAccess(agentId, req.user!);
 
-  const { delayMinutes, instruction } = req.body;
+  const { delayMinutes, instruction, openingMessage } = req.body;
 
   if (delayMinutes !== undefined && delayMinutes < MIN_DELAY_MINUTES) {
     throw new AppError(400, 'VALIDATION_ERROR', `delayMinutes must be >= ${MIN_DELAY_MINUTES}`);
   }
   if (instruction !== undefined && instruction.length > MAX_STEP_INSTRUCTION) {
     throw new AppError(400, 'VALIDATION_ERROR', `instruction max ${MAX_STEP_INSTRUCTION} chars`);
+  }
+  if (openingMessage !== undefined && openingMessage !== null && openingMessage.length > MAX_OPENING_MESSAGE) {
+    throw new AppError(400, 'VALIDATION_ERROR', `openingMessage max ${MAX_OPENING_MESSAGE} chars`);
   }
 
   const step = await prisma.followupStep.findUnique({ where: { id: stepId } });
@@ -158,6 +181,7 @@ router.put('/followup/steps/:stepId', async (req, res) => {
     data: {
       ...(delayMinutes !== undefined && { delayMinutes }),
       ...(instruction !== undefined && { instruction }),
+      ...(openingMessage !== undefined && { openingMessage }),
     },
   });
 

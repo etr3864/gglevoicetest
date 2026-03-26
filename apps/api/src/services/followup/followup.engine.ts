@@ -248,7 +248,14 @@ function adjustToActiveHours(
 }
 
 function getIsraelOffsetMs(date: Date): number {
-  const utcStr = date.toLocaleString('en-US', { timeZone: 'UTC' });
-  const israelStr = date.toLocaleString('en-US', { timeZone: 'Asia/Jerusalem' });
-  return new Date(israelStr).getTime() - new Date(utcStr).getTime();
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Jerusalem',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    hour12: false,
+  });
+  const parts = formatter.formatToParts(date);
+  const get = (type: string) => parseInt(parts.find(p => p.type === type)?.value ?? '0');
+  const israelDate = new Date(Date.UTC(get('year'), get('month') - 1, get('day'), get('hour'), get('minute'), get('second')));
+  return israelDate.getTime() - date.getTime();
 }

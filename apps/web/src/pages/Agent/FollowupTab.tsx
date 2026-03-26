@@ -16,6 +16,7 @@ interface FollowupStep {
   order: number;
   delayMinutes: number;
   instruction: string;
+  openingMessage: string | null;
 }
 
 interface FollowupConfig {
@@ -27,6 +28,7 @@ interface FollowupConfig {
   smartTimingEnabled: boolean;
   smartTimingMinCalls: number;
   minCallbackMinutes: number;
+  callbackOpeningMessage: string | null;
   steps: FollowupStep[];
 }
 
@@ -169,6 +171,7 @@ function ConfigSection({
     smartTimingEnabled: config?.smartTimingEnabled ?? true,
     smartTimingMinCalls: config?.smartTimingMinCalls ?? 3,
     minCallbackMinutes: config?.minCallbackMinutes ?? 5,
+    callbackOpeningMessage: config?.callbackOpeningMessage ?? '',
   });
 
   const saveConfig = useMutation({
@@ -207,6 +210,20 @@ function ConfigSection({
             dir="rtl"
           />
           <p className="text-xs text-[var(--text-muted)] mt-1">{form.generalInstruction.length}/2000</p>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">פתיחה לשיחה שהלקוח ביקש</label>
+          <textarea
+            value={form.callbackOpeningMessage}
+            onChange={(e) => setForm(f => ({ ...f, callbackOpeningMessage: e.target.value }))}
+            rows={2}
+            maxLength={500}
+            className="w-full rounded-lg bg-[var(--bg-primary)] border border-[var(--border)] px-4 py-2.5 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--accent)] resize-none transition-colors"
+            placeholder="למשל: חזרתי אליך כמו שביקשת! ..."
+            dir="rtl"
+          />
+          <p className="text-xs text-[var(--text-muted)] mt-1">אם ריק — הסוכן יפתח לפי הנחיות הכלליות</p>
         </div>
 
         <div className="grid grid-cols-2 gap-4">
@@ -280,15 +297,18 @@ function StepsSection({
   qc: ReturnType<typeof useQueryClient>;
   toast: (msg: string, type: 'success' | 'error') => void;
 }) {
-  const [newStep, setNewStep] = useState({ delayMinutes: 60, instruction: '' });
+  const [newStep, setNewStep] = useState({ delayMinutes: 60, instruction: '', openingMessage: '' });
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState({ delayMinutes: 0, instruction: '' });
+  const [editForm, setEditForm] = useState({ delayMinutes: 0, instruction: '', openingMessage: '' });
 
   const addStep = useMutation({
-    mutationFn: () => api.post(`/agents/${agentId}/followup/steps`, newStep),
+    mutationFn: () => api.post(`/agents/${agentId}/followup/steps`, {
+      ...newStep,
+      openingMessage: newStep.openingMessage || undefined,
+    }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['followup-config', agentId] });
-      setNewStep({ delayMinutes: 60, instruction: '' });
+      setNewStep({ delayMinutes: 60, instruction: '', openingMessage: '' });
       toast('שלב נוסף', 'success');
     },
     onError: () => toast('שגיאה בהוספת שלב', 'error'),
@@ -296,7 +316,10 @@ function StepsSection({
 
   const updateStep = useMutation({
     mutationFn: (stepId: string) =>
-      api.put(`/agents/${agentId}/followup/steps/${stepId}`, editForm),
+      api.put(`/agents/${agentId}/followup/steps/${stepId}`, {
+        ...editForm,
+        openingMessage: editForm.openingMessage || null,
+      }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['followup-config', agentId] });
       setEditingId(null);
@@ -317,7 +340,7 @@ function StepsSection({
 
   function startEditing(step: FollowupStep) {
     setEditingId(step.id);
-    setEditForm({ delayMinutes: step.delayMinutes, instruction: step.instruction });
+    setEditForm({ delayMinutes: step.delayMinutes, instruction: step.instruction, openingMessage: step.openingMessage ?? '' });
   }
 
   return (
@@ -399,10 +422,25 @@ function StepsSection({
                   dir="rtl"
                 />
               </div>
+              <div>
+                <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">הנחיית פתיחה לשלב זה</label>
+                <textarea
+                  value={editForm.openingMessage}
+                  onChange={(e) => setEditForm(f => ({ ...f, openingMessage: e.target.value }))}
+                  rows={2}
+                  maxLength={500}
+                  className="w-full rounded-lg bg-[var(--bg-primary)] border border-[var(--border)] px-4 py-2.5 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--accent)] resize-none transition-colors"
+                  placeholder="אם ריק — הסוכן יפתח לפי הנחיות הכלליות"
+                  dir="rtl"
+                />
+              </div>
             </CardContent>
           ) : (
             <CardContent className="border-t border-[var(--border)]">
               <p className="text-sm text-[var(--text-secondary)] whitespace-pre-wrap">{step.instruction}</p>
+              {step.openingMessage && (
+                <p className="text-xs text-[var(--text-muted)] mt-2 italic">פתיחה: {step.openingMessage}</p>
+              )}
             </CardContent>
           )}
         </Card>
@@ -438,6 +476,18 @@ function StepsSection({
                 dir="ltr"
               />
             </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">הנחיית פתיחה (אופציונלי)</label>
+            <textarea
+              value={newStep.openingMessage}
+              onChange={(e) => setNewStep(s => ({ ...s, openingMessage: e.target.value }))}
+              rows={2}
+              maxLength={500}
+              className="w-full rounded-lg bg-[var(--bg-primary)] border border-[var(--border)] px-4 py-2.5 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--accent)] resize-none transition-colors"
+              placeholder="איך הסוכן יפתח את השיחה בשלב הזה..."
+              dir="rtl"
+            />
           </div>
           <Button
             size="sm"
