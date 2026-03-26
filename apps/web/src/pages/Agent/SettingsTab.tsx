@@ -293,7 +293,10 @@ function ApiReferenceCard({ agentId, apiKey: initialKey }: { agentId: string; ap
     "contact_name": "שם הלקוח",
     "gender": "male",
     "call_priority": "lead",
-    "context": { "source": "crm" }
+    "context": {
+      "note": "הלקוח התעניין בחבילה העסקית",
+      "source": "crm"
+    }
   }'`;
 
   const jsonExample = JSON.stringify({
@@ -301,7 +304,10 @@ function ApiReferenceCard({ agentId, apiKey: initialKey }: { agentId: string; ap
     contact_name: 'שם הלקוח',
     gender: 'male',
     call_priority: 'lead',
-    context: { source: 'crm' },
+    context: {
+      note: 'הלקוח התעניין בחבילה העסקית',
+      source: 'crm',
+    },
   }, null, 2);
 
   function copy(key: string, text: string) {
@@ -401,7 +407,15 @@ function ApiReferenceCard({ agentId, apiKey: initialKey }: { agentId: string; ap
             <span className="font-mono">lead</span> — ליד חדש, עדיפות גבוהה (ברירת מחדל) ·{' '}
             <span className="font-mono">campaign</span> — שיחת קמפיין, עדיפות נמוכה
           </p>
-          <p><strong>context</strong> — JSON חופשי שיועבר לסוכן (אופציונלי)</p>
+          <p><strong>context</strong> — JSON חופשי שמוזרק לסוכן בפתיחת השיחה (אופציונלי)</p>
+          <p className="pr-4 text-[var(--text-muted)]">
+            כל שדה שתכניס יופיע לסוכן תחת &quot;Call Context&quot;. לדוגמה:
+          </p>
+          <pre className="pr-4 font-mono text-[var(--text-muted)] whitespace-pre-wrap" dir="ltr">{`"context": {
+  "note": "הלקוח התעניין בחבילה העסקית",
+  "source": "crm",
+  "lead_score": "high"
+}`}</pre>
         </div>
 
         <details className="group">
