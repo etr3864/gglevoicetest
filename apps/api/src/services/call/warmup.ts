@@ -235,7 +235,7 @@ export async function buildProviderConfig(
   } else {
     const resolved = resolveDirectionalPrompts(agent, direction);
     systemPrompt = resolved.baseSystemPrompt;
-    openingMessage = resolved.openingMessage;
+    openingMessage = openingMessageOverride ?? resolved.openingMessage;
 
     if (contactCtx) systemPrompt += `\n\n${contactCtx.promptSection}`;
     if (callContext) {
