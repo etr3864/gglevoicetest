@@ -180,6 +180,9 @@ export default function CallsTab({
                       ? <PhoneIncoming className="w-3.5 h-3.5 text-blue-400 shrink-0" />
                       : <PhoneOutgoing className="w-3.5 h-3.5 text-[var(--accent)] shrink-0" />}
                 </span>
+                {call.callType === 'followup' && (
+                  <span className="text-xs font-medium text-[var(--accent)] bg-[var(--accent)]/10 px-1.5 py-0.5 rounded">פולואפ</span>
+                )}
                 {call.retryCount > 0 && <Badge variant="warning">חויג שנית</Badge>}
                 {call.durationSec != null && (
                   <span className="text-xs text-[var(--text-muted)]">{formatDuration(call.durationSec)}</span>

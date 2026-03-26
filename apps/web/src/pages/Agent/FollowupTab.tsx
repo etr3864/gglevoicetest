@@ -50,6 +50,17 @@ const STATUS_MAP: Record<string, { label: string; variant: 'success' | 'danger' 
   OPTED_OUT: { label: 'הוסר', variant: 'danger' },
 };
 
+function formatRelativeTime(dateStr: string): string {
+  const diff = new Date(dateStr).getTime() - Date.now();
+  if (diff < 0) return 'עבר';
+  const minutes = Math.floor(diff / 60000);
+  if (minutes < 60) return `בעוד ${minutes} דקות`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `בעוד ${hours} שעות`;
+  const days = Math.floor(hours / 24);
+  return `בעוד ${days} ימים`;
+}
+
 function formatDelay(minutes: number): string {
   if (minutes < 60) return `${minutes} דקות`;
   const hours = Math.floor(minutes / 60);
@@ -83,6 +94,12 @@ export default function FollowupTab({ agentId }: Props) {
     refetchInterval: 30_000,
   });
 
+  const { data: upcomingData } = useQuery({
+    queryKey: ['followup-upcoming', agentId],
+    queryFn: () => api.get(`/agents/${agentId}/followup/upcoming`).then(r => r.data.data),
+    refetchInterval: 60_000,
+  });
+
   if (configLoading) {
     return (
       <div className="flex items-center justify-center py-12 gap-2 text-[var(--text-secondary)]">
@@ -97,6 +114,7 @@ export default function FollowupTab({ agentId }: Props) {
       {stats && <StatsBar stats={stats} />}
       <ConfigSection agentId={agentId} config={config ?? null} qc={qc} toast={toast} />
       <StepsSection agentId={agentId} steps={config?.steps ?? []} qc={qc} toast={toast} />
+      {!!upcomingData?.length && <UpcomingSection data={upcomingData} />}
       <ActiveFollowupsSection
         agentId={agentId}
         data={activeData}
@@ -421,6 +439,35 @@ function StepsSection({
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+function UpcomingSection({ data }: { data: any[] }) {
+  return (
+    <Card>
+      <div className="px-5 pt-4 pb-2 flex items-center justify-between">
+        <span className="text-xs text-[var(--text-muted)]">{data.length} מתוזמנים</span>
+        <div className="flex items-center gap-2">
+          <Clock className="w-4 h-4 text-[var(--text-muted)]" />
+          <h3 className="font-semibold text-[var(--text-primary)]">פולואפים קרובים</h3>
+        </div>
+      </div>
+      <div className="divide-y divide-[var(--border)]">
+        {data.map((f: any) => (
+          <div key={f.id} className="px-5 py-3 flex items-center justify-between gap-3">
+            <span className="text-xs text-[var(--accent)] font-medium">
+              {f.scheduledFor ? formatRelativeTime(f.scheduledFor) : '—'}
+            </span>
+            <div className="text-left">
+              <p className="text-sm font-medium text-[var(--text-primary)]">
+                {f.contact?.name || f.contact?.phone || '—'}
+              </p>
+              <p className="text-xs text-[var(--text-muted)]">שלב {f.currentStepOrder}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </Card>
   );
 }
 

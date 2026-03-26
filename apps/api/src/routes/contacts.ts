@@ -16,9 +16,18 @@ router.get('/agents/:id/contacts', async (req, res) => {
   });
   const contactIds = calls.map(c => c.contactId!);
 
+  const agentId = req.params.id;
+
   const contacts = await prisma.contact.findMany({
     where: { id: { in: contactIds } },
     orderBy: { lastCallAt: 'desc' },
+    include: {
+      contactFollowups: {
+        where: { agentId, status: { in: ['PENDING', 'SCHEDULED', 'EXECUTING'] } },
+        select: { status: true, currentStepOrder: true, scheduledFor: true },
+        take: 1,
+      },
+    },
   });
 
   res.json({ data: contacts });

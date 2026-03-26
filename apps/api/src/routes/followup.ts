@@ -240,6 +240,24 @@ router.post('/followup/contacts/:contactId/re-enable', async (req, res) => {
   res.json({ data: { reEnabled: true, updatedCount: result.count } });
 });
 
+// --- Upcoming (next 5 scheduled) ---
+
+router.get('/followup/upcoming', async (req, res) => {
+  const { agentId } = req.params as Params;
+  await assertAgentAccess(agentId, req.user!);
+
+  const upcoming = await prisma.contactFollowup.findMany({
+    where: { agentId, status: 'SCHEDULED' },
+    orderBy: { scheduledFor: 'asc' },
+    take: 5,
+    include: {
+      contact: { select: { name: true, phone: true } },
+    },
+  });
+
+  res.json({ data: upcoming });
+});
+
 // --- Stats (cached in Redis) ---
 
 router.get('/followup/stats', async (req, res) => {
