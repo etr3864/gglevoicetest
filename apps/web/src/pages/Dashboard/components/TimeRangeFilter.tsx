@@ -1,17 +1,18 @@
+import { useMemo } from 'react';
 import { DateRangePicker, type DateRange } from '../../../components/ui/DateRangePicker';
 import { cn } from '../../../lib/cn';
 
 export type TimePreset = 'today' | '7d' | 'last-week' | '30d' | 'last-month' | '90d' | 'custom' | 'all';
 
 const PRESETS: { id: TimePreset; label: string; title: string }[] = [
-  { id: 'today',      label: 'היום',       title: 'היום' },
-  { id: '7d',         label: '7 ימים',     title: '7 ימים אחרונים (rolling)' },
-  { id: 'last-week',  label: 'שבוע',       title: 'שבוע קלנדרי אחרון (א׳–ש׳)' },
-  { id: '30d',        label: '30 ימים',    title: '30 ימים אחרונים (rolling)' },
-  { id: 'last-month', label: 'חודש',       title: 'חודש קלנדרי אחרון' },
-  { id: '90d',        label: '90 ימים',    title: '90 ימים אחרונים (rolling)' },
-  { id: 'custom',     label: 'מותאם',      title: 'טווח מותאם' },
-  { id: 'all',        label: 'הכל',        title: 'כל הזמנים' },
+  { id: 'today',      label: 'היום',    title: 'היום' },
+  { id: '7d',         label: '7 ימים',  title: '7 ימים אחרונים' },
+  { id: 'last-week',  label: 'שבוע',    title: 'השבוע הנוכחי (א׳ עד היום)' },
+  { id: '30d',        label: '30 ימים', title: '30 ימים אחרונים' },
+  { id: 'last-month', label: 'חודש',    title: 'החודש הנוכחי (1 עד היום)' },
+  { id: '90d',        label: '90 ימים', title: '90 ימים אחרונים' },
+  { id: 'custom',     label: 'מותאם',   title: 'טווח מותאם' },
+  { id: 'all',        label: 'הכל',     title: 'כל הזמנים' },
 ];
 
 interface TimeRangeFilterProps {
@@ -22,10 +23,24 @@ interface TimeRangeFilterProps {
 }
 
 export function TimeRangeFilter({ preset, onPresetChange, customRange, onCustomRangeChange }: TimeRangeFilterProps) {
+  const effectiveRange = useMemo((): DateRange => {
+    const range = presetToRange(preset, customRange);
+    return {
+      from: range.from ? new Date(range.from) : null,
+      to: range.to ? new Date(range.to) : null,
+    };
+  }, [preset, customRange]);
+
+  function handlePickerChange(range: DateRange) {
+    onPresetChange('custom');
+    onCustomRangeChange(range);
+  }
+
   return (
     <div className="flex items-center gap-3 flex-wrap">
+      <DateRangePicker value={effectiveRange} onChange={handlePickerChange} />
       <div className="flex items-center gap-0.5 p-1 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border)] flex-wrap">
-        {PRESETS.map((p) => (
+        {PRESETS.filter(p => p.id !== 'custom').map((p) => (
           <button
             key={p.id}
             type="button"
@@ -42,9 +57,6 @@ export function TimeRangeFilter({ preset, onPresetChange, customRange, onCustomR
           </button>
         ))}
       </div>
-      {preset === 'custom' && (
-        <DateRangePicker value={customRange} onChange={onCustomRangeChange} />
-      )}
     </div>
   );
 }
@@ -66,25 +78,22 @@ export function presetToRange(preset: TimePreset, custom: DateRange): { from?: s
   }
 
   if (preset === 'last-week') {
-    // Previous Sun–Sat calendar week
+    // Current week: Sunday to today
     const dayOfWeek = today.getDay(); // 0=Sun
-    const lastSat = new Date(today);
-    lastSat.setDate(today.getDate() - dayOfWeek - 1);
-    const lastSun = new Date(lastSat);
-    lastSun.setDate(lastSat.getDate() - 6);
+    const thisSun = new Date(today);
+    thisSun.setDate(today.getDate() - dayOfWeek);
     return {
-      from: lastSun.toISOString(),
-      to: new Date(lastSat.getFullYear(), lastSat.getMonth(), lastSat.getDate(), 23, 59, 59).toISOString(),
+      from: thisSun.toISOString(),
+      to: endOfToday.toISOString(),
     };
   }
 
   if (preset === 'last-month') {
-    // Previous calendar month
-    const firstOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const lastOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0);
+    // Current month: 1st to today
+    const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     return {
-      from: firstOfLastMonth.toISOString(),
-      to: new Date(lastOfLastMonth.getFullYear(), lastOfLastMonth.getMonth(), lastOfLastMonth.getDate(), 23, 59, 59).toISOString(),
+      from: firstOfMonth.toISOString(),
+      to: endOfToday.toISOString(),
     };
   }
 
