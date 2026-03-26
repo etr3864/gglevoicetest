@@ -1,6 +1,6 @@
 import { Image, Video, FileText } from 'lucide-react';
-import { extractVariables } from './templateBuilder.utils';
-import type { TemplateForm } from './templateBuilder.types';
+import { extractVariables } from './utils';
+import type { TemplateForm } from './types';
 
 interface Props {
   form: TemplateForm;

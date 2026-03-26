@@ -1,14 +1,14 @@
 import { useState, useRef, useCallback } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { X, Plus, Trash2, Loader2, Upload, ChevronDown, ChevronUp, Code } from 'lucide-react';
-import api from '../../lib/api';
-import { Button } from '../../components/ui/Button';
-import { Input } from '../../components/ui/Input';
-import { useToast } from '../../components/ui/Toast';
-import { cn } from '../../lib/cn';
+import api from '../../../lib/api';
+import { Button } from '../../../components/ui/Button';
+import { Input } from '../../../components/ui/Input';
+import { useToast } from '../../../components/ui/Toast';
+import { cn } from '../../../lib/cn';
 import WhatsappPreview from './WhatsappPreview';
-import { extractVariables, buildComponents, parseExistingComponents, validate, countErrors } from './templateBuilder.utils';
-import type { TemplateForm, TemplateButton, ButtonType, HeaderFormat, Category, ExistingTemplate, ValidationErrors } from './templateBuilder.types';
+import { extractVariables, buildComponents, parseExistingComponents, validate, countErrors } from './utils';
+import type { TemplateForm, TemplateButton, ButtonType, HeaderFormat, Category, ExistingTemplate, ValidationErrors } from './types';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 

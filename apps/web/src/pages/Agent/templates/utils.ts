@@ -1,4 +1,4 @@
-import type { TemplateForm, TemplateButton, HeaderFormat, ValidationErrors } from './templateBuilder.types';
+import type { TemplateForm, TemplateButton, HeaderFormat, ValidationErrors } from './types';
 
 // ─── Variable helpers ─────────────────────────────────────────────────────────
 
@@ -114,12 +114,12 @@ export function validate(form: TemplateForm): ValidationErrors {
   }
 
   if (form.buttons.length > 0) {
-    const hasQuickReply = form.buttons.some(b => b.type === 'QUICK_REPLY');
-    const hasCta = form.buttons.some(b => b.type === 'URL' || b.type === 'PHONE_NUMBER');
+    const hasQuickReply = form.buttons.some((b: TemplateButton) => b.type === 'QUICK_REPLY');
+    const hasCta = form.buttons.some((b: TemplateButton) => b.type === 'URL' || b.type === 'PHONE_NUMBER');
     if (hasQuickReply && hasCta) errors.buttonMix = 'לא ניתן לשלב QUICK_REPLY עם כפתורי URL/טלפון';
 
     const btnErrors: Record<number, string> = {};
-    form.buttons.forEach((btn, i) => {
+    form.buttons.forEach((btn: TemplateButton, i: number) => {
       if (!btn.text.trim()) { btnErrors[i] = 'טקסט חובה'; return; }
       if (btn.type === 'QUICK_REPLY' && btn.text.length > 25) { btnErrors[i] = `${btn.text.length}/25 תווים`; return; }
       if (btn.type === 'URL' && (!btn.url || !/^https?:\/\/.+/.test(btn.url))) { btnErrors[i] = 'כתובת URL לא תקינה'; return; }

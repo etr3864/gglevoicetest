@@ -26,7 +26,7 @@ import SettingsTab from './SettingsTab';
 import KnowledgeTab from './KnowledgeTab';
 import MediaTab from './MediaTab';
 import FollowupTab from './FollowupTab';
-import TemplatesTab from './TemplatesTab';
+import TemplatesTab from './templates/TemplatesTab';
 import type { UserRole } from '@voice/shared';
 
 type Tab = 'prompt' | 'calls' | 'contacts' | 'calendar' | 'reminders' | 'followup' | 'summaries' | 'whatsapp' | 'templates' | 'knowledge' | 'media' | 'settings';

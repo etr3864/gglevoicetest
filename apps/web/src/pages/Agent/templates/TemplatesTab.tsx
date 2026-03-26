@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, RefreshCw, Loader2, AlertTriangle, CheckCircle, Clock, XCircle, Trash2, Pencil, ChevronLeft, ChevronRight } from 'lucide-react';
-import api from '../../lib/api';
-import { Button } from '../../components/ui/Button';
-import { useToast } from '../../components/ui/Toast';
-import { cn } from '../../lib/cn';
+import api from '../../../lib/api';
+import { Button } from '../../../components/ui/Button';
+import { useToast } from '../../../components/ui/Toast';
+import { cn } from '../../../lib/cn';
 import TemplateBuilder from './TemplateBuilder';
 
 interface WhatsappTemplate {
