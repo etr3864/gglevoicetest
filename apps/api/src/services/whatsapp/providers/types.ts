@@ -19,6 +19,8 @@ export interface MetaConfig {
   accessToken: string;
   verifyToken: string;
   appSecret: string;
+  wabaId?: string;
+  appId?: string;
 }
 
 export interface WasenderConfig {

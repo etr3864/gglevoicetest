@@ -13,6 +13,8 @@ interface MetaConfig {
   accessToken: string;
   appSecret: string;
   verifyToken: string;
+  wabaId: string;
+  appId: string;
 }
 
 interface WasenderConfig {
@@ -70,6 +72,8 @@ export default function WhatsappTab({ agentId, agent }: Props) {
     accessToken: '',
     appSecret: '',
     verifyToken: '',
+    wabaId: '',
+    appId: '',
   });
   const [wasender, setWasender] = useState<WasenderConfig>({
     apiKey: '',
@@ -88,6 +92,8 @@ export default function WhatsappTab({ agentId, agent }: Props) {
         accessToken: cfg.accessToken ?? '',
         appSecret: cfg.appSecret ?? '',
         verifyToken: cfg.verifyToken ?? '',
+        wabaId: cfg.wabaId ?? '',
+        appId: cfg.appId ?? '',
       });
     } else if (agent.whatsappProvider === 'wasender') {
       setWasender({
@@ -101,18 +107,26 @@ export default function WhatsappTab({ agentId, agent }: Props) {
   const saveMutation = useMutation({
     mutationFn: async () => {
       const whatsappConfig = provider === 'meta' ? meta : provider === 'wasender' ? wasender : null;
-      await api.patch(`/agents/${agentId}`, {
+      const res = await api.patch(`/agents/${agentId}`, {
         whatsappProvider: provider || null,
         whatsappConfig,
         whatsappInstructions: instructions || null,
         whatsappContextMessages: contextMessages,
       });
+      return res.data as { validationWarning?: string };
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ['agent', agentId] });
-      toast('הגדרות וואטסאפ נשמרו', 'success');
+      if (data?.validationWarning) {
+        toast(data.validationWarning, 'info');
+      } else {
+        toast('הגדרות וואטסאפ נשמרו', 'success');
+      }
     },
-    onError: () => toast('שגיאה בשמירת הגדרות וואטסאפ', 'error'),
+    onError: (err: unknown) => {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      toast(msg ?? 'שגיאה בשמירת הגדרות וואטסאפ', 'error');
+    },
   });
 
   const url = webhookUrl(agentId, provider);
@@ -173,6 +187,25 @@ export default function WhatsappTab({ agentId, agent }: Props) {
             placeholder="מחרוזת אקראית שאתה בוחר"
             dir="ltr"
           />
+          <div className="pt-1 border-t border-[var(--border)]">
+            <p className="text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wide mb-2">ניהול תבניות (אופציונלי)</p>
+            <div className="space-y-3">
+              <Input
+                label="WABA ID"
+                value={meta.wabaId}
+                onChange={e => setMeta(p => ({ ...p, wabaId: e.target.value }))}
+                placeholder="WhatsApp Business Account ID"
+                dir="ltr"
+              />
+              <Input
+                label="App ID"
+                value={meta.appId}
+                onChange={e => setMeta(p => ({ ...p, appId: e.target.value }))}
+                placeholder="Meta App ID (נדרש להעלאת מדיה לתבניות)"
+                dir="ltr"
+              />
+            </div>
+          </div>
         </div>
       )}
 

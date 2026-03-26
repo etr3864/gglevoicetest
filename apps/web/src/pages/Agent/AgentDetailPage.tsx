@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowRight, Loader2, Bot,
   Terminal, Phone, Users, CalendarDays, Bell,
-  ScrollText, MessageCircle, Settings2, BookOpen, ImagePlay, RefreshCw,
+  ScrollText, MessageCircle, Settings2, BookOpen, ImagePlay, RefreshCw, LayoutTemplate,
 } from 'lucide-react';
 import { useState, useEffect, useRef, useMemo } from 'react';
 import api from '../../lib/api';
@@ -26,9 +26,10 @@ import SettingsTab from './SettingsTab';
 import KnowledgeTab from './KnowledgeTab';
 import MediaTab from './MediaTab';
 import FollowupTab from './FollowupTab';
+import TemplatesTab from './TemplatesTab';
 import type { UserRole } from '@voice/shared';
 
-type Tab = 'prompt' | 'calls' | 'contacts' | 'calendar' | 'reminders' | 'followup' | 'summaries' | 'whatsapp' | 'knowledge' | 'media' | 'settings';
+type Tab = 'prompt' | 'calls' | 'contacts' | 'calendar' | 'reminders' | 'followup' | 'summaries' | 'whatsapp' | 'templates' | 'knowledge' | 'media' | 'settings';
 
 const allTabs: { key: Tab; label: string; icon: typeof Terminal; roles: UserRole[]; group: number }[] = [
   { key: 'prompt',    label: 'System Prompt', icon: Terminal,      roles: ['super_admin'],                     group: 1 },
@@ -36,7 +37,8 @@ const allTabs: { key: Tab; label: string; icon: typeof Terminal; roles: UserRole
   { key: 'contacts',  label: 'אנשי קשר',      icon: Users,         roles: ['super_admin', 'admin'],            group: 2 },
   { key: 'calendar',  label: 'יומן',           icon: CalendarDays,  roles: ['super_admin'],                     group: 2 },
   { key: 'summaries', label: 'סיכומים',        icon: ScrollText,    roles: ['super_admin'],                     group: 2 },
-  { key: 'whatsapp',  label: 'וואטסאפ',       icon: MessageCircle, roles: ['super_admin'],                     group: 3 },
+  { key: 'whatsapp',   label: 'וואטסאפ',   icon: MessageCircle,   roles: ['super_admin'], group: 3 },
+  { key: 'templates',  label: 'תבניות',    icon: LayoutTemplate,  roles: ['super_admin'], group: 3 },
   { key: 'reminders', label: 'תזכורות',        icon: Bell,          roles: ['super_admin'],                     group: 3 },
   { key: 'followup',  label: 'פולואפ',         icon: RefreshCw,     roles: ['super_admin'],                     group: 3 },
   { key: 'knowledge', label: 'בסיס ידע',      icon: BookOpen,      roles: ['super_admin'],                     group: 3 },
@@ -51,15 +53,6 @@ export default function AgentDetailPage() {
   const qc = useQueryClient();
   const { hasRole, isSuperAdmin, isEmployee } = useAuth();
 
-  const tabs = useMemo(() => allTabs.filter(t => hasRole(...t.roles)), [hasRole]);
-  const defaultTab = tabs[0]?.key ?? 'calls';
-  const urlTab = searchParams.get('tab') as Tab | null;
-  const tab: Tab = urlTab && tabs.some(t => t.key === urlTab) ? urlTab : defaultTab;
-
-  function setTab(next: Tab) {
-    setSearchParams(next === defaultTab ? {} : { tab: next }, { replace: true });
-  }
-
   // ─── Queries ───
 
   const { data: agent, isLoading } = useQuery({
@@ -67,6 +60,19 @@ export default function AgentDetailPage() {
     queryFn: () => api.get(`/agents/${id}`).then(r => r.data.data),
     enabled: !!id,
   });
+
+  const tabs = useMemo(() => allTabs.filter(t => {
+    if (!hasRole(...t.roles)) return false;
+    if (t.key === 'templates' && agent?.whatsappProvider !== 'meta') return false;
+    return true;
+  }), [hasRole, agent?.whatsappProvider]);
+  const defaultTab = tabs[0]?.key ?? 'calls';
+  const urlTab = searchParams.get('tab') as Tab | null;
+  const tab: Tab = urlTab && tabs.some(t => t.key === urlTab) ? urlTab : defaultTab;
+
+  function setTab(next: Tab) {
+    setSearchParams(next === defaultTab ? {} : { tab: next }, { replace: true });
+  }
 
   const { data: callsData } = useQuery({
     queryKey: ['agent-calls', id],
@@ -315,6 +321,13 @@ export default function AgentDetailPage() {
 
       {tab === 'whatsapp' && id && agent && (
         <WhatsappTab agentId={id} agent={agent} />
+      )}
+
+      {tab === 'templates' && id && agent && (
+        <TemplatesTab
+          agentId={id}
+          hasWabaConfig={!!(agent.whatsappConfig?.wabaId && agent.whatsappConfig?.appId)}
+        />
       )}
 
       {tab === 'followup' && id && (

@@ -8,6 +8,31 @@ import { outboundQueue, OUTBOUND_PRIORITY } from '../lib/queue';
 import { normalizePhone } from '../lib/phone';
 import { publishCallEvent } from '../services/events/pubsub';
 import { encryptConfig, decryptConfig } from '../services/whatsapp/config-crypto';
+import { createLogger } from '../lib/logger';
+
+const log = createLogger('agents');
+
+const META_ERROR_MESSAGES: Record<number, string> = {
+  190: 'טוקן פג תוקף — צור System User Token חדש ב-Meta Business',
+  100: 'פרטים לא תקינים — בדוק את ה-WABA ID וה-Access Token',
+  200: 'אין הרשאות מספיקות לטוקן זה',
+};
+
+async function validateMetaCredentials(wabaId: string, accessToken: string): Promise<string | undefined> {
+  const url = `https://graph.facebook.com/v22.0/${wabaId}?fields=id&access_token=${accessToken}`;
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
+    if (res.ok) return undefined;
+    const body = await res.json().catch(() => ({})) as { error?: { code?: number } };
+    const code = body.error?.code;
+    const msg = (code !== undefined ? META_ERROR_MESSAGES[code] : undefined) ?? `שגיאת Meta (קוד ${code ?? res.status})`;
+    throw new AppError(400, 'INVALID_META_CREDENTIALS', msg);
+  } catch (err) {
+    if (err instanceof AppError) throw err;
+    log.warn('Meta credential validation timed out — saving anyway');
+    return 'לא הצלחנו לאמת את פרטי Meta — נסה לסנכרן תבניות כדי לוודא שהחיבור תקין';
+  }
+}
 
 function generateApiKey(): string {
   return `vk_${crypto.randomBytes(24).toString('hex')}`;
@@ -91,16 +116,21 @@ router.patch('/:id', async (req, res) => {
     };
   }
 
+  let validationWarning: string | undefined;
   if (data.whatsappConfig !== undefined) {
     if (data.whatsappConfig === null) {
       data.whatsappConfig = null;
     } else {
-      data.whatsappConfig = encryptConfig(data.whatsappConfig as object);
+      const cfg = data.whatsappConfig as Record<string, unknown>;
+      if (data.whatsappProvider === 'meta' && cfg.wabaId && cfg.accessToken) {
+        validationWarning = await validateMetaCredentials(String(cfg.wabaId), String(cfg.accessToken));
+      }
+      data.whatsappConfig = encryptConfig(cfg);
     }
   }
 
   const agent = await prisma.agent.update({ where: { id }, data });
-  res.json({ data: agent });
+  res.json({ data: agent, ...(validationWarning && { validationWarning }) });
 });
 
 router.delete('/:id', requireSuperAdmin, async (req, res) => {

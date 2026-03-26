@@ -37,6 +37,7 @@ import { startFollowupExecutionWorker } from './workers/followup-execution.worke
 import knowledgeRoutes from './routes/knowledge';
 import mediaRoutes from './routes/media';
 import followupRoutes from './routes/followup';
+import templateRoutes from './routes/whatsapp-templates';
 import { startRecordingCrons } from './services/recording/recording.cron';
 import { startKnowledgeCrons } from './services/knowledge/knowledge.cron';
 import { startMediaCrons } from './services/media/media.cron';
@@ -121,6 +122,7 @@ app.use('/dashboard/pricing', authMiddleware, pricingRoutes);
 app.use('/agents/:agentId/knowledge', authMiddleware, knowledgeRoutes);
 app.use('/agents/:agentId/media', authMiddleware, mediaRoutes);
 app.use('/agents/:agentId', authMiddleware, followupRoutes);
+app.use('/agents/:agentId', authMiddleware, templateRoutes);
 
 app.use(errorHandler);
 

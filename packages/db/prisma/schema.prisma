@@ -73,6 +73,7 @@ model Agent {
   mediaItems                MediaItem[]
   followupConfig           FollowupConfig?
   contactFollowups         ContactFollowup[]
+  whatsappTemplates        WhatsappTemplate[]
 
   @@map("agents")
 }
@@ -384,6 +385,25 @@ model ContactFollowup {
   @@index([status, scheduledFor])
   @@index([agentId, status])
   @@map("contact_followups")
+}
+
+model WhatsappTemplate {
+  id              String   @id @default(uuid())
+  agentId         String   @map("agent_id")
+  metaId          String?  @map("meta_id")
+  name            String
+  language        String
+  category        String
+  status          String   @default("PENDING")
+  rejectionReason String?  @map("rejection_reason") @db.Text
+  components      Json
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+  agent           Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@unique([agentId, name, language])
+  @@index([agentId, status])
+  @@map("whatsapp_templates")
 }
 
 model KnowledgeChunk {
