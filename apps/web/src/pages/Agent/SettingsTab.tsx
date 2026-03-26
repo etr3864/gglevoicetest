@@ -292,14 +292,16 @@ function ApiReferenceCard({ agentId, apiKey: initialKey }: { agentId: string; ap
     "phone": "+972541234567",
     "contact_name": "שם הלקוח",
     "gender": "male",
-    "context": { "source": "api" }
+    "call_priority": "lead",
+    "context": { "source": "crm" }
   }'`;
 
   const jsonExample = JSON.stringify({
     phone: '+972541234567',
     contact_name: 'שם הלקוח',
     gender: 'male',
-    context: { source: 'api' },
+    call_priority: 'lead',
+    context: { source: 'crm' },
   }, null, 2);
 
   function copy(key: string, text: string) {
@@ -394,6 +396,11 @@ function ApiReferenceCard({ agentId, apiKey: initialKey }: { agentId: string; ap
           <p><strong>phone</strong> — מספר טלפון בפורמט +972 (חובה)</p>
           <p><strong>contact_name</strong> — שם איש קשר (אופציונלי)</p>
           <p><strong>gender</strong> — male / female / unknown (אופציונלי)</p>
+          <p><strong>call_priority</strong> — עדיפות השיחה בתור (אופציונלי)</p>
+          <p className="pr-4 text-[var(--text-muted)]">
+            <span className="font-mono">lead</span> — ליד חדש, עדיפות גבוהה (ברירת מחדל) ·{' '}
+            <span className="font-mono">campaign</span> — שיחת קמפיין, עדיפות נמוכה
+          </p>
           <p><strong>context</strong> — JSON חופשי שיועבר לסוכן (אופציונלי)</p>
         </div>
 

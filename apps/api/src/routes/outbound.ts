@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { prisma, Prisma } from '@voice/db';
 import { createOutboundCallSchema } from '@voice/shared';
-import { outboundQueue } from '../lib/queue';
+import { outboundQueue, OUTBOUND_PRIORITY } from '../lib/queue';
 import { AppError } from '../middleware/error-handler';
 import { apikeyMiddleware } from '../middleware/apikey';
 import { normalizePhone } from '../lib/phone';
@@ -44,10 +44,11 @@ router.post('/v1/calls', apikeyMiddleware, async (req, res) => {
 
   await publishCallEvent(agent.id, 'call_created', { call });
 
+  const priority = body.call_priority === 'campaign' ? OUTBOUND_PRIORITY.campaign : OUTBOUND_PRIORITY.lead;
   await outboundQueue.add(
     'dial',
     { callId: call.id, agentId: agent.id, contactId: contact.id, phone, context: body.context },
-    { attempts: 2, backoff: { type: 'fixed', delay: 8000 } },
+    { attempts: 2, backoff: { type: 'fixed', delay: 8000 }, priority },
   );
 
   res.status(201).json({ data: { call_id: call.id, status: 'queued' } });

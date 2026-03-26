@@ -1,6 +1,6 @@
 import { prisma } from '@voice/db';
 import { createLogger } from '../lib/logger';
-import { createWorker, outboundQueue, scheduleReminderSafetyScan } from '../lib/queue';
+import { createWorker, outboundQueue, scheduleReminderSafetyScan, OUTBOUND_PRIORITY } from '../lib/queue';
 import { runSafetyScan } from '../services/reminders/reminder.service';
 import { normalizePhone } from '../lib/phone';
 import { publishCallEvent } from '../services/events/pubsub';
@@ -98,7 +98,7 @@ async function executeReminder(reminderId: string): Promise<void> {
     await outboundQueue.add(
       'dial',
       { callId: call.id, agentId: reminder.agentId, phone, context: callContext },
-      { attempts: 1, delay },
+      { attempts: 1, delay, priority: OUTBOUND_PRIORITY.reminder },
     );
   } catch (err) {
     log.error('Failed to launch reminder call', err, { reminderId });

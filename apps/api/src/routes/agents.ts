@@ -4,7 +4,7 @@ import { prisma, Prisma } from '@voice/db';
 import { createAgentSchema, updateAgentSchema } from '@voice/shared';
 import { AppError } from '../middleware/error-handler';
 import { requireSuperAdmin, assertAgentAccess } from '../middleware/auth';
-import { outboundQueue } from '../lib/queue';
+import { outboundQueue, OUTBOUND_PRIORITY } from '../lib/queue';
 import { normalizePhone } from '../lib/phone';
 import { publishCallEvent } from '../services/events/pubsub';
 import { encryptConfig, decryptConfig } from '../services/whatsapp/config-crypto';
@@ -185,7 +185,7 @@ router.post('/:id/outbound', async (req, res) => {
   await outboundQueue.add(
     'dial',
     { callId: call.id, agentId: agent.id, contactId: contact.id, phone, context },
-    { attempts: 2, backoff: { type: 'fixed', delay: 8000 } },
+    { attempts: 2, backoff: { type: 'fixed', delay: 8000 }, priority: OUTBOUND_PRIORITY.campaign },
   );
 
   res.status(201).json({ data: { callId: call.id, status: 'queued' } });

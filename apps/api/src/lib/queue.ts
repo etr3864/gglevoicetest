@@ -54,10 +54,17 @@ export const followupEvalQueue = new Queue('followup-evaluation', {
   defaultJobOptions: { removeOnComplete: 1000, removeOnFail: 500 },
 });
 
+// Lower number = higher priority in BullMQ.
+// Inbound calls bypass the queue entirely (Priority 0 effectively).
+// Priority 1: reminders + customer-requested callbacks (customer is expecting the call)
+// Priority 2: new leads from API — default when call_priority not specified
+// Priority 3: automatic follow-ups
+// Priority 4: manual dial from dashboard + campaign API calls (call_priority: "campaign")
 export const OUTBOUND_PRIORITY = {
-  manual: 1,
+  reminder: 1,
+  lead: 2,
   followup: 3,
-  reminder: 5,
+  campaign: 4,
 } as const;
 
 export async function scheduleReminderSafetyScan(): Promise<void> {
