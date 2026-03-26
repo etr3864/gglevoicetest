@@ -336,6 +336,7 @@ model FollowupConfig {
   activeHoursEnd      String         @default("21:00") @map("active_hours_end")
   smartTimingEnabled  Boolean        @default(true) @map("smart_timing_enabled")
   smartTimingMinCalls Int            @default(3) @map("smart_timing_min_calls")
+  minCallbackMinutes  Int            @default(5) @map("min_callback_minutes")
   createdAt           DateTime       @default(now()) @map("created_at")
   updatedAt           DateTime       @updatedAt @map("updated_at")
   agent               Agent          @relation(fields: [agentId], references: [id], onDelete: Cascade)

@@ -30,7 +30,7 @@ router.put('/followup/config', async (req, res) => {
   const { agentId } = req.params as Params;
   await assertAgentAccess(agentId, req.user!);
 
-  const { enabled, generalInstruction, activeHoursStart, activeHoursEnd, smartTimingEnabled, smartTimingMinCalls } =
+  const { enabled, generalInstruction, activeHoursStart, activeHoursEnd, smartTimingEnabled, smartTimingMinCalls, minCallbackMinutes } =
     req.body;
 
   if (generalInstruction && generalInstruction.length > MAX_GENERAL_INSTRUCTION) {
@@ -38,6 +38,9 @@ router.put('/followup/config', async (req, res) => {
   }
   if (activeHoursStart && activeHoursEnd && activeHoursStart >= activeHoursEnd) {
     throw new AppError(400, 'VALIDATION_ERROR', 'activeHoursStart must be before activeHoursEnd');
+  }
+  if (minCallbackMinutes !== undefined && (minCallbackMinutes < 1 || minCallbackMinutes > 1440)) {
+    throw new AppError(400, 'VALIDATION_ERROR', 'minCallbackMinutes must be between 1 and 1440');
   }
 
   const config = await prisma.followupConfig.upsert({
@@ -50,6 +53,7 @@ router.put('/followup/config', async (req, res) => {
       activeHoursEnd: activeHoursEnd ?? '21:00',
       smartTimingEnabled: smartTimingEnabled ?? true,
       smartTimingMinCalls: smartTimingMinCalls ?? 3,
+      minCallbackMinutes: minCallbackMinutes ?? 5,
     },
     update: {
       ...(enabled !== undefined && { enabled }),
@@ -58,6 +62,7 @@ router.put('/followup/config', async (req, res) => {
       ...(activeHoursEnd !== undefined && { activeHoursEnd }),
       ...(smartTimingEnabled !== undefined && { smartTimingEnabled }),
       ...(smartTimingMinCalls !== undefined && { smartTimingMinCalls }),
+      ...(minCallbackMinutes !== undefined && { minCallbackMinutes }),
     },
     include: { steps: { orderBy: { order: 'asc' } } },
   });

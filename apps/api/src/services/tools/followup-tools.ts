@@ -2,6 +2,7 @@ import { prisma } from '@voice/db';
 import { globalRegistry } from './registry';
 import type { ToolContext } from './registry';
 import { redis } from '../../lib/redis';
+import { toISOWithTimezone } from '../../lib/date';
 import { optOutContact } from '../followup/followup.cancel';
 
 const DNC_FLAG_TTL = 3600;
@@ -80,7 +81,7 @@ async function scheduleCallback(
   reason: string | undefined,
   ctx: ToolContext,
 ): Promise<unknown> {
-  const callbackTime = new Date(`${date}T${time}:00`);
+  const callbackTime = new Date(toISOWithTimezone(date, time));
   if (isNaN(callbackTime.getTime())) {
     return { error: 'Invalid date or time format' };
   }

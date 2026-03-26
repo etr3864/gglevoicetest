@@ -26,6 +26,7 @@ interface FollowupConfig {
   activeHoursEnd: string;
   smartTimingEnabled: boolean;
   smartTimingMinCalls: number;
+  minCallbackMinutes: number;
   steps: FollowupStep[];
 }
 
@@ -175,6 +176,7 @@ function ConfigSection({
     activeHoursEnd: config?.activeHoursEnd ?? '21:00',
     smartTimingEnabled: config?.smartTimingEnabled ?? true,
     smartTimingMinCalls: config?.smartTimingMinCalls ?? 3,
+    minCallbackMinutes: config?.minCallbackMinutes ?? 5,
   });
 
   const saveConfig = useMutation({
@@ -244,6 +246,24 @@ function ConfigSection({
             onChange={(v) => setForm(f => ({ ...f, smartTimingEnabled: v }))}
           />
           <span className="text-sm text-[var(--text-secondary)]">תזמון חכם (לפי שעות מענה)</span>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">
+            מינימום דקות לקולבק
+          </label>
+          <div className="flex items-center gap-2">
+            <input
+              type="number"
+              min={1}
+              max={1440}
+              value={form.minCallbackMinutes}
+              onChange={(e) => setForm(f => ({ ...f, minCallbackMinutes: parseInt(e.target.value) || 5 }))}
+              className="w-24 rounded-lg bg-[var(--bg-primary)] border border-[var(--border)] px-3 py-2.5 text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)] transition-colors"
+              dir="ltr"
+            />
+            <span className="text-xs text-[var(--text-muted)]">דקות מינימום בין קריאת schedule_callback לביצוע</span>
+          </div>
         </div>
 
         <div className="flex justify-start">

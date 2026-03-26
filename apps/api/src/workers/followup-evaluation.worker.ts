@@ -57,7 +57,7 @@ async function evaluateCall(callId: string): Promise<void> {
   const config = await prisma.followupConfig.findUnique({
     where: { agentId: call.agentId },
     include: { steps: { orderBy: { order: 'asc' } } },
-  });
+    });
 
   if (!config?.enabled || config.steps.length === 0) return;
 
@@ -118,6 +118,7 @@ async function applyDispositionRules(
     activeHoursEnd: string;
     smartTimingEnabled: boolean;
     smartTimingMinCalls: number;
+    minCallbackMinutes: number;
     steps: Array<{ id: string; order: number; delayMinutes: number; instruction: string }>;
   },
   existingFollowup: { id: string; currentStepOrder: number } | null,
@@ -173,6 +174,7 @@ async function handleCallback(
     activeHoursEnd: string;
     smartTimingEnabled: boolean;
     smartTimingMinCalls: number;
+    minCallbackMinutes: number;
     steps: Array<{ id: string; order: number; delayMinutes: number; instruction: string }>;
   },
   existingFollowup: { id: string; currentStepOrder: number } | null,
@@ -182,7 +184,7 @@ async function handleCallback(
   }
 
   const delayMs = call.callbackTime.getTime() - Date.now();
-  const delayMinutes = Math.max(30, Math.round(delayMs / 60_000));
+  const delayMinutes = Math.max(config.minCallbackMinutes, Math.round(delayMs / 60_000));
 
   const nextStep = existingFollowup
     ? getNextStep(config.steps, existingFollowup.currentStepOrder)
