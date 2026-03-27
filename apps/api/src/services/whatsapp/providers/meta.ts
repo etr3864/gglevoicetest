@@ -1,4 +1,7 @@
+import { createLogger } from '../../../lib/logger';
 import type { WhatsappProvider, SendResult, MetaConfig, MediaPayload, TemplatePayload } from './types';
+
+const log = createLogger('meta-provider');
 
 const RETRYABLE_CODES = new Set([130429, 131056, 2, 131016, 131057, 133004, 1, 131000]);
 
@@ -96,6 +99,7 @@ export class MetaWhatsappProvider implements WhatsappProvider {
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Network error';
+      log.error('Meta API network error', { message });
       return { ok: false, retryable: true, code: 'TIMEOUT', message };
     }
 
@@ -113,6 +117,7 @@ export class MetaWhatsappProvider implements WhatsappProvider {
     } catch { /* ignore */ }
 
     const { retryable } = classifyMetaError(response.status, errorCode);
+    log.error('Meta API error', { status: response.status, errorCode, errorMessage, retryable });
     return { ok: false, retryable, code: String(errorCode ?? response.status), message: errorMessage };
   }
 }

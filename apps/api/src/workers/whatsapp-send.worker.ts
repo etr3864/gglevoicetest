@@ -36,6 +36,16 @@ async function processMessage(messageId: string, isMedia: boolean, isTemplate: b
     return;
   }
 
+  log.error('whatsapp-send: provider returned error', {
+    messageId,
+    isTemplate,
+    templateName: row.templateName,
+    phone: row.contactPhone.slice(-4),
+    code: result.code,
+    message: result.message,
+    retryable: result.retryable,
+  });
+
   if (result.retryable) throw new Error(`WhatsApp retryable error [${result.code}]: ${result.message}`);
 
   await prisma.whatsappMessage.update({ where: { id: row.id }, data: { status: 'failed', errorCode: result.code } });
@@ -59,12 +69,22 @@ async function sendTemplateViaProvider(
   }
 
   const variables = (row.templateVars as Record<string, string>) ?? {};
+  const header = await buildHeaderPayload(template.components, row.mediaItemId, row.mediaName);
   const payload: TemplatePayload = {
     name: template.name,
     language: template.language,
     variables,
-    header: await buildHeaderPayload(template.components, row.mediaItemId, row.mediaName),
+    header,
   };
+
+  log.info('whatsapp-send: sending template', {
+    phone: row.contactPhone.slice(-4),
+    templateName: payload.name,
+    language: payload.language,
+    variableKeys: Object.keys(variables),
+    headerFormat: header?.format ?? null,
+    hasMediaUrl: !!header?.mediaUrl,
+  });
 
   return provider.sendTemplate(row.contactPhone, payload);
 }
