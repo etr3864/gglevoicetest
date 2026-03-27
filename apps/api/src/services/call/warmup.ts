@@ -314,14 +314,18 @@ async function fetchContactForWarmup(toolCallId: string, contactPhone: string | 
 }
 
 function buildFollowupPromptSection(callContext: Record<string, unknown>): string {
-  const parts: string[] = ['\n\n--- Follow-up Call Instructions ---'];
-  parts.push('This is an automated follow-up call. Be natural, warm, and refer to previous interactions when relevant.');
+  const parts: string[] = ['\n\n--- Follow-up Call ---'];
+  parts.push(
+    'This is an automated follow-up call. Speak naturally as if you decided to call back on your own.\n' +
+    'CRITICAL: The goal below describes WHAT to achieve — do NOT read it aloud or quote it. ' +
+    'Rephrase everything in your own words, naturally, as part of the conversation.',
+  );
 
   const general = callContext.__followupGeneralInstruction as string | undefined;
-  if (general) parts.push(general);
+  if (general) parts.push(`General guidance: ${general}`);
 
   const step = callContext.__followupStepInstruction as string | undefined;
-  if (step) parts.push(`\nStep instructions: ${step}`);
+  if (step) parts.push(`Goal for this call: ${step}`);
 
   const lastDisposition = callContext.__followupLastDisposition as string | undefined;
   if (lastDisposition) parts.push(`Previous call outcome: ${lastDisposition}`);
