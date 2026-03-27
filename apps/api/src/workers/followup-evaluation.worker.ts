@@ -54,12 +54,20 @@ async function evaluateCall(callId: string): Promise<void> {
 
   if (!call || !call.contactId) return;
 
-  const config = await prisma.followupConfig.findUnique({
-    where: { agentId: call.agentId },
-    include: { steps: { orderBy: { order: 'asc' } } },
-    });
+  const [rawConfig, agent] = await Promise.all([
+    prisma.followupConfig.findUnique({
+      where: { agentId: call.agentId },
+      include: { steps: { orderBy: { order: 'asc' } } },
+    }),
+    prisma.agent.findUnique({
+      where: { id: call.agentId },
+      select: { businessHours: true },
+    }),
+  ]);
 
-  if (!config?.enabled || config.steps.length === 0) return;
+  if (!rawConfig?.enabled || rawConfig.steps.length === 0) return;
+
+  const config = { ...rawConfig, businessHours: agent?.businessHours as Record<string, { start: string; end: string } | null> | null };
 
   let disposition = call.disposition;
 
