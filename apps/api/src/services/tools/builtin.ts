@@ -4,7 +4,7 @@ import type { ToolContext } from './registry';
 import { registerCalendarTools } from './calendar';
 import { registerFollowupTools } from './followup-tools';
 import { formatTimestamp } from '../../lib/date';
-import { SEND_WHATSAPP_DEFINITION, handleSendWhatsapp } from './whatsapp-tool';
+import { SEND_WHATSAPP_DEFINITION, handleSendWhatsapp, SEND_WHATSAPP_TEMPLATE_DEFINITION, handleSendWhatsappTemplate } from './whatsapp-tool';
 import {
   SEARCH_KNOWLEDGE_DEFINITION, handleSearchKnowledge,
   QUERY_TABLE_DEFINITION, handleQueryTable,
@@ -19,6 +19,7 @@ export function registerBuiltinTools(): void {
   registerFollowupTools();
 
   globalRegistry.register(SEND_WHATSAPP_DEFINITION, handleSendWhatsapp);
+  globalRegistry.register(SEND_WHATSAPP_TEMPLATE_DEFINITION, handleSendWhatsappTemplate);
   globalRegistry.register(SEARCH_KNOWLEDGE_DEFINITION, handleSearchKnowledge);
   globalRegistry.register(QUERY_TABLE_DEFINITION, handleQueryTable);
   globalRegistry.register(SEND_MEDIA_DEFINITION, handleSendMedia);

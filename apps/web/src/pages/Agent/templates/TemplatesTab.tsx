@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, RefreshCw, Loader2, AlertTriangle, CheckCircle, Clock, XCircle, Trash2, Pencil, ChevronLeft, ChevronRight } from 'lucide-react';
 import api from '../../../lib/api';
@@ -15,6 +15,7 @@ interface WhatsappTemplate {
   status: string;
   rejectionReason: string | null;
   components: unknown[];
+  description: string | null;
   createdAt: string;
 }
 
@@ -191,6 +192,7 @@ export default function TemplatesTab({ agentId, hasWabaConfig }: Props) {
           {data.data.map(tpl => (
             <TemplateCard
               key={tpl.id}
+              agentId={agentId}
               template={tpl}
               onEdit={() => openEdit(tpl)}
               onDelete={() => deleteMutation.mutate(tpl.id)}
@@ -241,11 +243,13 @@ export default function TemplatesTab({ agentId, hasWabaConfig }: Props) {
 }
 
 function TemplateCard({
+  agentId,
   template,
   onEdit,
   onDelete,
   isDeleting,
 }: {
+  agentId: string;
   template: WhatsappTemplate;
   onEdit: () => void;
   onDelete: () => void;
@@ -254,6 +258,20 @@ function TemplateCard({
   const bodyText = getBodyText(template.components);
   const isApproved = template.status === 'APPROVED';
   const isRejected = template.status === 'REJECTED';
+
+  const [desc, setDesc] = useState(template.description ?? '');
+  const saveTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const descMutation = useMutation({
+    mutationFn: (description: string) =>
+      api.patch(`/agents/${agentId}/whatsapp/templates/${template.id}/description`, { description }),
+  });
+
+  function handleDescChange(value: string) {
+    setDesc(value);
+    if (saveTimeout.current) clearTimeout(saveTimeout.current);
+    saveTimeout.current = setTimeout(() => descMutation.mutate(value), 800);
+  }
 
   return (
     <div className="p-4 rounded-xl bg-[var(--bg-card)] border border-[var(--border)] space-y-2">
@@ -291,6 +309,18 @@ function TemplateCard({
           </button>
         </div>
       </div>
+
+      {isApproved && (
+        <div>
+          <input
+            type="text"
+            value={desc}
+            onChange={e => handleDescChange(e.target.value)}
+            placeholder="מתי לשלוח תבנית זו... (מדריך לסוכן AI)"
+            className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] text-[var(--text-secondary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)] focus:border-[var(--accent)] transition"
+          />
+        </div>
+      )}
 
       {isRejected && template.rejectionReason && (
         <div className="flex items-start gap-2 p-2 rounded-lg bg-red-50 border border-red-100 text-xs text-red-700">

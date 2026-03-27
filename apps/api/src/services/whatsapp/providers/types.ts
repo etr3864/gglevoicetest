@@ -9,9 +9,20 @@ export interface MediaPayload {
   filename?: string;
 }
 
+export type TemplateHeaderFormat = 'TEXT' | 'IMAGE' | 'VIDEO' | 'DOCUMENT';
+
+export interface TemplatePayload {
+  name: string;
+  language: string;
+  variables: Record<string, string>;
+  header?: { format: TemplateHeaderFormat; text?: string; mediaUrl?: string; filename?: string };
+  buttons?: { type: string; index: number }[];
+}
+
 export interface WhatsappProvider {
   send(to: string, text: string, timeoutMs?: number): Promise<SendResult>;
   sendMedia(to: string, media: MediaPayload, timeoutMs?: number): Promise<SendResult>;
+  sendTemplate?(to: string, payload: TemplatePayload, timeoutMs?: number): Promise<SendResult>;
 }
 
 export interface MetaConfig {

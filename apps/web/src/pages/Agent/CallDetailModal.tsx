@@ -14,6 +14,7 @@ interface WhatsappMessage {
   status: string;
   mediaType?: string | null;
   mediaName?: string | null;
+  templateName?: string | null;
 }
 
 type TimelineItem =
@@ -238,7 +239,10 @@ function WhatsappBubble({ message: m }: { message: WhatsappMessage }) {
           <span className="text-xs font-medium text-green-400">סוכן</span>
         </div>
         {m.content && <p dir="rtl">{m.content}</p>}
-        <div className="flex items-center justify-end gap-1 mt-1.5">
+        <div className="flex items-center justify-end gap-1.5 mt-1.5">
+          {m.templateName && (
+            <span className="text-[10px] text-green-500/50 italic">template</span>
+          )}
           <MessageCircle className="w-3 h-3 text-green-500/60" />
           <span className="text-[10px] text-green-500/60">נשלח בוואטסאפ</span>
         </div>

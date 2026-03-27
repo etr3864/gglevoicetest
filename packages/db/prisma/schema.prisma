@@ -217,6 +217,8 @@ model WhatsappMessage {
   mediaItemId       String?  @map("media_item_id")
   mediaType         String?  @map("media_type")
   mediaName         String?  @map("media_name")
+  templateName      String?  @map("template_name")
+  templateVars      Json?    @map("template_vars")
   errorCode         String?  @map("error_code")
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @updatedAt @map("updated_at")
@@ -397,6 +399,7 @@ model WhatsappTemplate {
   status          String   @default("PENDING")
   rejectionReason String?  @map("rejection_reason") @db.Text
   components      Json
+  description     String?  @db.Text
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
   agent           Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)

@@ -75,6 +75,20 @@ router.post('/whatsapp/templates', requireSuperAdmin, async (req, res) => {
   res.status(201).json({ data: result });
 });
 
+router.patch('/whatsapp/templates/:templateId/description', requireSuperAdmin, async (req, res) => {
+  const { agentId, templateId } = req.params as { agentId: string; templateId: string };
+  await assertAgentAccess(agentId, req.user!);
+
+  const { description } = req.body as { description?: string };
+
+  await prisma.whatsappTemplate.update({
+    where: { id: templateId },
+    data: { description: description?.trim() || null },
+  });
+
+  res.json({ data: { success: true } });
+});
+
 router.delete('/whatsapp/templates/:templateId', requireSuperAdmin, async (req, res) => {
   const { agentId, templateId } = req.params as { agentId: string; templateId: string };
   await assertAgentAccess(agentId, req.user!);

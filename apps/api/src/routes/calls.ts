@@ -64,7 +64,7 @@ router.get('/calls/:id/whatsapp-messages', async (req, res) => {
   const messages = await prisma.whatsappMessage.findMany({
     where: { callId: call.id, direction: 'outbound' },
     orderBy: { createdAt: 'asc' },
-    select: { id: true, content: true, createdAt: true, status: true, mediaType: true, mediaName: true },
+    select: { id: true, content: true, createdAt: true, status: true, mediaType: true, mediaName: true, templateName: true },
   });
   res.json({ data: messages });
 });

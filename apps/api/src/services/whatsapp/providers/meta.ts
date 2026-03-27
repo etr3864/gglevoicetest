@@ -1,6 +1,32 @@
-import type { WhatsappProvider, SendResult, MetaConfig, MediaPayload } from './types';
+import type { WhatsappProvider, SendResult, MetaConfig, MediaPayload, TemplatePayload } from './types';
 
 const RETRYABLE_CODES = new Set([130429, 131056, 2, 131016, 131057, 133004, 1, 131000]);
+
+function buildTemplateComponents(payload: TemplatePayload): object[] {
+  const components: object[] = [];
+
+  if (payload.header) {
+    const { format, text, mediaUrl, filename } = payload.header;
+    if (format === 'TEXT' && text) {
+      components.push({ type: 'header', parameters: [{ type: 'text', text }] });
+    } else if (mediaUrl && (format === 'IMAGE' || format === 'VIDEO' || format === 'DOCUMENT')) {
+      const mediaType = format.toLowerCase() as 'image' | 'video' | 'document';
+      const mediaObj: Record<string, string> = { link: mediaUrl };
+      if (format === 'DOCUMENT' && filename) mediaObj.filename = filename;
+      components.push({ type: 'header', parameters: [{ type: mediaType, [mediaType]: mediaObj }] });
+    }
+  }
+
+  const vars = Object.entries(payload.variables).sort(([a], [b]) => Number(a) - Number(b));
+  if (vars.length > 0) {
+    components.push({
+      type: 'body',
+      parameters: vars.map(([, value]) => ({ type: 'text', text: value })),
+    });
+  }
+
+  return components;
+}
 
 function classifyMetaError(status: number, code: number | undefined): { retryable: boolean } {
   if (status >= 500) return { retryable: true };
@@ -38,6 +64,23 @@ export class MetaWhatsappProvider implements WhatsappProvider {
       [media.type]: mediaObj,
     });
 
+    return this.post(url, body, timeoutMs);
+  }
+
+  async sendTemplate(to: string, payload: TemplatePayload, timeoutMs = 15_000): Promise<SendResult> {
+    const url = `https://graph.facebook.com/v22.0/${this.config.phoneNumberId}/messages`;
+    const components = buildTemplateComponents(payload);
+    const body = JSON.stringify({
+      messaging_product: 'whatsapp',
+      recipient_type: 'individual',
+      to,
+      type: 'template',
+      template: {
+        name: payload.name,
+        language: { code: payload.language },
+        components,
+      },
+    });
     return this.post(url, body, timeoutMs);
   }
 
