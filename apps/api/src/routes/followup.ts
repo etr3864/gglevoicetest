@@ -3,6 +3,7 @@ import { prisma } from '@voice/db';
 import { AppError } from '../middleware/error-handler';
 import { assertAgentAccess } from '../middleware/auth';
 import { redis } from '../lib/redis';
+import { followupQueue } from '../lib/queue';
 
 const router = Router({ mergeParams: true });
 
@@ -241,6 +242,10 @@ router.post('/followup/active/:followupId/cancel', async (req, res) => {
   }
   if (followup.status === 'CANCELLED' || followup.status === 'COMPLETED' || followup.status === 'OPTED_OUT') {
     throw new AppError(409, 'INVALID_STATUS', `Cannot cancel followup with status ${followup.status}`);
+  }
+
+  if (followup.bullmqJobId) {
+    try { await followupQueue.remove(followup.bullmqJobId); } catch {}
   }
 
   await prisma.contactFollowup.update({

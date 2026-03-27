@@ -107,6 +107,7 @@ async function applyDispositionRules(
     agentId: string;
     contactId: string | null;
     direction: string;
+    callType: string | null;
     callbackTime: Date | null;
   },
   config: {
@@ -164,7 +165,7 @@ async function applyDispositionRules(
 }
 
 async function handleCallback(
-  call: { id: string; agentId: string; contactId: string | null; callbackTime: Date | null },
+  call: { id: string; agentId: string; contactId: string | null; callType: string | null; callbackTime: Date | null },
   config: {
     id: string;
     agentId: string;
@@ -216,7 +217,7 @@ async function handleCallback(
 
 async function handleAdvanceOrCreate(
   disposition: string,
-  call: { id: string; agentId: string; contactId: string | null },
+  call: { id: string; agentId: string; contactId: string | null; callType: string | null },
   config: {
     id: string;
     agentId: string;
@@ -248,6 +249,7 @@ async function handleAdvanceOrCreate(
       call.contactId ?? undefined,
     );
   } else {
+    if (call.callType === 'followup') return;
     const firstStep = config.steps[0];
     if (!firstStep) return;
     await createNewFollowup(call.contactId, call.agentId, firstStep, config, call.id, disposition);
