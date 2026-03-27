@@ -94,6 +94,8 @@ export async function advanceToNextStep(
   lastDisposition: string,
   contactId?: string,
 ): Promise<void> {
+  await removeOldJob(followupId);
+
   const scheduledFor = await calculateScheduledTime(contactId ?? '', nextStep.delayMinutes, config);
 
   const result = await prisma.contactFollowup.updateMany({
@@ -110,6 +112,7 @@ export async function advanceToNextStep(
       scheduledFor,
       stepDelayMinutes: nextStep.delayMinutes,
       stepInstruction: nextStep.instruction,
+      attemptCount: 0,
     },
   });
 
@@ -133,7 +136,58 @@ export async function advanceToNextStep(
   log.info('Advanced followup', { followupId, step: nextStep.order, scheduledFor: scheduledFor.toISOString() });
 }
 
+const MAX_ATTEMPTS_PER_STEP = 3;
+
+export async function rescheduleCurrentStep(
+  followupId: string,
+  contactId: string,
+  config: FollowupConfig,
+  delayMinutes: number,
+  lastCallId: string,
+  lastDisposition: string,
+): Promise<boolean> {
+  const current = await prisma.contactFollowup.findUnique({
+    where: { id: followupId },
+    select: { status: true, attemptCount: true, bullmqJobId: true },
+  });
+
+  if (!current || !['PENDING', 'SCHEDULED', 'EXECUTING'].includes(current.status)) return false;
+
+  if (current.attemptCount >= MAX_ATTEMPTS_PER_STEP) return false;
+
+  await removeOldJob(followupId, current.bullmqJobId);
+
+  const scheduledFor = await calculateScheduledTime(contactId, delayMinutes, config);
+  const delay = scheduledFor.getTime() - Date.now();
+
+  const job = await followupQueue.add(
+    'execute',
+    { contactFollowupId: followupId },
+    { delay: Math.max(delay, 0), jobId: `followup-${followupId}-retry-${Date.now()}` },
+  );
+
+  await prisma.contactFollowup.update({
+    where: { id: followupId },
+    data: {
+      status: 'SCHEDULED',
+      scheduledFor,
+      lastCallId,
+      lastDisposition,
+      attemptCount: { increment: 1 },
+      bullmqJobId: job.id,
+    },
+  });
+
+  log.info('Rescheduled current step', {
+    followupId,
+    attempt: current.attemptCount + 1,
+    scheduledFor: scheduledFor.toISOString(),
+  });
+  return true;
+}
+
 export async function completeFollowup(followupId: string, reason: string): Promise<void> {
+  await removeOldJob(followupId);
   await prisma.contactFollowup.updateMany({
     where: { id: followupId, status: { in: ['PENDING', 'SCHEDULED', 'EXECUTING'] } },
     data: { status: 'COMPLETED' },
@@ -142,11 +196,24 @@ export async function completeFollowup(followupId: string, reason: string): Prom
 }
 
 export async function optOutFollowup(followupId: string): Promise<void> {
+  await removeOldJob(followupId);
   await prisma.contactFollowup.updateMany({
     where: { id: followupId, status: { in: ['PENDING', 'SCHEDULED', 'EXECUTING'] } },
     data: { status: 'OPTED_OUT' },
   });
   log.info('Opted out followup', { followupId });
+}
+
+async function removeOldJob(followupId: string, bullmqJobId?: string | null): Promise<void> {
+  const jobId = bullmqJobId ?? (
+    await prisma.contactFollowup.findUnique({
+      where: { id: followupId },
+      select: { bullmqJobId: true },
+    })
+  )?.bullmqJobId;
+
+  if (!jobId) return;
+  try { await followupQueue.remove(jobId); } catch {}
 }
 
 // --- Scheduling ---

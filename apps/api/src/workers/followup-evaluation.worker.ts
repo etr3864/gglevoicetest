@@ -7,10 +7,31 @@ import {
   advanceToNextStep,
   completeFollowup,
   optOutFollowup,
+  rescheduleCurrentStep,
 } from '../services/followup/followup.engine';
-import { cancelActiveFollowup } from '../services/followup/followup.cancel';
 
 const log = createLogger('followup-eval');
+
+interface ExistingFollowup {
+  id: string;
+  currentStepOrder: number;
+  attemptCount: number;
+  stepDelayMinutes: number | null;
+}
+
+interface FollowupEvalConfig {
+  id: string;
+  agentId: string;
+  enabled: boolean;
+  generalInstruction: string;
+  activeHoursStart: string;
+  activeHoursEnd: string;
+  smartTimingEnabled: boolean;
+  smartTimingMinCalls: number;
+  minCallbackMinutes: number;
+  steps: Array<{ id: string; order: number; delayMinutes: number; instruction: string }>;
+  businessHours?: Record<string, { start: string; end: string } | null> | null;
+}
 
 interface EvalJob {
   callId: string;
@@ -87,6 +108,7 @@ async function evaluateCall(callId: string): Promise<void> {
       agentId: call.agentId,
       status: { in: ['PENDING', 'SCHEDULED', 'EXECUTING'] },
     },
+    select: { id: true, currentStepOrder: true, attemptCount: true, stepDelayMinutes: true },
   });
 
   await applyDispositionRules(disposition, call, config, existingFollowup);
@@ -118,22 +140,9 @@ async function applyDispositionRules(
     callType: string | null;
     callbackTime: Date | null;
   },
-  config: {
-    id: string;
-    agentId: string;
-    enabled: boolean;
-    generalInstruction: string;
-    activeHoursStart: string;
-    activeHoursEnd: string;
-    smartTimingEnabled: boolean;
-    smartTimingMinCalls: number;
-    minCallbackMinutes: number;
-    steps: Array<{ id: string; order: number; delayMinutes: number; instruction: string }>;
-  },
-  existingFollowup: { id: string; currentStepOrder: number } | null,
+  config: FollowupEvalConfig,
+  existingFollowup: ExistingFollowup | null,
 ): Promise<void> {
-  const contactId = call.contactId!;
-
   switch (disposition) {
     case 'do_not_call':
       if (existingFollowup) {
@@ -144,9 +153,6 @@ async function applyDispositionRules(
     case 'appointment_booked':
       if (existingFollowup) {
         await completeFollowup(existingFollowup.id, 'appointment_booked');
-      }
-      if (call.direction === 'inbound') {
-        await cancelActiveFollowup(contactId, call.agentId, 'appointment_booked');
       }
       return;
 
@@ -159,12 +165,14 @@ async function applyDispositionRules(
       }
       return;
 
-    case 'interested':
-    case 'partial':
-    case 'ambiguous':
     case 'no_answer':
     case 'failed':
     case 'short_call':
+      return handleRetryOrAdvance(disposition, call, config, existingFollowup);
+
+    case 'interested':
+    case 'partial':
+    case 'ambiguous':
       return handleAdvanceOrCreate(disposition, call, config, existingFollowup);
 
     default:
@@ -174,19 +182,8 @@ async function applyDispositionRules(
 
 async function handleCallback(
   call: { id: string; agentId: string; contactId: string | null; callType: string | null; callbackTime: Date | null },
-  config: {
-    id: string;
-    agentId: string;
-    enabled: boolean;
-    generalInstruction: string;
-    activeHoursStart: string;
-    activeHoursEnd: string;
-    smartTimingEnabled: boolean;
-    smartTimingMinCalls: number;
-    minCallbackMinutes: number;
-    steps: Array<{ id: string; order: number; delayMinutes: number; instruction: string }>;
-  },
-  existingFollowup: { id: string; currentStepOrder: number } | null,
+  config: FollowupEvalConfig,
+  existingFollowup: ExistingFollowup | null,
 ): Promise<void> {
   if (!call.contactId || !call.callbackTime) {
     return handleAdvanceOrCreate('interested', call, config, existingFollowup);
@@ -223,21 +220,40 @@ async function handleCallback(
   }
 }
 
+async function handleRetryOrAdvance(
+  disposition: string,
+  call: { id: string; agentId: string; contactId: string | null; callType: string | null },
+  config: FollowupEvalConfig,
+  existingFollowup: ExistingFollowup | null,
+): Promise<void> {
+  if (!call.contactId) return;
+
+  if (existingFollowup) {
+    const rescheduled = await rescheduleCurrentStep(
+      existingFollowup.id,
+      call.contactId,
+      config,
+      existingFollowup.stepDelayMinutes ?? config.steps[0]?.delayMinutes ?? 60,
+      call.id,
+      disposition,
+    );
+    if (!rescheduled) {
+      await handleAdvanceOrCreate(disposition, call, config, existingFollowup);
+    }
+    return;
+  }
+
+  if (call.callType === 'followup') return;
+  const firstStep = config.steps[0];
+  if (!firstStep) return;
+  await createNewFollowup(call.contactId, call.agentId, firstStep, config, call.id, disposition);
+}
+
 async function handleAdvanceOrCreate(
   disposition: string,
   call: { id: string; agentId: string; contactId: string | null; callType: string | null },
-  config: {
-    id: string;
-    agentId: string;
-    enabled: boolean;
-    generalInstruction: string;
-    activeHoursStart: string;
-    activeHoursEnd: string;
-    smartTimingEnabled: boolean;
-    smartTimingMinCalls: number;
-    steps: Array<{ id: string; order: number; delayMinutes: number; instruction: string }>;
-  },
-  existingFollowup: { id: string; currentStepOrder: number } | null,
+  config: FollowupEvalConfig,
+  existingFollowup: ExistingFollowup | null,
 ): Promise<void> {
   if (!call.contactId) return;
 

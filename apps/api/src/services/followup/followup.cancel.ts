@@ -29,6 +29,31 @@ export async function cancelActiveFollowup(contactId: string, agentId: string, r
   log.info('Cancelled followup', { followupId: active.id, contactId, agentId, reason });
 }
 
+export async function pauseActiveFollowup(contactId: string, agentId: string): Promise<void> {
+  const active = await prisma.contactFollowup.findFirst({
+    where: {
+      contactId,
+      agentId,
+      status: { in: ['PENDING', 'SCHEDULED'] },
+    },
+  });
+
+  if (!active) return;
+
+  if (active.bullmqJobId) {
+    try {
+      await followupQueue.remove(active.bullmqJobId);
+    } catch {}
+  }
+
+  await prisma.contactFollowup.update({
+    where: { id: active.id },
+    data: { bullmqJobId: null },
+  });
+
+  log.info('Paused followup (inbound call)', { followupId: active.id, contactId, agentId });
+}
+
 export async function optOutContact(contactId: string, agentId: string): Promise<void> {
   const active = await prisma.contactFollowup.findFirst({
     where: {

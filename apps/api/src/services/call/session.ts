@@ -6,7 +6,7 @@ import type { TranscriptEntry, TokenUsage } from '../providers/types';
 import { publishCallEvent } from '../events/pubsub';
 import { handleReminderCallEnded } from '../reminders/reminder.service';
 import { upsertMonthlyUsage } from '../usage/usage.service';
-import { cancelActiveFollowup } from '../followup/followup.cancel';
+import { pauseActiveFollowup } from '../followup/followup.cancel';
 
 const log = createLogger('session');
 const SESSION_COUNT_KEY = 'call:session_count';
@@ -251,7 +251,7 @@ async function handleFollowupAfterCall(session: CallSession, durationSec: number
   if (!config?.enabled) return;
 
   if (session.direction === 'inbound' && call.contactId) {
-    cancelActiveFollowup(call.contactId, session.agentId, 'inbound_call').catch(() => {});
+    pauseActiveFollowup(call.contactId, session.agentId).catch(() => {});
   }
 
   if (!call.disposition) {
