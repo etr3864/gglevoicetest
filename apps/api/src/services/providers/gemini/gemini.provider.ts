@@ -222,7 +222,9 @@ export class GeminiProvider implements VoiceProvider {
 
       if (msg.error) {
         const message = msg.error.message || 'Gemini API error';
-        log.error('API error from Gemini', undefined, { code: msg.error.code, message });
+        const code = msg.error.code;
+        log.error('API error from Gemini', undefined, { code, message });
+        if (code === 429) log.warn('Gemini rate limit hit — likely tool call loop');
         this.events?.onError(new Error(`Gemini: ${message}`));
         return;
       }

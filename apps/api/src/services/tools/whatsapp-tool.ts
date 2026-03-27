@@ -6,6 +6,19 @@ import { createLogger } from '../../lib/logger';
 
 const log = createLogger('whatsapp-tool');
 
+const templateRequestedCalls = new Set<string>();
+
+function markTemplateRequested(callId: string | undefined, agentId: string): string {
+  const key = callId ?? agentId;
+  templateRequestedCalls.add(key);
+  setTimeout(() => templateRequestedCalls.delete(key), 15 * 60 * 1000);
+  return key;
+}
+
+function wasTemplateRequested(callId: string | undefined, agentId: string): boolean {
+  return templateRequestedCalls.has(callId ?? agentId);
+}
+
 export const SEND_WHATSAPP_DEFINITION: ToolDefinition = {
   name: 'send_whatsapp',
   description: 'Send a WhatsApp message to the customer. Use when they ask for written info (payment links, addresses, confirmations) or when your instructions say to send.',
@@ -39,11 +52,18 @@ export async function handleSendWhatsapp(args: Record<string, unknown>, ctx: Too
     log.info('send_whatsapp: 24h window check', { agentId: ctx.agentId, phone: ctx.contactPhone?.slice(-4), windowOpen });
 
     if (!windowOpen) {
+      if (wasTemplateRequested(ctx.callId, ctx.agentId)) {
+        log.warn('send_whatsapp: loop detected — template_required already sent this call', { agentId: ctx.agentId, callId: ctx.callId });
+        return { sent: false, reason: 'Template already requested this session. You must call send_whatsapp_template — do not retry send_whatsapp.' };
+      }
+
       const templates = await getApprovedTemplates(ctx.agentId);
-      log.info('send_whatsapp: template_required', { agentId: ctx.agentId, templateCount: templates.length });
       if (templates.length === 0) {
         return { sent: false, reason: 'No recent customer message (24h window closed) and no approved templates available' };
       }
+
+      markTemplateRequested(ctx.callId, ctx.agentId);
+      log.info('send_whatsapp: template_required', { agentId: ctx.agentId, templateCount: templates.length });
       return { sent: false, template_required: true, templates };
     }
   }
