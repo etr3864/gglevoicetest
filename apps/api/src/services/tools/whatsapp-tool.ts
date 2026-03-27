@@ -32,13 +32,17 @@ export async function handleSendWhatsapp(args: Record<string, unknown>, ctx: Too
   if (!text) return { sent: false, reason: 'Empty message' };
   if (!ctx.contactPhone) return { sent: false, reason: 'No contact phone in context' };
 
-  const windowOpen = await hasRecentInbound(ctx.agentId, ctx.contactPhone);
-  if (!windowOpen) {
-    const templates = await getApprovedTemplates(ctx.agentId);
-    if (templates.length === 0) {
-      return { sent: false, reason: 'No recent customer message (24h window closed) and no approved templates available' };
+  const isMeta = await isMetaProvider(ctx.agentId);
+
+  if (isMeta) {
+    const windowOpen = await hasRecentInbound(ctx.agentId, ctx.contactPhone);
+    if (!windowOpen) {
+      const templates = await getApprovedTemplates(ctx.agentId);
+      if (templates.length === 0) {
+        return { sent: false, reason: 'No recent customer message (24h window closed) and no approved templates available' };
+      }
+      return { sent: false, template_required: true, templates };
     }
-    return { sent: false, template_required: true, templates };
   }
 
   try {
@@ -49,6 +53,14 @@ export async function handleSendWhatsapp(args: Record<string, unknown>, ctx: Too
     log.warn('send_whatsapp failed', { agentId: ctx.agentId, reason });
     return { sent: false, reason: 'WhatsApp connection issue', verbalize: 'יש לי בעיה זמנית עם החיבור לוואטסאפ, אני אנסה שוב בקרוב.' };
   }
+}
+
+async function isMetaProvider(agentId: string): Promise<boolean> {
+  const agent = await prisma.agent.findUnique({
+    where: { id: agentId },
+    select: { whatsappProvider: true },
+  });
+  return agent?.whatsappProvider === 'meta';
 }
 
 export async function handleSendWhatsappTemplate(args: Record<string, unknown>, ctx: ToolContext): Promise<unknown> {

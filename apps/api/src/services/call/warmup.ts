@@ -278,6 +278,7 @@ export async function buildProviderConfig(
   const knowledgeMeta = knowledgeCtx?.meta;
   const tools = globalRegistry.getDefinitions().filter((t) => {
     if (t.name === 'send_whatsapp') return !!agent.whatsappProvider;
+    if (t.name === 'send_whatsapp_template') return agent.whatsappProvider === 'meta';
     if (t.name === 'search_knowledge') return !!(knowledgeMeta?.hasTextDocs);
     if (t.name === 'query_table') return !!(knowledgeMeta?.hasTables);
     if (t.name === 'send_media') return !!(agent.mediaEnabled && agent.whatsappProvider && mediaCtx?.hasMedia);

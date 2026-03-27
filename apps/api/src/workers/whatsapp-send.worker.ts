@@ -43,14 +43,14 @@ async function processMessage(messageId: string, isMedia: boolean, isTemplate: b
 
 async function sendTemplateViaProvider(
   provider: ReturnType<typeof createProvider>,
-  row: { contactPhone: string; templateName: string | null; templateVars: unknown; mediaItemId: string | null; mediaName: string | null },
+  row: { agentId: string; contactPhone: string; templateName: string | null; templateVars: unknown; mediaItemId: string | null; mediaName: string | null },
 ) {
   if (!provider.sendTemplate) {
     return { ok: false as const, retryable: false, code: 'NO_TEMPLATE_SUPPORT', message: 'Provider does not support templates' };
   }
 
   const template = await prisma.whatsappTemplate.findFirst({
-    where: { name: row.templateName! },
+    where: { agentId: row.agentId, name: row.templateName! },
     select: { name: true, language: true, components: true },
   });
 
