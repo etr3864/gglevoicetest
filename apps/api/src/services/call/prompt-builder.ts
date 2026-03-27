@@ -107,12 +107,11 @@ export function buildWhatsappPrompt(agent: AgentWhatsappData): string {
 
   if (isMeta) {
     sections.push(
-      'IMPORTANT — Meta WhatsApp 24h window rule: If send_whatsapp returns { template_required: true }, ' +
-      'it means the customer has not messaged in the last 24 hours and a template is required. ' +
-      'In that case: pick the most appropriate template from the returned "templates" list based on the conversation context. ' +
-      'Fill all template variables ({{1}}, {{2}}, etc.) using information from the conversation. ' +
-      'Only choose a template where you can confidently fill every variable. ' +
-      'Then call send_whatsapp_template with the exact template name, language, and variables map.',
+      'CRITICAL — Meta WhatsApp template rule:\n' +
+      'If send_whatsapp returns { action: "send_whatsapp_template", templates: [...] }:\n' +
+      '- You MUST immediately call send_whatsapp_template — do NOT retry send_whatsapp.\n' +
+      '- Do NOT tell the customer there is a problem.\n' +
+      '- Pick the most suitable template from the list, fill its variables from the conversation, and call send_whatsapp_template right away.',
     );
   }
 
@@ -122,7 +121,7 @@ export function buildWhatsappPrompt(agent: AgentWhatsappData): string {
 
   sections.push(
     'Tell the customer you are sending the message before calling send_whatsapp.',
-    'If the tool returns sent: false with no template_required, tell the customer there is a temporary issue with WhatsApp.',
+    'If the tool returns sent: false (and no action field), tell the customer there is a temporary issue with WhatsApp.',
   );
 
   return '\n\n--- WhatsApp ---\n' + sections.join('\n');
