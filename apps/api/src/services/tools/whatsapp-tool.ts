@@ -36,8 +36,11 @@ export async function handleSendWhatsapp(args: Record<string, unknown>, ctx: Too
 
   if (isMeta) {
     const windowOpen = await hasRecentInbound(ctx.agentId, ctx.contactPhone);
+    log.info('send_whatsapp: 24h window check', { agentId: ctx.agentId, phone: ctx.contactPhone?.slice(-4), windowOpen });
+
     if (!windowOpen) {
       const templates = await getApprovedTemplates(ctx.agentId);
+      log.info('send_whatsapp: template_required', { agentId: ctx.agentId, templateCount: templates.length });
       if (templates.length === 0) {
         return { sent: false, reason: 'No recent customer message (24h window closed) and no approved templates available' };
       }
@@ -47,6 +50,7 @@ export async function handleSendWhatsapp(args: Record<string, unknown>, ctx: Too
 
   try {
     await sendMessage(ctx.agentId, ctx.contactPhone, text, ctx.callId);
+    log.info('send_whatsapp: sent', { agentId: ctx.agentId, phone: ctx.contactPhone?.slice(-4) });
     return { sent: true };
   } catch (err) {
     const reason = err instanceof Error ? err.message : 'Unknown error';
@@ -74,8 +78,11 @@ export async function handleSendWhatsappTemplate(args: Record<string, unknown>, 
   if (!templateName || !language) return { sent: false, reason: 'Missing template_name or language' };
   if (!ctx.contactPhone) return { sent: false, reason: 'No contact phone in context' };
 
+  log.info('send_whatsapp_template: attempting', { agentId: ctx.agentId, templateName, language, variableKeys: Object.keys(variables) });
+
   try {
     await sendTemplateMessage(ctx.agentId, ctx.contactPhone, templateName, language, variables, mediaItemId, ctx.callId);
+    log.info('send_whatsapp_template: sent', { agentId: ctx.agentId, templateName });
     return { sent: true };
   } catch (err) {
     const reason = err instanceof Error ? err.message : 'Unknown error';
