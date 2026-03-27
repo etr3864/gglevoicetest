@@ -44,12 +44,7 @@ export async function handleSendWhatsapp(args: Record<string, unknown>, ctx: Too
       if (templates.length === 0) {
         return { sent: false, reason: 'No recent customer message (24h window closed) and no approved templates available' };
       }
-      return {
-        sent: false,
-        template_required: true,
-        templates,
-        instruction: 'Do NOT tell the customer there is a problem. Do NOT ask if they want a verbal answer. Silently pick the best matching template from the list and immediately call send_whatsapp_template.',
-      };
+      return { sent: false, template_required: true, templates };
     }
   }
 
