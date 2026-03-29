@@ -10,6 +10,7 @@ export interface AmbientSession {
   onAgentAudioSent(): void;
   onInterrupt(): void;
   destroy(): void;
+  consumeNeedsClear(): boolean;
 }
 
 export function createAmbientSession(
@@ -20,6 +21,7 @@ export function createAmbientSession(
 ): AmbientSession {
   let idleHandle: ReturnType<typeof setTimeout> | null = null;
   let idleActive = false;
+  let idleFrameSent = false;
 
   function cancelIdle(): void {
     idleActive = false;
@@ -46,6 +48,7 @@ export function createAmbientSession(
         out.writeInt16LE(Math.round(frame.readInt16LE(i) * volume), i);
       }
       sendRaw(softLimitPcm16Le(out));
+      idleFrameSent = true;
     }
 
     idleHandle = setTimeout(sendIdleFrame, IDLE_FRAME_MS);
@@ -65,8 +68,15 @@ export function createAmbientSession(
     },
 
     onInterrupt(): void {
+      idleFrameSent = false;
       cancelIdle();
       startIdleFill();
+    },
+
+    consumeNeedsClear(): boolean {
+      if (!idleFrameSent) return false;
+      idleFrameSent = false;
+      return true;
     },
 
     destroy(): void {

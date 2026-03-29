@@ -353,6 +353,9 @@ function buildProviderEvents(ctx: BridgeContext): ProviderEvents {
       if (chunk.data.length === 0) return;
       const muted = !interruptRef.enabled && !interruptRef.greetingLive;
       if (!muted) {
+        if (interruptRef.enabled && ambientSession.consumeNeedsClear() && telnyxWs.readyState === WebSocket.OPEN) {
+          telnyxWs.send(JSON.stringify({ event: 'clear' }));
+        }
         sendToTelnyx(ambientSession.processAgentChunk(chunk.data));
         ambientSession.onAgentAudioSent();
         agentTranscriber?.sendAudio(chunk.data);
