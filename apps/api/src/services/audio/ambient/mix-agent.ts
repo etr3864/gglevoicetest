@@ -4,7 +4,7 @@ import type { LoopState } from './loop-state';
 import { sliceAndAdvance } from './slice';
 
 function effectiveAgentGain(ambientVolume: number): number {
-  return OUTBOUND.gain * (1 - (ambientVolume / MAX_AMBIENT_VOLUME) * 0.3);
+  return OUTBOUND.gain * (1 - (ambientVolume / MAX_AMBIENT_VOLUME) * 0.5);
 }
 
 function softLimit(s: number): number {

@@ -102,7 +102,7 @@ export default function AmbientSoundSection({
               <input
                 type="range"
                 min={0}
-                max={0.2}
+                max={0.5}
                 step={0.005}
                 value={volume}
                 onChange={(e) => onVolumeChange(parseFloat(e.target.value))}
@@ -110,7 +110,7 @@ export default function AmbientSoundSection({
               />
               <div className="flex justify-between text-xs text-[var(--text-muted)] mt-1">
                 <span>שקט</span>
-                <span>20%</span>
+                <span>50%</span>
               </div>
             </div>
 
