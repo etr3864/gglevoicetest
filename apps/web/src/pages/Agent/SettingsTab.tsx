@@ -10,6 +10,7 @@ import { Card, CardContent } from '../../components/ui/Card';
 import { Input } from '../../components/ui/Input';
 import { Badge } from '../../components/ui/Badge';
 import { useToast } from '../../components/ui/Toast';
+import AmbientSoundSection from './AmbientSoundSection';
 
 const TEMPERATURE_LABELS: Record<number, string> = {
   0.0: 'דטרמיניסטי', 0.3: 'שמרני', 0.5: 'מקצועי', 0.7: 'מאוזן',
@@ -48,6 +49,8 @@ function Tooltip({ text }: { text: string }) {
     </span>
   );
 }
+
+type AmbientSoundType = 'NONE' | 'OFFICE' | 'CAFE' | 'RESTAURANT' | 'CITY' | 'PEOPLE_TALKING';
 
 interface SettingsTabProps {
   agent: any;
@@ -233,6 +236,14 @@ export default function SettingsTab({ agent, form, setForm, voices, onSave, onDe
         </CardContent>
       </Card>
 
+      <AmbientSoundSection
+        agentId={agent.id}
+        soundType={form.ambientSoundType as AmbientSoundType}
+        volume={form.ambientSoundVolume}
+        onTypeChange={(type) => setForm((f: any) => ({ ...f, ambientSoundType: type }))}
+        onVolumeChange={(vol) => setForm((f: any) => ({ ...f, ambientSoundVolume: vol }))}
+      />
+
       <ApiReferenceCard agentId={agent.id} apiKey={agent.apiKey} />
 
       <div className="flex items-center gap-3">
@@ -243,6 +254,8 @@ export default function SettingsTab({ agent, form, setForm, voices, onSave, onDe
             phoneNumber: form.phoneNumber || null,
             telnyxPhoneId: form.telnyxPhoneId || null,
             telnyxAppId: form.telnyxAppId || null,
+            ambientSoundType: form.ambientSoundType,
+            ambientSoundVolume: form.ambientSoundVolume,
             modelConfig: {
               generation: { temperature: form.temperature },
               vad: { prefixPaddingMs: form.prefixPaddingMs, silenceDurationMs: form.silenceDurationMs },

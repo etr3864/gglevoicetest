@@ -1,3 +1,5 @@
+export type AmbientSoundType = 'NONE' | 'OFFICE' | 'CAFE' | 'RESTAURANT' | 'CITY' | 'PEOPLE_TALKING';
+
 export interface Agent {
   id: string;
   name: string;
@@ -11,6 +13,8 @@ export interface Agent {
   calendarConfig: CalendarConfig | null;
   calendarInstructions: string | null;
   businessHours: BusinessHours | null;
+  ambientSoundType: AmbientSoundType;
+  ambientSoundVolume: number;
   createdAt: string;
 }
 

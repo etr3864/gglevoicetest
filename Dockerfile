@@ -71,6 +71,7 @@ RUN pnpm install --frozen-lockfile --prod
 COPY --from=builder /app/packages/shared/dist  ./packages/shared/dist
 COPY --from=builder /app/packages/db/dist      ./packages/db/dist
 COPY --from=builder /app/apps/api/dist         ./apps/api/dist
+COPY --from=builder /app/apps/api/assets       ./apps/api/assets
 
 # --- prisma: copy schema + migrations, generate client ---
 COPY packages/db/prisma ./packages/db/prisma

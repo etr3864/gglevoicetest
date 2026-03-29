@@ -53,4 +53,6 @@ export const updateAgentSchema = z.object({
   whatsappConfig: z.record(z.unknown()).nullable().optional(),
   whatsappInstructions: z.string().max(5000).nullable().optional(),
   whatsappContextMessages: z.number().int().min(0).max(100).optional(),
+  ambientSoundType: z.enum(['NONE', 'OFFICE', 'CAFE', 'RESTAURANT', 'CITY', 'PEOPLE_TALKING']).optional(),
+  ambientSoundVolume: z.number().min(0).max(0.2).optional(),
 });

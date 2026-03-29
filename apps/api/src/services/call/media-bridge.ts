@@ -1,6 +1,7 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import type { Server } from 'http';
 import { prisma } from '@voice/db';
+import type { AmbientSoundType } from '@voice/shared';
 import { createLogger } from '../../lib/logger';
 import { GeminiProvider } from '../providers';
 import { globalRegistry, type ToolContext } from '../tools';
@@ -13,8 +14,9 @@ import { publishCallEvent } from '../events/pubsub';
 import { redis } from '../../lib/redis';
 import {
   OUTBOUND, DEEPGRAM, NEEDS_ENDIAN_SWAP, GEMINI,
-  swapEndian16, diagnoseChunk, applyGain, downsample24kTo16k,
+  swapEndian16, diagnoseChunk, downsample24kTo16k,
 } from '../../lib/audio-config';
+import { getAmbientBuffer, createLoopState, createAmbientSession, type AmbientSession } from '../audio/ambient';
 
 const log = createLogger('bridge');
 
@@ -26,6 +28,7 @@ interface ActiveConnection {
   greetingPreloaded: boolean;
   interruptRef: { enabled: boolean; greetingLive: boolean };
   downsampleCarry: Buffer;
+  ambientSession: AmbientSession;
 }
 
 interface BridgeContext {
@@ -36,6 +39,7 @@ interface BridgeContext {
   agentTranscriber: DeepgramTranscriber | null;
   sendToTelnyx: (payload: Buffer) => void;
   interruptRef: { enabled: boolean; greetingLive: boolean };
+  ambientSession: AmbientSession;
 }
 
 const activeConnections = new Map<string, ActiveConnection>();
@@ -179,11 +183,32 @@ async function buildActiveConnection(
   telnyxWs: WebSocket,
 ): Promise<ActiveConnection | null> {
   const prewarmed = await claim(session.callId);
+
+  const agentAmbient = await prisma.agent.findUnique({
+    where: { id: session.agentId },
+    select: { ambientSoundType: true, ambientSoundVolume: true },
+  });
+  const ambientType = (agentAmbient?.ambientSoundType ?? 'NONE') as AmbientSoundType;
+  const ambientVolume = agentAmbient?.ambientSoundVolume ?? 0.04;
+
   const sendToTelnyx = makeSendToTelnyx(telnyxWs);
   const transcriber = createTranscriber(callControlId, 'customer');
   const agentTranscriber = createTranscriber(callControlId, 'agent');
   const interruptRef = { enabled: false, greetingLive: false };
-  const ctx: BridgeContext = { session, callControlId, telnyxWs, hasDeepgram: !!transcriber, agentTranscriber, sendToTelnyx, interruptRef };
+
+  const ambientBuffer = await getAmbientBuffer(ambientType);
+  const loopState = ambientBuffer ? createLoopState(ambientBuffer) : null;
+  const ambientSession = createAmbientSession(
+    loopState,
+    ambientVolume,
+    sendToTelnyx,
+    () => !interruptRef.enabled && !interruptRef.greetingLive,
+  );
+
+  const ctx: BridgeContext = {
+    session, callControlId, telnyxWs, hasDeepgram: !!transcriber,
+    agentTranscriber, sendToTelnyx, interruptRef, ambientSession,
+  };
   const events = buildProviderEvents(ctx);
 
   if (prewarmed) {
@@ -192,7 +217,8 @@ async function buildActiveConnection(
     prewarmed.provider.setCallActiveCheck?.(() => activeConnections.has(callControlId));
 
     for (const chunk of prewarmed.preloadedAudio) {
-      sendToTelnyx(chunk);
+      sendToTelnyx(ambientSession.processAgentChunk(chunk));
+      ambientSession.onAgentAudioSent();
     }
 
     if (prewarmed.preloadedAudio.length > 0) {
@@ -209,12 +235,13 @@ async function buildActiveConnection(
       elapsed: Date.now() - streamStartTs,
       preloadedChunks: prewarmed.preloadedAudio.length,
     });
-    return { provider: prewarmed.provider, transcriber, agentTranscriber, greetingPreloaded: true, interruptRef, downsampleCarry: Buffer.alloc(0) };
+    return { provider: prewarmed.provider, transcriber, agentTranscriber, greetingPreloaded: true, interruptRef, downsampleCarry: Buffer.alloc(0), ambientSession };
   }
 
   const provider = await connectProvider(session, events);
   if (!provider) {
     log.error('Provider failed to connect — aborting call setup', undefined, { callId: session.callId });
+    ambientSession.destroy();
     transcriber?.close();
     agentTranscriber?.close();
     return null;
@@ -224,17 +251,17 @@ async function buildActiveConnection(
 
   if (telnyxWs.readyState !== WebSocket.OPEN) {
     log.warn('Telnyx disconnected during provider setup', { callControlId });
+    ambientSession.destroy();
     provider.disconnect();
     transcriber?.close();
     agentTranscriber?.close();
     return null;
   }
 
-  // Cold path has no preloaded greeting — user can speak immediately
   interruptRef.enabled = true;
 
   log.info('Connection ready', { callId: session.callId, type: 'cold', elapsed: Date.now() - streamStartTs });
-  return { provider, transcriber, agentTranscriber, greetingPreloaded: false, interruptRef, downsampleCarry: Buffer.alloc(0) };
+  return { provider, transcriber, agentTranscriber, greetingPreloaded: false, interruptRef, downsampleCarry: Buffer.alloc(0), ambientSession };
 }
 
 function teardown(callControlId: string | null): void {
@@ -244,6 +271,7 @@ function teardown(callControlId: string | null): void {
   if (!conn) return;
 
   activeConnections.delete(callControlId);
+  conn.ambientSession.destroy();
   conn.transcriber?.close();
   conn.agentTranscriber?.close();
   try {
@@ -303,16 +331,15 @@ function createTranscriber(
 function makeSendToTelnyx(telnyxWs: WebSocket): (payload: Buffer) => void {
   return (payload: Buffer) => {
     if (telnyxWs.readyState !== WebSocket.OPEN) return;
-    const buf = applyGain(payload, OUTBOUND.gain);
     telnyxWs.send(JSON.stringify({
       event: 'media',
-      media: { payload: buf.toString('base64') },
+      media: { payload: payload.toString('base64') },
     }));
   };
 }
 
 function buildProviderEvents(ctx: BridgeContext): ProviderEvents {
-  const { session, callControlId, telnyxWs, hasDeepgram, agentTranscriber, sendToTelnyx, interruptRef } = ctx;
+  const { session, callControlId, telnyxWs, hasDeepgram, agentTranscriber, sendToTelnyx, interruptRef, ambientSession } = ctx;
   const toolContext: ToolContext = {
     callId: session.callId,
     agentId: session.agentId,
@@ -326,7 +353,8 @@ function buildProviderEvents(ctx: BridgeContext): ProviderEvents {
       if (chunk.data.length === 0) return;
       const muted = !interruptRef.enabled && !interruptRef.greetingLive;
       if (!muted) {
-        sendToTelnyx(chunk.data);
+        sendToTelnyx(ambientSession.processAgentChunk(chunk.data));
+        ambientSession.onAgentAudioSent();
         agentTranscriber?.sendAudio(chunk.data);
       }
     },
@@ -363,6 +391,7 @@ function buildProviderEvents(ctx: BridgeContext): ProviderEvents {
       if (telnyxWs.readyState === WebSocket.OPEN) {
         telnyxWs.send(JSON.stringify({ event: 'clear' }));
       }
+      ambientSession.onInterrupt();
     },
 
     onTurnComplete: () => {

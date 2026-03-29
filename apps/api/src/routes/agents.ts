@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import path from 'path';
 import crypto from 'crypto';
 import { prisma, Prisma } from '@voice/db';
 import { createAgentSchema, updateAgentSchema } from '@voice/shared';
@@ -131,6 +132,20 @@ router.patch('/:id', async (req, res) => {
 
   const agent = await prisma.agent.update({ where: { id }, data });
   res.json({ data: agent, ...(validationWarning && { validationWarning }) });
+});
+
+const AMBIENT_PREVIEW_TYPES = new Set(['office', 'cafe', 'restaurant', 'city', 'people_talking']);
+
+router.get('/:id/ambient/preview/:type', async (req, res) => {
+  const { id, type } = req.params as { id: string; type: string };
+  await assertAgentAccess(id, req.user!);
+
+  const t = type.toLowerCase();
+  if (!AMBIENT_PREVIEW_TYPES.has(t)) throw new AppError(400, 'INVALID_TYPE', 'Unknown ambient type');
+
+  const filePath = path.resolve(process.cwd(), 'assets', 'ambient', 'preview', `${t}.wav`);
+  res.setHeader('Content-Type', 'audio/wav');
+  res.sendFile(filePath);
 });
 
 router.delete('/:id', requireSuperAdmin, async (req, res) => {
