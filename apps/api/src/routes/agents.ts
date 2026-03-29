@@ -145,7 +145,9 @@ router.get('/:id/ambient/preview/:type', async (req, res) => {
 
   const filePath = path.resolve(process.cwd(), 'assets', 'ambient', 'preview', `${t}.wav`);
   res.setHeader('Content-Type', 'audio/wav');
-  res.sendFile(filePath);
+  res.sendFile(filePath, (err) => {
+    if (err) res.status(404).json({ error: 'PREVIEW_NOT_FOUND', message: 'Preview file not available' });
+  });
 });
 
 router.delete('/:id', requireSuperAdmin, async (req, res) => {
