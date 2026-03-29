@@ -1,5 +1,5 @@
 import { applyGain, OUTBOUND } from '../../../lib/audio-config';
-import { IDLE_GAP_MS, IDLE_FRAME_BYTES } from './constants';
+import { IDLE_GAP_MS, IDLE_FRAME_BYTES, IDLE_FRAME_MS } from './constants';
 import type { LoopState } from './loop-state';
 import { sliceAndAdvance } from './slice';
 import { mixAgentWithAmbient } from './mix-agent';
@@ -19,21 +19,26 @@ export function createAmbientSession(
   isMuted: () => boolean,
 ): AmbientSession {
   let idleHandle: ReturnType<typeof setTimeout> | null = null;
+  let idleActive = false;
 
   function cancelIdle(): void {
+    idleActive = false;
     if (idleHandle !== null) {
       clearTimeout(idleHandle);
       idleHandle = null;
     }
   }
 
-  function scheduleIdle(): void {
-    if (!loop) return;
+  function startIdleFill(): void {
+    if (!loop || idleActive) return;
+    idleActive = true;
     idleHandle = setTimeout(sendIdleFrame, IDLE_GAP_MS);
   }
 
   function sendIdleFrame(): void {
     idleHandle = null;
+    if (!idleActive) return;
+
     if (!isMuted()) {
       const frame = sliceAndAdvance(loop!, IDLE_FRAME_BYTES);
       const out = Buffer.allocUnsafe(IDLE_FRAME_BYTES);
@@ -42,10 +47,11 @@ export function createAmbientSession(
       }
       sendRaw(softLimitPcm16Le(out));
     }
-    scheduleIdle();
+
+    idleHandle = setTimeout(sendIdleFrame, IDLE_FRAME_MS);
   }
 
-  scheduleIdle();
+  startIdleFill();
 
   return {
     processAgentChunk(agentChunk: Buffer): Buffer {
@@ -55,12 +61,12 @@ export function createAmbientSession(
 
     onAgentAudioSent(): void {
       cancelIdle();
-      scheduleIdle();
+      startIdleFill();
     },
 
     onInterrupt(): void {
       cancelIdle();
-      scheduleIdle();
+      startIdleFill();
     },
 
     destroy(): void {

@@ -1,5 +1,4 @@
-const SOFT_THRESHOLD = 24576; // 75% of 32767
-const SOFT_RATIO = 0.3;
+import { SOFT_THRESHOLD, SOFT_RATIO } from './constants';
 
 export function softLimitPcm16Le(buf: Buffer): Buffer {
   const out = Buffer.allocUnsafe(buf.length);
