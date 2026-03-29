@@ -1,6 +1,9 @@
 import { prisma } from '@voice/db';
+import { createLogger } from '../../lib/logger';
 import { globalRegistry } from './registry';
 import type { ToolContext } from './registry';
+
+const log = createLogger('calendar-debug');
 import {
   getValidToken,
   getFreeBusy,
@@ -158,6 +161,19 @@ async function checkAvailability(date: string, ctx: ToolContext) {
   const allBusy = mergeBusySlots(busySlots, localAppointments);
   const allSlots = computeAvailableSlots(dayHours.start, dayHours.end, allBusy, date);
   const slots = allSlots.slice(0, MAX_VOICE_SLOTS);
+
+  // DEBUG — remove after investigation
+  log.info('check_availability debug', {
+    date,
+    calendarId,
+    timeMin,
+    timeMax,
+    googleBusySlots: busySlots,
+    localAppointmentsCount: localAppointments.length,
+    allBusy,
+    allSlots,
+    returnedSlots: slots,
+  });
 
   return { available: slots.length > 0, slots, date, timezone: TIMEZONE };
 }
