@@ -262,9 +262,9 @@ export default function CallsTab({
         onCustomRangeChange={setCustomRange}
       />
 
-      {/* New calls banner */}
+      {/* New calls banner — sticky so it's visible even when scrolled down */}
       {newCallsCount > 0 && (
-        <div className="flex items-center justify-between px-4 py-2.5 rounded-lg bg-[var(--accent)]/10 border border-[var(--accent)]/20 text-sm">
+        <div className="sticky top-0 z-10 flex items-center justify-between px-4 py-2.5 rounded-lg bg-[var(--accent)]/10 border border-[var(--accent)]/20 text-sm backdrop-blur-sm">
           <span className="text-[var(--accent)] font-medium">יש {newCallsCount} שיחות חדשות</span>
           <button onClick={handleViewNew} className="text-[var(--accent)] font-medium hover:underline">
             צפייה
