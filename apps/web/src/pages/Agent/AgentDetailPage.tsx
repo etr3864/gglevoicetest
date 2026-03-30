@@ -8,7 +8,6 @@ import {
 import { useState, useEffect, useRef, useMemo } from 'react';
 import api from '../../lib/api';
 import { useAuth } from '../../hooks/useAuth';
-import { useAgentEvents } from '../../hooks/useAgentEvents';
 import { Badge } from '../../components/ui/Badge';
 import { Toggle } from '../../components/ui/Toggle';
 import { cn } from '../../lib/cn';
@@ -74,14 +73,6 @@ export default function AgentDetailPage() {
     setSearchParams(next === defaultTab ? {} : { tab: next }, { replace: true });
   }
 
-  const { data: callsData } = useQuery({
-    queryKey: ['agent-calls', id],
-    queryFn: () => api.get(`/agents/${id}/calls?limit=100`).then(r => r.data),
-    enabled: !!id && tab === 'calls',
-  });
-
-  useAgentEvents(id, tab === 'calls');
-
   const { data: contactsData } = useQuery({
     queryKey: ['agent-contacts', id],
     queryFn: () => api.get(`/agents/${id}/contacts`).then(r => r.data),
@@ -99,7 +90,6 @@ export default function AgentDetailPage() {
   const [selectedCallId, setSelectedCallId] = useState<string | null>(null);
   const [selectedContact, setSelectedContact] = useState<any>(null);
   const [showOutbound, setShowOutbound] = useState(false);
-  const [callSearch, setCallSearch] = useState('');
   const [playingCallId, setPlayingCallId] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -285,9 +275,6 @@ export default function AgentDetailPage() {
       {tab === 'calls' && id && (
         <CallsTab
           agentId={id}
-          callsData={callsData}
-          callSearch={callSearch}
-          setCallSearch={setCallSearch}
           playingCallId={playingCallId}
           setPlayingCallId={setPlayingCallId}
           audioRef={audioRef}

@@ -276,6 +276,9 @@ function CalendarMonth({
               )}
             >
               {day.getDate()}
+              {isToday && !isEdge && (
+                <span className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-[var(--accent)]/50" />
+              )}
             </button>
           );
         })}
