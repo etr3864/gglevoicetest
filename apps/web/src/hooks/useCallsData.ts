@@ -28,6 +28,7 @@ export function useCallsData(agentId: string | undefined) {
       }).then(r => r.data),
     enabled: !!agentId,
     placeholderData: keepPreviousData,
+    staleTime: 30_000,
   });
 
   return {

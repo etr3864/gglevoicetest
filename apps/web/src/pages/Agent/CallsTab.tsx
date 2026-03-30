@@ -130,11 +130,6 @@ export default function CallsTab({
   const seenCallIds = useRef(new Set<string>());
   const [isExporting, setIsExporting] = useState(false);
 
-  useEffect(() => {
-    const calls: any[] = query.data?.data ?? [];
-    calls.forEach(c => seenCallIds.current.add(c.id));
-  }, [query.data]);
-
   function handleNewCall(call: any) {
     if (!seenCallIds.current.has(call.id)) setNewCallsCount(n => n + 1);
   }
