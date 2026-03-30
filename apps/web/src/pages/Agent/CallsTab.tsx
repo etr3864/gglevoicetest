@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef, type RefObject, type MouseEvent as ReactMouseEvent } from 'react';
+import { useState, useCallback, type RefObject, type MouseEvent as ReactMouseEvent } from 'react';
 import {
   Search, PhoneOutgoing, PhoneIncoming, PhoneMissed,
   MessageSquare, Activity, Loader2, Play, Pause, Download, X as XIcon,
@@ -120,28 +120,15 @@ export default function CallsTab({
   agentId, playingCallId, setPlayingCallId, audioRef, onShowOutbound, onSelectCall,
 }: CallsTabProps) {
   const {
-    query, refetch, preset, setPreset, customRange, setCustomRange,
+    query, preset, setPreset, customRange, setCustomRange,
     direction, setDirection, q, setQ, page, goPage, clearFilters,
     from, to, apiDirection, activeQ,
   } = useCallsData(agentId);
 
   const { isEmployee } = useAuth();
-  const [newCallsCount, setNewCallsCount] = useState(0);
-  const seenCallIds = useRef(new Set<string>());
   const [isExporting, setIsExporting] = useState(false);
 
-  function handleNewCall(call: any) {
-    if (!seenCallIds.current.has(call.id)) setNewCallsCount(n => n + 1);
-  }
-
-  useAgentEvents(agentId, true, handleNewCall);
-
-  function handleViewNew() {
-    setNewCallsCount(0);
-    seenCallIds.current.clear();
-    goPage(1);
-    refetch();
-  }
+  useAgentEvents(agentId, true);
 
   async function handleExport() {
     setIsExporting(true);
@@ -261,16 +248,6 @@ export default function CallsTab({
         customRange={customRange}
         onCustomRangeChange={setCustomRange}
       />
-
-      {/* New calls banner — sticky so it's visible even when scrolled down */}
-      {newCallsCount > 0 && (
-        <div className="sticky top-0 z-10 flex items-center justify-between px-4 py-2.5 rounded-lg bg-[var(--accent)]/10 border border-[var(--accent)]/20 text-sm backdrop-blur-sm">
-          <span className="text-[var(--accent)] font-medium">יש {newCallsCount} שיחות חדשות</span>
-          <button onClick={handleViewNew} className="text-[var(--accent)] font-medium hover:underline">
-            צפייה
-          </button>
-        </div>
-      )}
 
       {/* Meta row */}
       <div className="flex items-center justify-between">
