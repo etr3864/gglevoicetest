@@ -1,8 +1,6 @@
 import { prisma } from '@voice/db';
 import { createLogger } from '../lib/logger';
-import { createWorker, outboundQueue, OUTBOUND_PRIORITY } from '../lib/queue';
-import { normalizePhone } from '../lib/phone';
-import { publishCallEvent } from '../services/events/pubsub';
+import { createWorker, followupQueue } from '../lib/queue';
 import { extractDispositionFromTranscript } from '../services/followup/followup.extraction';
 import {
   createNewFollowup,
@@ -235,48 +233,50 @@ async function scheduleInboundCallback(
   callbackTime: Date | null,
   config: FollowupEvalConfig,
 ): Promise<void> {
-  const contact = await prisma.contact.findUnique({
-    where: { id: contactId },
-    select: { phone: true },
-  });
-  if (!contact) return;
-
   const minDelayMs = config.minCallbackMinutes * 60_000;
   const earliest = new Date(Date.now() + minDelayMs);
   const scheduledFor = callbackTime && callbackTime > earliest ? callbackTime : earliest;
   const delay = Math.max(scheduledFor.getTime() - Date.now(), 0);
 
-  const newCall = await prisma.call.create({
+  const existingActive = await prisma.contactFollowup.findFirst({
+    where: { contactId, agentId, status: { in: ['PENDING', 'SCHEDULED'] } },
+    select: { id: true, bullmqJobId: true },
+  });
+
+  if (existingActive) {
+    if (existingActive.bullmqJobId) {
+      try { await followupQueue.remove(existingActive.bullmqJobId); } catch {}
+    }
+    await prisma.contactFollowup.update({
+      where: { id: existingActive.id },
+      data: { status: 'CANCELLED' },
+    });
+  }
+
+  const followup = await prisma.contactFollowup.create({
     data: {
-      agentId,
       contactId,
-      direction: 'outbound',
-      callType: 'followup',
-      status: 'queued',
-      startedAt: new Date(),
+      agentId,
+      currentStepOrder: 0,
+      status: 'SCHEDULED',
+      lastDisposition: 'callback_requested',
+      isCustomerCallback: true,
+      scheduledFor,
     },
   });
 
-  await publishCallEvent(agentId, 'call_created', { call: newCall });
-
-  await outboundQueue.add(
-    'dial',
-    {
-      callId: newCall.id,
-      agentId,
-      contactId,
-      phone: normalizePhone(contact.phone),
-      context: {
-        callType: 'followup',
-        __followupGeneralInstruction: config.generalInstruction || undefined,
-        __followupLastDisposition: 'callback_requested',
-      },
-      type: 'manual',
-    },
-    { attempts: 1, delay, priority: OUTBOUND_PRIORITY.reminder },
+  const job = await followupQueue.add(
+    'execute',
+    { contactFollowupId: followup.id },
+    { delay, jobId: `followup-${followup.id}` },
   );
 
-  log.info('Scheduled inbound callback', { callId: newCall.id, agentId, scheduledFor });
+  await prisma.contactFollowup.update({
+    where: { id: followup.id },
+    data: { bullmqJobId: job.id },
+  });
+
+  log.info('Scheduled inbound callback', { followupId: followup.id, agentId, scheduledFor });
 }
 
 async function handleRetryOrAdvance(

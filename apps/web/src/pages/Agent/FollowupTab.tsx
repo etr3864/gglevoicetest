@@ -566,13 +566,20 @@ function ActiveFollowupsSection({
                   </button>
                 )}
                 <Badge variant={statusCfg.variant}>{statusCfg.label}</Badge>
-                <span className="text-xs text-[var(--text-muted)]">שלב {f.currentStepOrder}</span>
+                {!f.isCustomerCallback && (
+                  <span className="text-xs text-[var(--text-muted)]">שלב {f.currentStepOrder}</span>
+                )}
               </div>
 
               <div className="flex-1 min-w-0 text-left">
-                <p className="text-sm font-medium text-[var(--text-primary)] truncate">
-                  {f.contact?.name || f.contact?.phone || '—'}
-                </p>
+                <div className="flex items-center gap-2 justify-end">
+                  <p className="text-sm font-medium text-[var(--text-primary)] truncate">
+                    {f.contact?.name || f.contact?.phone || '—'}
+                  </p>
+                  {f.isCustomerCallback && (
+                    <span className="text-xs text-[var(--text-muted)] whitespace-nowrap">לבקשת הלקוח</span>
+                  )}
+                </div>
                 {f.scheduledFor && (
                   <p className="text-xs text-[var(--text-muted)]">
                     <span dir="ltr">{new Date(f.scheduledFor).toLocaleString('he-IL')}</span>

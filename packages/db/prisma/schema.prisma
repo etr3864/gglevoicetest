@@ -385,8 +385,9 @@ model ContactFollowup {
   lastDisposition  String?   @map("last_disposition")
   lastCallId       String?   @map("last_call_id")
   summaryForFollowup String? @map("summary_for_followup") @db.Text
-  scheduledFor     DateTime? @map("scheduled_for")
-  bullmqJobId      String?   @map("bullmq_job_id")
+  scheduledFor       DateTime? @map("scheduled_for")
+  bullmqJobId        String?   @map("bullmq_job_id")
+  isCustomerCallback Boolean   @default(false) @map("is_customer_callback")
   attemptCount     Int       @default(0) @map("attempt_count")
   stepDelayMinutes Int?      @map("step_delay_minutes")
   stepInstruction  String?   @map("step_instruction") @db.Text
