@@ -85,7 +85,7 @@ async function evaluateCall(callId: string): Promise<void> {
     }),
   ]);
 
-  if (!rawConfig?.enabled || rawConfig.steps.length === 0) return;
+  if (!rawConfig?.enabled) return;
 
   const config = { ...rawConfig, businessHours: agent?.businessHours as Record<string, { start: string; end: string } | null> | null };
 
@@ -202,11 +202,12 @@ async function handleCallback(
     ? getNextStep(config.steps, existingFollowup.currentStepOrder)
     : config.steps[0];
 
+  // No steps configured — use the direct callback path (same as inbound)
   if (!nextStep) {
     if (existingFollowup) {
       await completeFollowup(existingFollowup.id, 'callback_no_more_steps');
     }
-    return;
+    return scheduleInboundCallback(call.contactId, call.agentId, call.callbackTime, config);
   }
 
   const callbackStep = { ...nextStep, delayMinutes: 0 };
