@@ -233,7 +233,6 @@ async function persistUtterances(session: CallSession, transcripts: TranscriptEn
   }
 }
 
-const SHORT_CALL_THRESHOLD_SEC = 15;
 const FOLLOWUP_EVAL_DELAY_MS = 2000;
 
 async function handleFollowupAfterCall(session: CallSession, durationSec: number): Promise<void> {
@@ -256,18 +255,11 @@ async function handleFollowupAfterCall(session: CallSession, durationSec: number
     pauseActiveFollowup(call.contactId, session.agentId).catch(() => {});
   }
 
-  if (!call.disposition) {
-    if (call.status === 'failed' || call.status === 'no_answer') {
-      await prisma.call.update({
-        where: { id: session.callId },
-        data: { disposition: call.status },
-      });
-    } else if (call.status === 'completed' && durationSec < SHORT_CALL_THRESHOLD_SEC) {
-      await prisma.call.update({
-        where: { id: session.callId },
-        data: { disposition: 'short_call' },
-      });
-    }
+  if (!call.disposition && (call.status === 'failed' || call.status === 'no_answer')) {
+    await prisma.call.update({
+      where: { id: session.callId },
+      data: { disposition: call.status },
+    });
   }
 
   await followupEvalQueue.add(

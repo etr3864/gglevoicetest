@@ -1,6 +1,8 @@
 import { prisma } from '@voice/db';
 import { createLogger } from '../lib/logger';
-import { createWorker } from '../lib/queue';
+import { createWorker, outboundQueue, OUTBOUND_PRIORITY } from '../lib/queue';
+import { normalizePhone } from '../lib/phone';
+import { publishCallEvent } from '../services/events/pubsub';
 import { extractDispositionFromTranscript } from '../services/followup/followup.extraction';
 import {
   createNewFollowup,
@@ -68,7 +70,6 @@ async function evaluateCall(callId: string): Promise<void> {
       callType: true,
       status: true,
       disposition: true,
-      durationSec: true,
       callbackTime: true,
     },
   });
@@ -92,15 +93,14 @@ async function evaluateCall(callId: string): Promise<void> {
 
   let disposition = call.disposition;
 
-  if (!disposition && call.status === 'completed' && (call.durationSec ?? 0) >= 15) {
-    disposition = await resolveDispositionFromTranscript(callId);
-    await prisma.call.update({
-      where: { id: callId },
-      data: { disposition },
-    });
+  if (!disposition && call.status === 'completed') {
+    disposition = await resolveDispositionFromTranscript(callId, config.generalInstruction);
+    await prisma.call.update({ where: { id: callId }, data: { disposition } });
   }
 
   disposition = disposition ?? call.status;
+
+  if (call.direction === 'inbound' && disposition !== 'callback_requested') return;
 
   const existingFollowup = await prisma.contactFollowup.findFirst({
     where: {
@@ -114,20 +114,18 @@ async function evaluateCall(callId: string): Promise<void> {
   await applyDispositionRules(disposition, call, config, existingFollowup);
 }
 
-async function resolveDispositionFromTranscript(callId: string): Promise<string> {
+async function resolveDispositionFromTranscript(callId: string, generalInstruction: string): Promise<string> {
   const utterances = await prisma.utterance.findMany({
     where: { callId },
     orderBy: { startMs: 'asc' },
     take: 50,
   });
 
-  if (utterances.length === 0) return 'short_call';
+  const hasCustomerSpeech = utterances.some((u) => u.speaker === 'customer');
+  if (!hasCustomerSpeech) return 'short_call';
 
-  const transcript = utterances
-    .map((u) => `${u.speaker}: ${u.text}`)
-    .join('\n');
-
-  return extractDispositionFromTranscript(transcript);
+  const transcript = utterances.map((u) => `${u.speaker}: ${u.text}`).join('\n');
+  return extractDispositionFromTranscript(transcript, generalInstruction);
 }
 
 async function applyDispositionRules(
@@ -172,20 +170,29 @@ async function applyDispositionRules(
 
     case 'interested':
     case 'partial':
-    case 'ambiguous':
       return handleAdvanceOrCreate(disposition, call, config, existingFollowup);
 
+    case 'ambiguous':
     default:
-      return handleAdvanceOrCreate(disposition, call, config, existingFollowup);
+      if (existingFollowup) {
+        return handleAdvanceOrCreate(disposition, call, config, existingFollowup);
+      }
+      return;
   }
 }
 
 async function handleCallback(
-  call: { id: string; agentId: string; contactId: string | null; callType: string | null; callbackTime: Date | null },
+  call: { id: string; agentId: string; contactId: string | null; direction: string; callType: string | null; callbackTime: Date | null },
   config: FollowupEvalConfig,
   existingFollowup: ExistingFollowup | null,
 ): Promise<void> {
-  if (!call.contactId || !call.callbackTime) {
+  if (!call.contactId) return;
+
+  if (call.direction === 'inbound') {
+    return scheduleInboundCallback(call.contactId, call.agentId, call.callbackTime, config);
+  }
+
+  if (!call.callbackTime) {
     return handleAdvanceOrCreate('interested', call, config, existingFollowup);
   }
 
@@ -220,6 +227,56 @@ async function handleCallback(
   } else {
     await createNewFollowup(call.contactId, call.agentId, callbackStep, config, call.id, 'callback_requested', scheduledFor);
   }
+}
+
+async function scheduleInboundCallback(
+  contactId: string,
+  agentId: string,
+  callbackTime: Date | null,
+  config: FollowupEvalConfig,
+): Promise<void> {
+  const contact = await prisma.contact.findUnique({
+    where: { id: contactId },
+    select: { phone: true },
+  });
+  if (!contact) return;
+
+  const minDelayMs = config.minCallbackMinutes * 60_000;
+  const earliest = new Date(Date.now() + minDelayMs);
+  const scheduledFor = callbackTime && callbackTime > earliest ? callbackTime : earliest;
+  const delay = Math.max(scheduledFor.getTime() - Date.now(), 0);
+
+  const newCall = await prisma.call.create({
+    data: {
+      agentId,
+      contactId,
+      direction: 'outbound',
+      callType: 'followup',
+      status: 'queued',
+      startedAt: new Date(),
+    },
+  });
+
+  await publishCallEvent(agentId, 'call_created', { call: newCall });
+
+  await outboundQueue.add(
+    'dial',
+    {
+      callId: newCall.id,
+      agentId,
+      contactId,
+      phone: normalizePhone(contact.phone),
+      context: {
+        callType: 'followup',
+        __followupGeneralInstruction: config.generalInstruction || undefined,
+        __followupLastDisposition: 'callback_requested',
+      },
+      type: 'manual',
+    },
+    { attempts: 1, delay, priority: OUTBOUND_PRIORITY.reminder },
+  );
+
+  log.info('Scheduled inbound callback', { callId: newCall.id, agentId, scheduledFor });
 }
 
 async function handleRetryOrAdvance(

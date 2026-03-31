@@ -20,11 +20,15 @@ Possible dispositions:
 Return ONLY: {"disposition": "one_of_the_above"}
 No explanation, no extra text.`;
 
-export async function extractDispositionFromTranscript(transcript: string): Promise<ExtractedDisposition> {
+export async function extractDispositionFromTranscript(transcript: string, agentContext?: string): Promise<ExtractedDisposition> {
   await acquireSemaphore();
 
+  const userMessage = agentContext
+    ? `Agent goal: ${agentContext}\n\nTranscript:\n${transcript}`
+    : transcript;
+
   try {
-    const { text } = await generateText(SYSTEM_PROMPT, transcript);
+    const { text } = await generateText(SYSTEM_PROMPT, userMessage);
     return parseDisposition(text);
   } catch (err) {
     log.error('Extraction failed, defaulting to ambiguous', err);
