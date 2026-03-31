@@ -47,7 +47,7 @@ import superAdminDashboardRoutes from './routes/super-admin-dashboard';
 import pricingRoutes from './routes/pricing';
 import { initPubSub, closePubSub } from './services/events/pubsub';
 import { sseManager } from './services/events/sse.manager';
-import { activeSessionCount } from './services/call/session';
+import { warmupStats } from './services/call';
 
 const log = createLogger('app');
 const app = express();
@@ -96,7 +96,7 @@ app.get('/health/ready', async (_req, res) => {
   }
   try {
     await redis.ping();
-    res.json({ status: 'ready', connections });
+    res.json({ status: 'ready', connections, warmup: warmupStats() });
   } catch {
     res.status(503).json({ status: 'degraded' });
   }

@@ -9,7 +9,6 @@ import { upsertMonthlyUsage } from '../usage/usage.service';
 import { pauseActiveFollowup } from '../followup/followup.cancel';
 
 const log = createLogger('session');
-const SESSION_COUNT_KEY = 'call:session_count';
 const SESSION_TTL_SEC = 7200;
 
 export interface CallSession {
@@ -74,7 +73,6 @@ export async function createSession(params: {
 
   await redis.set(`call:session:${params.callControlId}`, JSON.stringify(session), 'EX', SESSION_TTL_SEC);
   await redis.set(`call:session_by_id:${params.callId}`, params.callControlId, 'EX', SESSION_TTL_SEC);
-  await redis.incr(SESSION_COUNT_KEY);
 
   return session;
 }
@@ -98,8 +96,6 @@ export async function endSession(callControlId: string): Promise<void> {
   // Use Redis atomic delete to guarantee only the first caller executes the cleanup
   const deleted = await redis.del(`call:session:${callControlId}`);
   if (deleted === 0) return;
-
-  await redis.decr(SESSION_COUNT_KEY);
 
   const transcripts = await getTranscripts(callControlId);
   const durationSec = Math.round((Date.now() - new Date(session.startedAt).getTime()) / 1000);
@@ -159,8 +155,14 @@ export async function waitForSession(callControlId: string): Promise<CallSession
 }
 
 export async function activeSessionCount(): Promise<number> {
-  const count = await redis.get(SESSION_COUNT_KEY);
-  return Math.max(0, parseInt(count || '0', 10));
+  let count = 0;
+  let cursor = '0';
+  do {
+    const [next, keys] = await redis.scan(cursor, 'MATCH', 'call:session:*', 'COUNT', 100);
+    cursor = next;
+    count += keys.length;
+  } while (cursor !== '0');
+  return count;
 }
 
 async function finalizeCallRecord(session: CallSession, durationSec: number, tokens: TokenUsage | null): Promise<void> {

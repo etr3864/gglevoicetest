@@ -173,6 +173,8 @@ export class GeminiProvider implements VoiceProvider {
   }
 
   private async attemptReconnect(): Promise<void> {
+    if (this.disconnecting) return;
+
     const sinceLastConnect = Date.now() - this.lastConnectTs;
     if (sinceLastConnect < RECONNECT_COOLDOWN_MS) {
       log.warn('Crash loop detected', { attempt: this.reconnectAttempts });
@@ -256,6 +258,7 @@ export class GeminiProvider implements VoiceProvider {
   }
 
   private handleGoAway(goAway: GeminiGoAway): void {
+    if (this.disconnecting) return;
     const secs = goAway.timeLeft?.seconds ?? 0;
     log.info('GoAway received — initiating preemptive reconnect', { timeLeftSec: secs });
     this.reconnectAttempts = 0;

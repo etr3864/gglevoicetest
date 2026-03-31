@@ -3,7 +3,7 @@ import { createLogger } from '../lib/logger';
 import { normalizePhone } from '../lib/phone';
 import { createWorker, followupEvalQueue } from '../lib/queue';
 import { createOutboundCall } from '../services/telnyx';
-import { createSession, warmup } from '../services/call';
+import { createSession, warmup, expire } from '../services/call';
 import { publishCallEvent } from '../services/events/pubsub';
 
 const log = createLogger('outbound-worker');
@@ -62,6 +62,8 @@ export function startOutboundWorker() {
       type: data?.type,
       reason: err?.message?.slice(0, 150),
     });
+
+    if (data?.callId) expire(data.callId);
 
     if (data?.type === 'followup' && data.contactFollowupId && data.callId) {
       try {

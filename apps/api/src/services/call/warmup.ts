@@ -126,6 +126,10 @@ export async function drainWarmups(): Promise<void> {
   pending.clear();
 }
 
+export function warmupStats(): { ready: number; pending: number } {
+  return { ready: ready.size, pending: pending.size };
+}
+
 export function expire(callId: string): void {
   const entry = ready.get(callId);
   if (entry) {

@@ -42,8 +42,16 @@ export async function createNewFollowup(
     where: { contactId, agentId, status: 'OPTED_OUT' },
   });
   if (optedOut) {
-    log.info('Skipped: contact opted out', { contactId, agentId });
-    return;
+    if (lastDisposition === 'callback_requested') {
+      await prisma.contactFollowup.update({
+        where: { id: optedOut.id },
+        data: { status: 'CANCELLED' },
+      });
+      log.info('Re-enabled opted-out contact for explicit callback', { contactId, agentId });
+    } else {
+      log.info('Skipped: contact opted out', { contactId, agentId });
+      return;
+    }
   }
 
   const scheduledFor = await calculateScheduledTime(contactId, firstStep.delayMinutes, config);
