@@ -189,8 +189,9 @@ async function handleCallback(
     return handleAdvanceOrCreate('interested', call, config, existingFollowup);
   }
 
-  const delayMs = call.callbackTime.getTime() - Date.now();
-  const delayMinutes = Math.max(config.minCallbackMinutes, Math.round(delayMs / 60_000));
+  const minDelayMs = config.minCallbackMinutes * 60_000;
+  const earliest = new Date(Date.now() + minDelayMs);
+  const scheduledFor = call.callbackTime > earliest ? call.callbackTime : earliest;
 
   const nextStep = existingFollowup
     ? getNextStep(config.steps, existingFollowup.currentStepOrder)
@@ -203,7 +204,7 @@ async function handleCallback(
     return;
   }
 
-  const callbackStep = { ...nextStep, delayMinutes };
+  const callbackStep = { ...nextStep, delayMinutes: 0 };
 
   if (existingFollowup) {
     await advanceToNextStep(
@@ -214,9 +215,10 @@ async function handleCallback(
       call.id,
       'callback_requested',
       call.contactId ?? undefined,
+      scheduledFor,
     );
   } else {
-    await createNewFollowup(call.contactId, call.agentId, callbackStep, config, call.id, 'callback_requested');
+    await createNewFollowup(call.contactId, call.agentId, callbackStep, config, call.id, 'callback_requested', scheduledFor);
   }
 }
 

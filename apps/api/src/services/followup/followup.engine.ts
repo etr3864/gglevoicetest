@@ -37,6 +37,7 @@ export async function createNewFollowup(
   config: FollowupConfig,
   lastCallId: string,
   lastDisposition: string,
+  scheduledForOverride?: Date,
 ): Promise<void> {
   const optedOut = await prisma.contactFollowup.findFirst({
     where: { contactId, agentId, status: 'OPTED_OUT' },
@@ -54,7 +55,7 @@ export async function createNewFollowup(
     }
   }
 
-  const scheduledFor = await calculateScheduledTime(contactId, firstStep.delayMinutes, config);
+  const scheduledFor = scheduledForOverride ?? await calculateScheduledTime(contactId, firstStep.delayMinutes, config);
 
   try {
     const followup = await prisma.contactFollowup.create({
@@ -101,10 +102,11 @@ export async function advanceToNextStep(
   lastCallId: string,
   lastDisposition: string,
   contactId?: string,
+  scheduledForOverride?: Date,
 ): Promise<void> {
   await removeOldJob(followupId);
 
-  const scheduledFor = await calculateScheduledTime(contactId ?? '', nextStep.delayMinutes, config);
+  const scheduledFor = scheduledForOverride ?? await calculateScheduledTime(contactId ?? '', nextStep.delayMinutes, config);
 
   const result = await prisma.contactFollowup.updateMany({
     where: {
