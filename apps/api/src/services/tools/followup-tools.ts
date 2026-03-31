@@ -94,5 +94,12 @@ async function scheduleCallback(
     },
   });
 
-  return { scheduled: true, callbackTime: callbackTime.toISOString(), reason };
+  return {
+    scheduled: true,
+    callbackTime: callbackTime.toISOString(),
+    reason,
+    next:
+      'If your system or agent instructions require verification or other steps before promising a callback, complete those first. ' +
+      'Then tell the customer out loud the agreed callback time (and timezone if relevant), say a brief warm goodbye, and only after that use end_call.',
+  };
 }
