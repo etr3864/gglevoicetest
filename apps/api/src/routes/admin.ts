@@ -49,9 +49,28 @@ router.post('/table/:name/bulk-delete', async (req, res) => {
   if (!Array.isArray(ids) || ids.length === 0) {
     throw new AppError(400, 'INVALID_INPUT', 'ids array required');
   }
+
+  if (req.params.name === 'contacts') {
+    await deleteContactsCascade(ids);
+    res.json({ data: { deleted: ids.length } });
+    return;
+  }
+
   const result = await model.deleteMany({ where: { id: { in: ids } } });
   res.json({ data: { deleted: result.count } });
 });
+
+async function deleteContactsCascade(contactIds: string[]): Promise<void> {
+  const filter = { contactId: { in: contactIds } };
+
+  await prisma.$transaction([
+    prisma.contactFollowup.deleteMany({ where: filter }),
+    prisma.scheduledReminder.updateMany({ where: filter, data: { contactId: null } }),
+    prisma.appointment.updateMany({ where: filter, data: { contactId: null } }),
+    prisma.call.updateMany({ where: filter, data: { contactId: null } }),
+    prisma.contact.deleteMany({ where: { id: { in: contactIds } } }),
+  ]);
+}
 
 /** POST /admin/debug/simulate-crash — triggers reconnect on active call. Remove after testing. */
 router.post('/debug/simulate-crash', (_req, res) => {
