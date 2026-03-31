@@ -28,6 +28,7 @@ api.interceptors.response.use(
         const res = await api.post('/auth/refresh', { refreshToken });
         const tokens = res.data.data as { accessToken: string };
         localStorage.setItem('auth_tokens', JSON.stringify(res.data.data));
+        window.dispatchEvent(new Event('token-refreshed'));
         original.headers.Authorization = `Bearer ${tokens.accessToken}`;
         return api(original);
       } catch {
