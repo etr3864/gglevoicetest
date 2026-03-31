@@ -299,9 +299,7 @@ function applyPreferredHour(
 
 function resolveDayHours(dayName: string, config: FollowupConfig): DayWindow | null {
   if (config.businessHours) {
-    const slot = config.businessHours[dayName];
-    if (!slot) return null;
-    return parseWindow(slot.start, slot.end);
+    if (!config.businessHours[dayName]) return null;
   }
   return parseWindow(config.activeHoursStart, config.activeHoursEnd);
 }
