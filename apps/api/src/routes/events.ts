@@ -1,10 +1,10 @@
 import { Router } from 'express';
-import { authMiddlewareOptionalToken, assertAgentAccess } from '../middleware/auth';
+import { authMiddleware, assertAgentAccess } from '../middleware/auth';
 import { sseManager } from '../services/events/sse.manager';
 
 const router = Router();
 
-router.get('/agents/:id/events', authMiddlewareOptionalToken, async (req, res) => {
+router.get('/agents/:id/events', authMiddleware, async (req, res) => {
   const { id } = req.params as { id: string };
   await assertAgentAccess(id, req.user!);
 

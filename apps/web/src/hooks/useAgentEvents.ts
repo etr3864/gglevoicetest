@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import api from '../lib/api';
 
 const POLL_INTERVAL_MS = 5_000;
 const SSE_RECONNECT_DELAY_MS = 3_000;
+const SSE_RECONNECT_ON_TOKEN_MS = 100;
 
 function getAccessToken(): string | null {
   try {
@@ -16,6 +17,11 @@ function getAccessToken(): string | null {
   }
 }
 
+function buildSseUrl(agentId: string): string {
+  const base = (api.defaults.baseURL ?? '').replace(/\/$/, '');
+  return `${base}/agents/${agentId}/events`;
+}
+
 export function useAgentEvents(
   agentId: string | undefined,
   enabled: boolean,
@@ -24,32 +30,16 @@ export function useAgentEvents(
   const qc = useQueryClient();
   const onNewCallRef = useRef(onNewCall);
   onNewCallRef.current = onNewCall;
-
-  const [tokenKey, setTokenKey] = useState(0);
-  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Reconnect SSE immediately when token is refreshed by axios interceptor
-  useEffect(() => {
-    const handleTokenRefreshed = () => {
-      if (reconnectTimerRef.current) {
-        clearTimeout(reconnectTimerRef.current);
-        reconnectTimerRef.current = null;
-      }
-      setTokenKey((k) => k + 1);
-    };
-    window.addEventListener('token-refreshed', handleTokenRefreshed);
-    return () => window.removeEventListener('token-refreshed', handleTokenRefreshed);
-  }, []);
+  const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     if (!agentId || !enabled) return;
 
-    const token = getAccessToken();
-    const base = `${api.defaults.baseURL}/agents/${agentId}/events`;
-    const url = token ? `${base}?token=${encodeURIComponent(token)}` : base;
-    const sse = new EventSource(url);
+    let destroyed = false;
+    let connecting = false;
+    let sseActive = false;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
-    // map-only: updates existing call in any cached page; never inserts
     const updateInCache = (call: any) => {
       qc.setQueriesData(
         { queryKey: ['calls', agentId], exact: false },
@@ -59,46 +49,125 @@ export function useAgentEvents(
       );
     };
 
-    sse.addEventListener('call_created', (e) => {
-      try { onNewCallRef.current?.(JSON.parse(e.data).call); } catch {}
-    });
-
-    sse.addEventListener('call_updated', (e) => {
-      try { updateInCache(JSON.parse(e.data).call); } catch {}
-    });
-
-    sse.addEventListener('recording_ready', (e) => {
-      try { updateInCache(JSON.parse(e.data).call); } catch {}
-    });
-
-    sse.onerror = () => {
-      sse.close();
-      // Ping the server — if token expired, axios interceptor refreshes it
-      // and dispatches 'token-refreshed', which handles reconnect.
-      // Schedule a fallback reconnect in case it was a transient network error.
-      api.get('/auth/me').catch(() => {});
-      if (!reconnectTimerRef.current) {
-        reconnectTimerRef.current = setTimeout(() => {
-          reconnectTimerRef.current = null;
-          setTokenKey((k) => k + 1);
-        }, SSE_RECONNECT_DELAY_MS);
-      }
+    const handleEvent = (type: string, data: string) => {
+      try {
+        const parsed = JSON.parse(data);
+        if (type === 'call_created') onNewCallRef.current?.(parsed.call);
+        else if (type === 'call_updated' || type === 'recording_ready') updateInCache(parsed.call);
+      } catch {}
     };
 
-    // fallback poll: only fires when SSE connection is actually down
+    const scheduleReconnect = (delay: number) => {
+      if (destroyed || reconnectTimer) return;
+      reconnectTimer = setTimeout(() => {
+        reconnectTimer = null;
+        connect();
+      }, delay);
+    };
+
+    const connect = async () => {
+      if (destroyed || connecting) return;
+      connecting = true;
+
+      const token = getAccessToken();
+      const abort = new AbortController();
+      abortRef.current = abort;
+
+      try {
+        const response = await fetch(buildSseUrl(agentId), {
+          headers: {
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            Accept: 'text/event-stream',
+            'Cache-Control': 'no-cache',
+          },
+          signal: abort.signal,
+        });
+
+        if (response.status === 401) {
+          // Trigger token refresh via axios interceptor, then reconnect
+          api.get('/auth/me').catch(() => {});
+          connecting = false;
+          scheduleReconnect(SSE_RECONNECT_DELAY_MS);
+          return;
+        }
+
+        if (!response.ok || !response.body) {
+          connecting = false;
+          scheduleReconnect(SSE_RECONNECT_DELAY_MS);
+          return;
+        }
+
+        sseActive = true;
+        connecting = false;
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const messages = buffer.split('\n\n');
+          buffer = messages.pop() ?? '';
+
+          for (const msg of messages) {
+            if (!msg.trim()) continue;
+            let eventType = 'message';
+            let data = '';
+            for (const line of msg.split('\n')) {
+              if (line.startsWith('event:')) eventType = line.slice(6).trim();
+              else if (line.startsWith('data:')) data = line.slice(5).trim();
+            }
+            if (data) handleEvent(eventType, data);
+          }
+        }
+
+        reader.cancel().catch(() => {});
+      } catch (err: any) {
+        if (err?.name === 'AbortError') {
+          sseActive = false;
+          connecting = false;
+          return; // Reconnect handled by the aborter
+        }
+      }
+
+      sseActive = false;
+      connecting = false;
+      scheduleReconnect(SSE_RECONNECT_DELAY_MS);
+    };
+
+    const onTokenRefreshed = () => {
+      if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+        reconnectTimer = null;
+      }
+      abortRef.current?.abort();
+      if (!destroyed) {
+        reconnectTimer = setTimeout(() => {
+          reconnectTimer = null;
+          connect();
+        }, SSE_RECONNECT_ON_TOKEN_MS);
+      }
+    };
+    window.addEventListener('token-refreshed', onTokenRefreshed);
+
+    // Fallback poll: only fires when SSE is not active
     const pollTimer = setInterval(() => {
-      if (sse.readyState !== EventSource.OPEN) {
+      if (!sseActive) {
         qc.invalidateQueries({ queryKey: ['calls', agentId], exact: false });
       }
     }, POLL_INTERVAL_MS);
 
+    connect();
+
     return () => {
-      sse.close();
+      destroyed = true;
+      abortRef.current?.abort();
       clearInterval(pollTimer);
-      if (reconnectTimerRef.current) {
-        clearTimeout(reconnectTimerRef.current);
-        reconnectTimerRef.current = null;
-      }
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      window.removeEventListener('token-refreshed', onTokenRefreshed);
     };
-  }, [agentId, enabled, qc, tokenKey]);
+  }, [agentId, enabled, qc]);
 }
