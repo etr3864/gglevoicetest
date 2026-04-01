@@ -13,8 +13,8 @@ import type { VoiceProvider, ProviderEvents } from '../providers/types';
 import { publishCallEvent } from '../events/pubsub';
 import { redis } from '../../lib/redis';
 import {
-  OUTBOUND, DEEPGRAM, NEEDS_ENDIAN_SWAP, GEMINI,
-  swapEndian16, diagnoseChunk, downsample24kTo16k,
+  OUTBOUND, INBOUND, DEEPGRAM, NEEDS_ENDIAN_SWAP, GEMINI,
+  swapEndian16, diagnoseChunk, downsample24kTo16k, applyGain,
 } from '../../lib/audio-config';
 import { getAmbientBuffer, createLoopState, createAmbientSession, type AmbientSession } from '../audio/ambient';
 
@@ -120,7 +120,8 @@ function handleMedia(callControlId: string, pcm: Buffer): void {
   const conn = activeConnections.get(callControlId);
   if (!conn) return;
 
-  const audio = NEEDS_ENDIAN_SWAP ? swapEndian16(pcm) : pcm;
+  const swapped = NEEDS_ENDIAN_SWAP ? swapEndian16(pcm) : pcm;
+  const audio = applyGain(swapped, INBOUND.gain);
 
   if (conn.interruptRef.enabled) {
     const { out, carry } = downsample24kTo16k(audio, conn.downsampleCarry);
