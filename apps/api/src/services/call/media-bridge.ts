@@ -17,6 +17,8 @@ import {
   swapEndian16, diagnoseChunk, downsample24kTo16k, applyGain,
 } from '../../lib/audio-config';
 import { getAmbientBuffer, createLoopState, createAmbientSession, type AmbientSession } from '../audio/ambient';
+import { injectMidCallSummary } from './context-refresh';
+import { CONTEXT_REFRESH_TOKEN_THRESHOLD } from '../../lib/constants';
 
 const log = createLogger('bridge');
 
@@ -29,6 +31,10 @@ interface ActiveConnection {
   interruptRef: { enabled: boolean; greetingLive: boolean };
   downsampleCarry: Buffer;
   ambientSession: AmbientSession;
+  pendingContextRefresh: boolean;
+  contextInjecting: boolean;
+  contextInjected: boolean;
+  lastTokenCount: number;
 }
 
 interface BridgeContext {
@@ -236,7 +242,7 @@ async function buildActiveConnection(
       elapsed: Date.now() - streamStartTs,
       preloadedChunks: prewarmed.preloadedAudio.length,
     });
-    return { provider: prewarmed.provider, transcriber, agentTranscriber, greetingPreloaded: true, interruptRef, downsampleCarry: Buffer.alloc(0), ambientSession };
+    return { provider: prewarmed.provider, transcriber, agentTranscriber, greetingPreloaded: true, interruptRef, downsampleCarry: Buffer.alloc(0), ambientSession, pendingContextRefresh: false, contextInjecting: false, contextInjected: false, lastTokenCount: 0 };
   }
 
   const provider = await connectProvider(session, events);
@@ -262,7 +268,7 @@ async function buildActiveConnection(
   interruptRef.enabled = true;
 
   log.info('Connection ready', { callId: session.callId, type: 'cold', elapsed: Date.now() - streamStartTs });
-  return { provider, transcriber, agentTranscriber, greetingPreloaded: false, interruptRef, downsampleCarry: Buffer.alloc(0), ambientSession };
+  return { provider, transcriber, agentTranscriber, greetingPreloaded: false, interruptRef, downsampleCarry: Buffer.alloc(0), ambientSession, pendingContextRefresh: false, contextInjecting: false, contextInjected: false, lastTokenCount: 0 };
 }
 
 function teardown(callControlId: string | null): void {
@@ -404,10 +410,27 @@ function buildProviderEvents(ctx: BridgeContext): ProviderEvents {
       } else {
         interruptRef.enabled = true;
       }
+
+      const conn = activeConnections.get(callControlId);
+      if (!conn?.pendingContextRefresh || conn.contextInjecting || conn.contextInjected) return;
+      conn.pendingContextRefresh = false;
+      conn.contextInjecting = true;
+      injectMidCallSummary(callControlId, session.callId, conn.provider, conn.lastTokenCount)
+        .then(() => { conn.contextInjected = true; })
+        .catch((err) => { log.warn('Context refresh failed', { callId: session.callId, err: err?.message }); })
+        .finally(() => { conn.contextInjecting = false; });
     },
 
     onUsage: (usage) => {
       redis.set(`call:usage:${callControlId}`, JSON.stringify(usage), 'EX', 7200).catch(() => {});
+
+      const total = usage.audioInputTokens + usage.audioOutputTokens +
+                    usage.textInputTokens + usage.textOutputTokens;
+      const conn = activeConnections.get(callControlId);
+      if (!conn) return;
+      conn.lastTokenCount = total;
+      if (total < CONTEXT_REFRESH_TOKEN_THRESHOLD || conn.contextInjected || conn.contextInjecting || conn.pendingContextRefresh) return;
+      conn.pendingContextRefresh = true;
     },
   };
 }

@@ -1,5 +1,7 @@
 export const GEMINI_MODEL = 'gemini-live-2.5-flash-native-audio';
 
+export const CONTEXT_REFRESH_TOKEN_THRESHOLD = 20_000;
+
 export const DEFAULT_VOICE = 'Aoede';
 
 

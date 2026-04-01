@@ -148,6 +148,7 @@ export interface VoiceProvider {
   startConversation(): void;
   disconnect(): void;
   isReady(): boolean;
+  injectContext?(text: string): void;
 }
 
 /** Deep-merge agent overrides onto defaults */
