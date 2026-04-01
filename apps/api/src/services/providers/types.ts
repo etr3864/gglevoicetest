@@ -57,8 +57,8 @@ export const DEFAULT_MODEL_CONFIG: ModelConfig = {
     turnCoverage: 'TURN_INCLUDES_ALL_INPUT',
   },
   contextCompression: {
-    slidingWindowSize: 3072,
-    triggerTokens: 8000,
+    slidingWindowSize: 16_000,
+    triggerTokens: 32_000,
   },
 };
 
