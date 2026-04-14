@@ -24,7 +24,7 @@ function getClientCredentials() {
 
 export function buildOAuthUrl(agentId: string): string {
   const { clientId, redirectUri } = getClientCredentials();
-  const scopes = 'https://www.googleapis.com/auth/calendar';
+  const scopes = 'https://www.googleapis.com/auth/calendar.events';
   const state = agentId;
   const params = new URLSearchParams({
     client_id: clientId,
@@ -179,21 +179,6 @@ export async function deleteEvent(
   } finally {
     clearTimeout(timer);
   }
-}
-
-export interface CalendarListEntry {
-  id: string;
-  summary: string;
-  primary: boolean;
-}
-
-export async function listCalendars(token: string): Promise<CalendarListEntry[]> {
-  const data = await googleFetch(token, '/users/me/calendarList', { method: 'GET' });
-  return (data.items ?? []).map((item: any) => ({
-    id: item.id,
-    summary: item.summary,
-    primary: item.primary ?? false,
-  }));
 }
 
 // --- Internal ---

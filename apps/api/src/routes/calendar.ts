@@ -6,7 +6,6 @@ import {
   buildOAuthUrl,
   exchangeCodeForTokens,
   getValidToken,
-  listCalendars,
 } from '../services/calendar/google';
 import type { CalendarConfig } from '@voice/shared';
 
@@ -32,15 +31,12 @@ router.get('/calendar/callback', async (req, res) => {
   if (!agent) throw new AppError(404, 'NOT_FOUND', 'Agent not found');
 
   const tokens = await exchangeCodeForTokens(code);
-  const calendars = await listCalendars(tokens.accessToken);
-  const primary = calendars.find(c => c.primary) ?? calendars[0];
-  if (!primary) throw new AppError(400, 'NO_CALENDAR', 'No Google Calendar found');
 
   const config: CalendarConfig = {
     accessToken: tokens.accessToken,
     refreshToken: tokens.refreshToken,
     expiresAt: tokens.expiresAt,
-    calendarId: primary.id,
+    calendarId: 'primary',
   };
 
   await prisma.agent.update({
@@ -72,23 +68,12 @@ router.get('/:id/calendar/status', authMiddleware, async (req, res) => {
   if (!agent) throw new AppError(404, 'NOT_FOUND', 'Agent not found');
 
   const connected = !!agent.calendarConfig;
-  let calendars: { id: string; summary: string; primary: boolean }[] = [];
-
-  if (connected) {
-    try {
-      const { token } = await getValidToken(agent.id);
-      calendars = await listCalendars(token);
-    } catch {
-      // Token might be invalid — still report connected but no calendars
-    }
-  }
-
   const config = agent.calendarConfig as unknown as CalendarConfig | null;
   res.json({
     data: {
       connected,
       calendarId: config?.calendarId ?? null,
-      calendars,
+      calendars: [],
     },
   });
 });
