@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
@@ -103,6 +103,12 @@ export default function LoginPage() {
             </Button>
           </form>
         </div>
+
+        <p className="text-center text-xs text-[var(--text-muted)] mt-6 space-x-2" dir="ltr">
+          <Link to="/privacy" className="hover:text-[var(--text-secondary)] transition-colors">Privacy Policy</Link>
+          <span>·</span>
+          <Link to="/terms" className="hover:text-[var(--text-secondary)] transition-colors">Terms of Service</Link>
+        </p>
       </div>
     </div>
   );

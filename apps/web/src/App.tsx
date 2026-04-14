@@ -9,6 +9,9 @@ import UsersPage from './pages/Users/UsersPage';
 import DashboardPage from './pages/Dashboard/DashboardPage';
 import SuperAdminDashboardPage from './pages/Dashboard/SuperAdminDashboardPage';
 import Layout from './components/Layout';
+import HomePage from './pages/public/HomePage';
+import PrivacyPage from './pages/public/PrivacyPage';
+import TermsPage from './pages/public/TermsPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
@@ -37,6 +40,9 @@ function DashboardSwitch() {
 export default function App() {
   return (
     <Routes>
+      <Route path="/home" element={<HomePage />} />
+      <Route path="/privacy" element={<PrivacyPage />} />
+      <Route path="/terms" element={<TermsPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
         <Route index element={<AgentListPage />} />
