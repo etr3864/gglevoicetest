@@ -5,6 +5,7 @@ import { authMiddleware, requireSuperAdmin, assertAgentAccess } from '../middlew
 import {
   buildOAuthUrl,
   exchangeCodeForTokens,
+  getPrimaryCalendarId,
   getValidToken,
 } from '../services/calendar/google';
 import type { CalendarConfig } from '@voice/shared';
@@ -31,12 +32,13 @@ router.get('/calendar/callback', async (req, res) => {
   if (!agent) throw new AppError(404, 'NOT_FOUND', 'Agent not found');
 
   const tokens = await exchangeCodeForTokens(code);
+  const calendarId = await getPrimaryCalendarId(tokens.accessToken);
 
   const config: CalendarConfig = {
     accessToken: tokens.accessToken,
     refreshToken: tokens.refreshToken,
     expiresAt: tokens.expiresAt,
-    calendarId: 'primary',
+    calendarId,
   };
 
   await prisma.agent.update({
