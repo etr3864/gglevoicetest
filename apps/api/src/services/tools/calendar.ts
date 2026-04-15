@@ -19,7 +19,7 @@ import {
 } from '../reminders/reminder.service';
 
 const SLOT_DURATION_MIN = 30;
-const MAX_VOICE_SLOTS = 5;
+const MAX_VOICE_SLOTS = 20;
 
 export function registerCalendarTools(): void {
   globalRegistry.register(
