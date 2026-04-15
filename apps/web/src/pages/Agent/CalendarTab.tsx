@@ -76,6 +76,16 @@ export default function CalendarTab({ agentId, agent }: Props) {
     setWebhookSecret(agent.appointmentWebhookSecret || '');
   }, [agent]);
 
+  const selectCalendar = useMutation({
+    mutationFn: (calendarId: string) =>
+      api.patch(`/agents/${agentId}/calendar/select`, { calendarId }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['calendar-status', agentId] });
+      toast('יומן עודכן', 'success');
+    },
+    onError: () => toast('שגיאה בעדכון יומן', 'error'),
+  });
+
   const connect = useMutation({
     mutationFn: () => api.get(`/agents/${agentId}/calendar/connect`).then(r => r.data.data),
     onSuccess: (data) => {
@@ -177,9 +187,26 @@ export default function CalendarTab({ agentId, agent }: Props) {
         </div>
         {connected && statusData?.calendarId && (
           <CardContent>
-            <p className="text-xs text-[var(--text-muted)]" dir="ltr">
-              {statusData.calendarId}
-            </p>
+            {statusData.calendars?.length > 1 ? (
+              <div className="flex items-center gap-3">
+                <label className="text-xs text-[var(--text-muted)] whitespace-nowrap">יומן פעיל:</label>
+                <select
+                  value={statusData.calendarId}
+                  onChange={(e) => selectCalendar.mutate(e.target.value)}
+                  disabled={selectCalendar.isPending}
+                  className="flex-1 rounded-lg bg-[var(--bg-primary)] border border-[var(--border)] px-3 py-1.5 text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)]"
+                  dir="ltr"
+                >
+                  {statusData.calendars.map((cal: { id: string; summary: string }) => (
+                    <option key={cal.id} value={cal.id}>{cal.summary} ({cal.id})</option>
+                  ))}
+                </select>
+              </div>
+            ) : (
+              <p className="text-xs text-[var(--text-muted)]" dir="ltr">
+                {statusData.calendarId}
+              </p>
+            )}
           </CardContent>
         )}
       </Card>

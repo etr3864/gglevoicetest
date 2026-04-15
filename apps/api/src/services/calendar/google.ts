@@ -24,7 +24,7 @@ function getClientCredentials() {
 
 export function buildOAuthUrl(agentId: string): string {
   const { clientId, redirectUri } = getClientCredentials();
-  const scopes = 'https://www.googleapis.com/auth/calendar.events email';
+  const scopes = 'https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.readonly email';
   const state = agentId;
   const params = new URLSearchParams({
     client_id: clientId,
@@ -181,26 +181,19 @@ export async function deleteEvent(
   }
 }
 
-export async function getPrimaryCalendarId(accessToken: string): Promise<string> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
-  try {
-    const res = await fetch('https://www.googleapis.com/userinfo/v2/me', {
-      headers: { Authorization: `Bearer ${accessToken}` },
-      signal: controller.signal,
-    });
-    if (!res.ok) throw new Error(`Userinfo API ${res.status}`);
-    const data = await res.json();
-    if (!data.email) throw new Error('No email in userinfo response');
-    return data.email as string;
-  } catch (err) {
-    if (err instanceof DOMException && err.name === 'AbortError') {
-      throw new Error('Userinfo API timeout');
-    }
-    throw err;
-  } finally {
-    clearTimeout(timer);
-  }
+export interface CalendarListEntry {
+  id: string;
+  summary: string;
+  primary: boolean;
+}
+
+export async function listCalendars(token: string): Promise<CalendarListEntry[]> {
+  const data = await googleFetch(token, '/users/me/calendarList', { method: 'GET' });
+  return (data.items ?? []).map((item: any) => ({
+    id: item.id,
+    summary: item.summary,
+    primary: item.primary ?? false,
+  }));
 }
 
 // --- Internal ---
