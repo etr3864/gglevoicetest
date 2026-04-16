@@ -28,6 +28,7 @@ const SILENT_TOOLS = new Set([
   'mark_do_not_call',
   'check_availability',
   'get_contact_appointments',
+  'book_appointment',
 ]);
 
 const SILENT_ON_SUCCESS = new Set(['send_whatsapp', 'send_media']);
