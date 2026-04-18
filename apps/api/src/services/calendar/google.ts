@@ -107,6 +107,11 @@ export async function getFreeBusy(
   return data.calendars?.[calendarId]?.busy ?? [];
 }
 
+export interface CalendarReminder {
+  method: 'email' | 'popup';
+  minutesBefore: number;
+}
+
 export interface CalendarEvent {
   summary: string;
   description?: string;
@@ -114,6 +119,8 @@ export interface CalendarEvent {
   end: string;
   attendeePhone?: string;
   attendeeName?: string;
+  attendeeEmail?: string;
+  reminders?: CalendarReminder[];
 }
 
 export async function createEvent(
@@ -121,14 +128,28 @@ export async function createEvent(
   calendarId: string,
   event: CalendarEvent,
 ): Promise<{ eventId: string; htmlLink: string }> {
+  const body: Record<string, unknown> = {
+    summary: event.summary,
+    description: buildEventDescription(event),
+    start: { dateTime: event.start, timeZone: TIMEZONE },
+    end: { dateTime: event.end, timeZone: TIMEZONE },
+  };
+
+  if (event.attendeeEmail) {
+    body.attendees = [{ email: event.attendeeEmail, displayName: event.attendeeName }];
+    body.sendUpdates = 'all';
+  }
+
+  if (event.reminders && event.reminders.length > 0) {
+    body.reminders = {
+      useDefault: false,
+      overrides: event.reminders.slice(0, 5).map(r => ({ method: r.method, minutes: r.minutesBefore })),
+    };
+  }
+
   const data = await googleFetch(token, `/calendars/${encodeURIComponent(calendarId)}/events`, {
     method: 'POST',
-    body: JSON.stringify({
-      summary: event.summary,
-      description: buildEventDescription(event),
-      start: { dateTime: event.start, timeZone: TIMEZONE },
-      end: { dateTime: event.end, timeZone: TIMEZONE },
-    }),
+    body: JSON.stringify(body),
   });
 
   return { eventId: data.id, htmlLink: data.htmlLink };
@@ -138,17 +159,20 @@ export async function updateEvent(
   token: string,
   calendarId: string,
   eventId: string,
-  update: { start?: string; end?: string; summary?: string },
+  update: { start?: string; end?: string; summary?: string; hasAttendees?: boolean },
 ): Promise<void> {
   const body: Record<string, unknown> = {};
   if (update.summary) body.summary = update.summary;
   if (update.start) body.start = { dateTime: update.start, timeZone: TIMEZONE };
   if (update.end) body.end = { dateTime: update.end, timeZone: TIMEZONE };
 
-  await googleFetch(token, `/calendars/${encodeURIComponent(calendarId)}/events/${eventId}`, {
-    method: 'PATCH',
-    body: JSON.stringify(body),
-  });
+  const sendUpdates = update.hasAttendees ? 'all' : 'none';
+
+  await googleFetch(
+    token,
+    `/calendars/${encodeURIComponent(calendarId)}/events/${eventId}?sendUpdates=${sendUpdates}`,
+    { method: 'PATCH', body: JSON.stringify(body) },
+  );
 }
 
 export async function deleteEvent(

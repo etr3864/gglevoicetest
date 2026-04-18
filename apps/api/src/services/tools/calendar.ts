@@ -12,6 +12,7 @@ import {
 import { TIMEZONE, formatDate, formatTime, toISOWithTimezone } from '../../lib/date';
 import { appointmentWebhookQueue } from '../../lib/queue';
 import type { BusinessHours, CalendarConfig } from '@voice/shared';
+import type { CalendarReminder } from '../calendar/google';
 import {
   createRemindersForAppointment,
   cancelRemindersForAppointment,
@@ -53,6 +54,7 @@ export function registerCalendarTools(): void {
         duration: { type: 'number', description: 'Duration in minutes (default 30)' },
         title: { type: 'string', description: 'Appointment title/purpose' },
         description: { type: 'string', description: 'Optional additional details' },
+        attendeeEmail: { type: 'string', description: 'Customer email address for calendar invite and reminders (optional)' },
       },
       required: ['date', 'time', 'title'],
     },
@@ -64,6 +66,7 @@ export function registerCalendarTools(): void {
           duration: (args.duration as number) || SLOT_DURATION_MIN,
           title: args.title as string,
           description: args.description as string | undefined,
+          attendeeEmail: args.attendeeEmail as string | undefined,
         },
         ctx,
       ),
@@ -163,7 +166,7 @@ async function checkAvailability(date: string, ctx: ToolContext) {
 }
 
 async function bookAppointment(
-  params: { date: string; time: string; duration: number; title: string; description?: string },
+  params: { date: string; time: string; duration: number; title: string; description?: string; attendeeEmail?: string },
   ctx: ToolContext,
 ) {
   const agent = await prisma.agent.findUnique({ where: { id: ctx.agentId } });
@@ -190,6 +193,13 @@ async function bookAppointment(
     ? await prisma.contact.findUnique({ where: { phone: ctx.contactPhone } })
     : null;
 
+  const attendeeEmail = params.attendeeEmail ?? contact?.email ?? undefined;
+  const reminderConfig = ((agent.calendarConfig as Record<string, unknown>)?.reminderConfig ?? undefined) as CalendarReminder[] | undefined;
+
+  if (attendeeEmail && contact && !contact.email) {
+    await prisma.contact.update({ where: { id: contact.id }, data: { email: attendeeEmail } });
+  }
+
   const { eventId } = await createEvent(token, calendarId, {
     summary: params.title,
     description: params.description,
@@ -197,6 +207,8 @@ async function bookAppointment(
     end: endISO,
     attendeeName: contact?.name ?? undefined,
     attendeePhone: ctx.contactPhone,
+    attendeeEmail,
+    reminders: reminderConfig,
   });
 
   const appointment = await prisma.appointment.create({
@@ -263,9 +275,13 @@ async function rescheduleAppointment(
   }
 
   if (appointment.googleEventId) {
+    const contact = appointment.phone
+      ? await prisma.contact.findUnique({ where: { phone: appointment.phone }, select: { email: true } })
+      : null;
     await updateEvent(token, calendarId, appointment.googleEventId, {
       start: newStartISO,
       end: newEndISO,
+      hasAttendees: !!contact?.email,
     });
   }
 
