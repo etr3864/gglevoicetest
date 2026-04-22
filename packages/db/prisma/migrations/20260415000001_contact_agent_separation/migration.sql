@@ -79,8 +79,8 @@ ALTER TABLE "contacts" ALTER COLUMN "agent_id" SET NOT NULL;
 -- Step 7: Add foreign key
 ALTER TABLE "contacts" ADD CONSTRAINT "contacts_agent_id_fkey" FOREIGN KEY ("agent_id") REFERENCES "agents"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
--- Step 8: Drop old unique, add compound unique
-ALTER TABLE "contacts" DROP CONSTRAINT "contacts_phone_key";
+-- Step 8: Drop old unique index, add compound unique
+DROP INDEX "contacts_phone_key";
 CREATE UNIQUE INDEX "contacts_phone_agent_id_key" ON "contacts"("phone", "agent_id");
 
 -- Step 9: Add index on agent_id for contacts
