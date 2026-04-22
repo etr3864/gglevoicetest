@@ -54,6 +54,13 @@ export function useAgentEvents(
         const parsed = JSON.parse(data);
         if (type === 'call_created') onNewCallRef.current?.(parsed.call);
         else if (type === 'call_updated' || type === 'recording_ready') updateInCache(parsed.call);
+        else if (type === 'reminder_updated') qc.invalidateQueries({ queryKey: ['agent-reminders', agentId] });
+        else if (type === 'followup_updated') {
+          qc.invalidateQueries({ queryKey: ['followup-stats', agentId] });
+          qc.invalidateQueries({ queryKey: ['followup-active', agentId] });
+        }
+        else if (type === 'knowledge_updated') qc.invalidateQueries({ queryKey: ['knowledge', agentId] });
+        else if (type === 'media_updated') qc.invalidateQueries({ queryKey: ['media', agentId] });
       } catch {}
     };
 

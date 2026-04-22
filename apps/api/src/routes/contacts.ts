@@ -7,19 +7,11 @@ import { assertAgentAccess, requireSuperAdmin } from '../middleware/auth';
 const router = Router();
 
 router.get('/agents/:id/contacts', async (req, res) => {
-  await assertAgentAccess(req.params.id, req.user!);
-
-  const calls = await prisma.call.findMany({
-    where: { agentId: req.params.id, contactId: { not: null } },
-    select: { contactId: true },
-    distinct: ['contactId'],
-  });
-  const contactIds = calls.map(c => c.contactId!);
-
   const agentId = req.params.id;
+  await assertAgentAccess(agentId, req.user!);
 
   const contacts = await prisma.contact.findMany({
-    where: { id: { in: contactIds } },
+    where: { agentId },
     orderBy: { lastCallAt: 'desc' },
     include: {
       contactFollowups: {
@@ -38,11 +30,9 @@ router.get('/contacts/:id', async (req, res) => {
   if (!contact) throw new AppError(404, 'NOT_FOUND', 'Contact not found');
 
   if (req.user?.role !== 'super_admin') {
-    const hasAccess = await prisma.call.findFirst({
-      where: {
-        contactId: contact.id,
-        agent: { userId: req.user?.role === 'employee' && req.user?.parentId ? req.user.parentId : req.user?.userId },
-      },
+    const ownerUserId = req.user?.role === 'employee' && req.user?.parentId ? req.user.parentId : req.user?.userId;
+    const hasAccess = await prisma.agent.findFirst({
+      where: { id: contact.agentId, userId: ownerUserId },
       select: { id: true },
     });
     if (!hasAccess) throw new AppError(403, 'FORBIDDEN', 'Access denied');
@@ -52,15 +42,13 @@ router.get('/contacts/:id', async (req, res) => {
 });
 
 router.get('/contacts/:id/appointments', async (req, res) => {
-  const contact = await prisma.contact.findUnique({ where: { id: req.params.id }, select: { id: true } });
+  const contact = await prisma.contact.findUnique({ where: { id: req.params.id }, select: { id: true, agentId: true } });
   if (!contact) throw new AppError(404, 'NOT_FOUND', 'Contact not found');
 
   if (req.user?.role !== 'super_admin') {
-    const hasAccess = await prisma.call.findFirst({
-      where: {
-        contactId: contact.id,
-        agent: { userId: req.user?.role === 'employee' && req.user?.parentId ? req.user.parentId : req.user?.userId },
-      },
+    const ownerUserId = req.user?.role === 'employee' && req.user?.parentId ? req.user.parentId : req.user?.userId;
+    const hasAccess = await prisma.agent.findFirst({
+      where: { id: contact.agentId, userId: ownerUserId },
       select: { id: true },
     });
     if (!hasAccess) throw new AppError(403, 'FORBIDDEN', 'Access denied');

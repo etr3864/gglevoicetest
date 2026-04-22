@@ -1,6 +1,7 @@
 import { prisma } from '@voice/db';
 import { createLogger } from '../lib/logger';
 import { createWorker } from '../lib/queue';
+import { publishCallEvent } from '../services/events/pubsub';
 import { upsertMonthlyUsage } from '../services/usage/usage.service';
 import { embedTexts } from '../services/knowledge/embedding.service';
 import { compressIfNeeded } from '../services/media/media-compressor';
@@ -24,7 +25,7 @@ export function startMediaWorker() {
       reason: err?.message?.slice(0, 200),
     });
     if (job?.data?.mediaItemId) {
-      markItemError(job.data.mediaItemId, err.message).catch(() => {});
+      markItemError(job.data.mediaItemId, err.message, job.data.agentId).catch(() => {});
     }
   });
 
@@ -106,6 +107,8 @@ async function fullProcessItem(data: MediaJobData): Promise<void> {
   if (tokenCount > 0) {
     upsertMonthlyUsage(agentId, { totalMediaAnalysisTokens: tokenCount }).catch(() => {});
   }
+
+  await publishCallEvent(agentId, 'media_updated', {});
 }
 
 async function reembedItem(mediaItemId: string): Promise<void> {
@@ -154,11 +157,12 @@ async function extractDocumentText(buffer: Buffer, filename: string): Promise<st
   return parseTxt(buffer);
 }
 
-async function markItemError(mediaItemId: string, errorMsg: string): Promise<void> {
+async function markItemError(mediaItemId: string, errorMsg: string, agentId?: string): Promise<void> {
   await prisma.mediaItem
     .update({
       where: { id: mediaItemId },
       data: { status: 'error', errorMsg: errorMsg.slice(0, 500) },
     })
     .catch(() => {});
+  if (agentId) await publishCallEvent(agentId, 'media_updated', {}).catch(() => {});
 }

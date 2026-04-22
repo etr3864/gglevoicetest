@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto';
 import { prisma } from '@voice/db';
 import { createLogger } from '../lib/logger';
 import { createWorker } from '../lib/queue';
+import { publishCallEvent } from '../services/events/pubsub';
 import { upsertMonthlyUsage } from '../services/usage/usage.service';
 import { embedTexts } from '../services/knowledge/embedding.service';
 import { processTextFile, processTableFile } from '../services/knowledge/document-processor';
@@ -32,7 +33,7 @@ export function startKnowledgeWorker() {
       reason: err?.message?.slice(0, 200),
     });
     if (job?.data?.documentId) {
-      markDocumentError(job.data.documentId, err.message).catch(() => {});
+      markDocumentError(job.data.documentId, err.message, job.data.agentId).catch(() => {});
     }
   });
 
@@ -48,7 +49,7 @@ async function processDocument(job: { data: KnowledgeJobData }): Promise<void> {
   const chunks = await buildChunks(docType, buffer, filename);
 
   if (chunks.length === 0) {
-    await markDocumentError(documentId, 'No chunks produced from document');
+    await markDocumentError(documentId, 'No chunks produced from document', agentId);
     return;
   }
 
@@ -74,6 +75,8 @@ async function processDocument(job: { data: KnowledgeJobData }): Promise<void> {
     where: { id: documentId },
     data: { status: 'ready', chunkCount: finalChunks.length },
   });
+
+  await publishCallEvent(agentId, 'knowledge_updated', {});
 
   if (tokenCount > 0) {
     upsertMonthlyUsage(agentId, { totalEmbeddingTokens: tokenCount })
@@ -121,9 +124,10 @@ function assignIds(chunks: ChunkDraft[], documentId: string, agentId: string): C
   }));
 }
 
-async function markDocumentError(documentId: string, errorMsg: string): Promise<void> {
+async function markDocumentError(documentId: string, errorMsg: string, agentId?: string): Promise<void> {
   await prisma.knowledgeDocument.update({
     where: { id: documentId },
     data: { status: 'error', errorMsg: errorMsg.slice(0, 500) },
   }).catch(() => {});
+  if (agentId) await publishCallEvent(agentId, 'knowledge_updated', {}).catch(() => {});
 }

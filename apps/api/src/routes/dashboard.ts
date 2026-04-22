@@ -23,20 +23,24 @@ router.get('/', async (req, res) => {
   if (fromDate && isNaN(fromDate.getTime())) throw new AppError(400, 'INVALID_PARAMS', 'Invalid from date');
   if (toDate && isNaN(toDate.getTime())) throw new AppError(400, 'INVALID_PARAMS', 'Invalid to date');
 
-  // Resolve agent IDs based on role
-  let agentIds: string[] | null = null;
+  const ownerId = user.role === 'employee' && user.parentId ? user.parentId : user.userId;
+  let agentIds: string[];
 
   if (agentId) {
-    if (user.role === 'admin') {
-      const agent = await prisma.agent.findFirst({ where: { id: agentId, userId: user.userId } });
+    if (user.role !== 'super_admin') {
+      const agent = await prisma.agent.findFirst({ where: { id: agentId, userId: ownerId } });
       if (!agent) throw new AppError(403, 'FORBIDDEN', 'No access to this agent');
     }
     agentIds = [agentId];
-  } else if (user.role === 'admin') {
-    const agents = await prisma.agent.findMany({ where: { userId: user.userId }, select: { id: true } });
+  } else if (user.role === 'super_admin') {
+    const agents = await prisma.agent.findMany({ select: { id: true } });
     agentIds = agents.map((a) => a.id);
-    if (agentIds.length === 0) return res.json({ data: emptyStats() });
+  } else {
+    const agents = await prisma.agent.findMany({ where: { userId: ownerId }, select: { id: true } });
+    agentIds = agents.map((a) => a.id);
   }
+
+  if (agentIds.length === 0) return res.json({ data: emptyStats() });
 
   const callWhere = buildCallWhere(agentIds, fromDate, toDate);
   const apptWhere = buildApptWhere(agentIds, fromDate, toDate);
@@ -90,12 +94,11 @@ router.get('/', async (req, res) => {
 });
 
 function buildCallWhere(
-  agentIds: string[] | null,
+  agentIds: string[],
   from: Date | null,
   to: Date | null,
 ): Prisma.CallWhereInput {
-  const where: Prisma.CallWhereInput = { status: { not: 'queued' } };
-  if (agentIds) where.agentId = { in: agentIds };
+  const where: Prisma.CallWhereInput = { agentId: { in: agentIds }, status: { not: 'queued' } };
   if (from || to) {
     where.createdAt = {};
     if (from) where.createdAt.gte = from;
@@ -105,12 +108,11 @@ function buildCallWhere(
 }
 
 function buildApptWhere(
-  agentIds: string[] | null,
+  agentIds: string[],
   from: Date | null,
   to: Date | null,
 ): Prisma.AppointmentWhereInput {
-  const where: Prisma.AppointmentWhereInput = {};
-  if (agentIds) where.agentId = { in: agentIds };
+  const where: Prisma.AppointmentWhereInput = { agentId: { in: agentIds } };
   if (from || to) {
     where.createdAt = {};
     if (from) where.createdAt.gte = from;

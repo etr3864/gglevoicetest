@@ -30,10 +30,7 @@ export default function KnowledgeTab({ agentId }: { agentId: string }) {
   const { data: docs = [], isLoading } = useQuery<KnowledgeDocument[]>({
     queryKey: ['knowledge', agentId],
     queryFn: () => api.get(`/agents/${agentId}/knowledge`).then((r) => r.data.data),
-    refetchInterval: (query) => {
-      const data = query.state.data;
-      return Array.isArray(data) && data.some((d) => d.status === 'processing') ? 3_000 : false;
-    },
+    refetchInterval: 300_000,
   });
 
   const upload = useMutation({

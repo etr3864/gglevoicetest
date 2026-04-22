@@ -66,7 +66,7 @@ async function markDoNotCall(reason: string, ctx: ToolContext): Promise<unknown>
   await redis.set(`dnc:${ctx.callId}`, '1', 'EX', DNC_FLAG_TTL);
 
   if (ctx.contactPhone) {
-    const contact = await prisma.contact.findUnique({ where: { phone: ctx.contactPhone } });
+    const contact = await prisma.contact.findFirst({ where: { phone: ctx.contactPhone, agentId: ctx.agentId } });
     if (contact) {
       optOutContact(contact.id, ctx.agentId).catch(() => {});
     }

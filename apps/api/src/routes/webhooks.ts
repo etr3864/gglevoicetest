@@ -144,10 +144,14 @@ router.post('/telnyx', async (req, res) => {
 });
 
 async function findCallParticipants(to: string, phone: string) {
-  const [agent, contact] = await Promise.all([
-    prisma.agent.findFirst({ where: { phoneNumber: to, status: 'active' } }),
-    prisma.contact.upsert({ where: { phone }, update: {}, create: { phone } }),
-  ]);
+  const agent = await prisma.agent.findFirst({ where: { phoneNumber: to, status: 'active' } });
+  if (!agent) return { agent: null, contact: null };
+
+  const contact = await prisma.contact.upsert({
+    where: { phone_agentId: { phone, agentId: agent.id } },
+    update: {},
+    create: { phone, agentId: agent.id },
+  });
   return { agent, contact };
 }
 

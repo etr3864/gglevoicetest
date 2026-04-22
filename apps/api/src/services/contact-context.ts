@@ -12,13 +12,13 @@ interface ContactContext {
   promptSection: string;
 }
 
-export async function buildContactContext(rawPhone: string): Promise<ContactContext | null> {
+export async function buildContactContext(rawPhone: string, agentId: string): Promise<ContactContext | null> {
   const phone = normalizePhone(rawPhone);
-  const contact = await prisma.contact.findUnique({ where: { phone } });
+  const contact = await prisma.contact.findFirst({ where: { phone, agentId } });
   if (!contact) return null;
 
   const recentCalls = await prisma.call.findMany({
-    where: { contactId: contact.id, status: 'completed' },
+    where: { contactId: contact.id, agentId, status: 'completed' },
     orderBy: { createdAt: 'desc' },
     take: MAX_CALLS,
     include: {
@@ -51,6 +51,7 @@ export async function buildContactContext(rawPhone: string): Promise<ContactCont
   const appointments = await prisma.appointment.findMany({
     where: {
       contactId: contact.id,
+      agentId,
       status: 'scheduled',
       startTime: { gte: new Date() },
     },

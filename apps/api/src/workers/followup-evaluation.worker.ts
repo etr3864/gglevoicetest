@@ -1,6 +1,7 @@
 import { prisma } from '@voice/db';
 import { createLogger } from '../lib/logger';
 import { createWorker, followupQueue } from '../lib/queue';
+import { publishCallEvent } from '../services/events/pubsub';
 import { extractDispositionFromTranscript } from '../services/followup/followup.extraction';
 import {
   createNewFollowup,
@@ -108,6 +109,7 @@ async function evaluateCall(callId: string): Promise<void> {
   });
 
   await applyDispositionRules(disposition, call, config, existingFollowup);
+  await publishCallEvent(call.agentId, 'followup_updated', {});
 }
 
 async function resolveDispositionFromTranscript(callId: string, generalInstruction: string): Promise<string> {

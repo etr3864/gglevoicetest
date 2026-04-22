@@ -43,6 +43,7 @@ export async function addTranscript(callControlId: string, entry: TranscriptEntr
     timestamp: entry.timestamp.toISOString(),
   });
   await redis.rpush(transcriptsKey, data);
+  await redis.ltrim(transcriptsKey, -500, -1);
   await redis.expire(transcriptsKey, SESSION_TTL_SEC);
 }
 
@@ -274,9 +275,10 @@ async function updateContactStats(session: CallSession, durationSec: number): Pr
 
   try {
     await prisma.contact.upsert({
-      where: { phone: session.contactPhone },
+      where: { phone_agentId: { phone: session.contactPhone, agentId: session.agentId } },
       create: {
         phone: session.contactPhone,
+        agentId: session.agentId,
         totalCalls: 1,
         totalDurationSec: durationSec,
         lastCallAt: new Date(),

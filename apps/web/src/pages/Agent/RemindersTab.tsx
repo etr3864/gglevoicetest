@@ -70,7 +70,7 @@ export default function RemindersTab({ agentId, agent }: Props) {
   const { data: remindersData, isLoading: remindersLoading } = useQuery({
     queryKey: ['agent-reminders', agentId],
     queryFn: () => api.get(`/agents/${agentId}/reminders?limit=50`).then(r => r.data),
-    refetchInterval: 30_000,
+    refetchInterval: 300_000,
   });
 
   const saveConfig = useMutation({

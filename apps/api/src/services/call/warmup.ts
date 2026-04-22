@@ -169,7 +169,7 @@ async function doWarmup(
     },
     onToolCall: (call) => {
       if (call.name === 'get_contact_info') {
-        return fetchContactForWarmup(call.id, contactPhone);
+        return fetchContactForWarmup(call.id, contactPhone, agentId);
       }
       log.warn('Unexpected tool call during warmup — ignoring', { tool: call.name });
       return Promise.resolve({ callId: call.id, result: null, error: 'Tool unavailable during warmup' });
@@ -220,7 +220,7 @@ export async function buildProviderConfig(
         mediaInstructions: true,
       },
     }),
-    contactPhone && !systemPromptOverride ? buildContactContext(contactPhone) : null,
+    contactPhone && !systemPromptOverride ? buildContactContext(contactPhone, agentId) : null,
     !systemPromptOverride ? getWarmupContext(agentId).catch(() => null) : null,
     !systemPromptOverride ? getMediaContext(agentId).catch(() => null) : null,
   ]);
@@ -303,10 +303,10 @@ export async function buildProviderConfig(
   };
 }
 
-async function fetchContactForWarmup(toolCallId: string, contactPhone: string | null): Promise<ToolResult> {
+async function fetchContactForWarmup(toolCallId: string, contactPhone: string | null, agentId: string): Promise<ToolResult> {
   if (!contactPhone) return { callId: toolCallId, result: { found: false } };
   try {
-    const contact = await prisma.contact.findUnique({ where: { phone: contactPhone } });
+    const contact = await prisma.contact.findFirst({ where: { phone: contactPhone, agentId } });
     if (!contact) return { callId: toolCallId, result: { found: false } };
     return {
       callId: toolCallId,

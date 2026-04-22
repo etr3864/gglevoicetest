@@ -13,12 +13,17 @@ export function startMediaCrons(): void {
 async function cleanupStaleItems(): Promise<void> {
   const cutoff = new Date(Date.now() - STALE_THRESHOLD_MS);
 
-  const result = await prisma.mediaItem.updateMany({
+  const batch = await prisma.mediaItem.findMany({
     where: { status: 'processing', createdAt: { lte: cutoff } },
+    take: 500,
+    select: { id: true },
+  });
+  if (batch.length === 0) return;
+
+  const result = await prisma.mediaItem.updateMany({
+    where: { id: { in: batch.map(m => m.id) } },
     data: { status: 'error', errorMsg: 'Processing timed out' },
   });
 
-  if (result.count > 0) {
-    log.warn('Marked stale media items as error', { count: result.count });
-  }
+  log.warn('Marked stale media items as error', { count: result.count });
 }

@@ -190,7 +190,7 @@ async function bookAppointment(
   }
 
   const contact = ctx.contactPhone
-    ? await prisma.contact.findUnique({ where: { phone: ctx.contactPhone } })
+    ? await prisma.contact.findFirst({ where: { phone: ctx.contactPhone, agentId: ctx.agentId } })
     : null;
 
   const attendeeEmail = params.attendeeEmail ?? contact?.email ?? undefined;
@@ -276,7 +276,7 @@ async function rescheduleAppointment(
 
   if (appointment.googleEventId) {
     const contact = appointment.phone
-      ? await prisma.contact.findUnique({ where: { phone: appointment.phone }, select: { email: true } })
+      ? await prisma.contact.findFirst({ where: { phone: appointment.phone, agentId: ctx.agentId }, select: { email: true } })
       : null;
     await updateEvent(token, calendarId, appointment.googleEventId, {
       start: newStartISO,

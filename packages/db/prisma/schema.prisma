@@ -82,6 +82,7 @@ model Agent {
   mediaInstructions         String?    @map("media_instructions") @db.Text
   mediaAnalysisInstructions String?    @map("media_analysis_instructions") @db.Text
   mediaItems                MediaItem[]
+  contacts                 Contact[]
   followupConfig           FollowupConfig?
   contactFollowups         ContactFollowup[]
   whatsappTemplates        WhatsappTemplate[]
@@ -91,7 +92,8 @@ model Agent {
 
 model Contact {
   id                 String              @id @default(uuid())
-  phone              String              @unique
+  agentId            String              @map("agent_id")
+  phone              String
   name               String?
   email              String?
   gender             String?
@@ -101,11 +103,14 @@ model Contact {
   totalDurationSec   Int                 @default(0) @map("total_duration_sec")
   lastCallAt         DateTime?           @map("last_call_at")
   createdAt          DateTime            @default(now()) @map("created_at")
+  agent              Agent               @relation(fields: [agentId], references: [id])
   calls              Call[]
   appointments       Appointment[]
   scheduledReminders ScheduledReminder[]
   contactFollowups   ContactFollowup[]
 
+  @@unique([phone, agentId])
+  @@index([agentId])
   @@map("contacts")
 }
 
@@ -144,6 +149,8 @@ model Call {
   scheduledReminders ScheduledReminder[]
 
   @@index([agentId, createdAt])
+  @@index([agentId, status])
+  @@index([contactId, createdAt])
   @@index([callControlId])
   @@map("calls")
 }

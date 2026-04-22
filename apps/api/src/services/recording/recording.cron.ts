@@ -57,12 +57,17 @@ async function orphanScan(): Promise<void> {
 async function cleanupFailed(): Promise<void> {
   const cutoff = new Date(Date.now() - 7 * ONE_DAY);
 
-  const result = await prisma.call.updateMany({
+  const batch = await prisma.call.findMany({
     where: { recordingStatus: 'failed', endedAt: { lte: cutoff } },
+    take: 500,
+    select: { id: true },
+  });
+  if (batch.length === 0) return;
+
+  const result = await prisma.call.updateMany({
+    where: { id: { in: batch.map(c => c.id) } },
     data: { recordingStatus: null },
   });
 
-  if (result.count > 0) {
-    log.info('Cleanup: reset failed recordings', { count: result.count });
-  }
+  log.info('Cleanup: reset failed recordings', { count: result.count });
 }

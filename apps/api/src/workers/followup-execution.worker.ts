@@ -104,6 +104,7 @@ async function executeFollowup(contactFollowupId: string): Promise<void> {
     });
 
     await publishCallEvent(followup.agentId, 'call_created', { call });
+    await publishCallEvent(followup.agentId, 'followup_updated', {});
 
     const step = await prisma.followupStep.findFirst({
       where: { followupConfig: { agentId: followup.agentId }, order: followup.currentStepOrder },

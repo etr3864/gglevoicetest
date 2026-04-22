@@ -18,13 +18,14 @@ router.post('/v1/calls', apikeyMiddleware, async (req, res) => {
   const phone = normalizePhone(body.phone);
 
   const contact = await prisma.contact.upsert({
-    where: { phone },
+    where: { phone_agentId: { phone, agentId: agent.id } },
     update: {
       ...(body.contact_name && { name: body.contact_name }),
       ...(body.gender && { gender: body.gender }),
     },
     create: {
       phone,
+      agentId: agent.id,
       name: body.contact_name || null,
       gender: body.gender || null,
       metadata: body.context ? (body.context as Prisma.InputJsonValue) : Prisma.DbNull,

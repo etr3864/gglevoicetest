@@ -211,9 +211,9 @@ router.post('/:id/outbound', async (req, res) => {
   }
 
   const contact = await prisma.contact.upsert({
-    where: { phone },
+    where: { phone_agentId: { phone, agentId: agent.id } },
     update: { ...(contactName && { name: contactName }), ...(gender && { gender }) },
-    create: { phone, name: contactName || null, gender: gender || null },
+    create: { phone, agentId: agent.id, name: contactName || null, gender: gender || null },
   });
 
   const call = await prisma.call.create({

@@ -13,12 +13,17 @@ export function startKnowledgeCrons(): void {
 async function cleanupStaleDocuments(): Promise<void> {
   const cutoff = new Date(Date.now() - STALE_THRESHOLD_MS);
 
-  const result = await prisma.knowledgeDocument.updateMany({
+  const batch = await prisma.knowledgeDocument.findMany({
     where: { status: 'processing', createdAt: { lte: cutoff } },
+    take: 500,
+    select: { id: true },
+  });
+  if (batch.length === 0) return;
+
+  const result = await prisma.knowledgeDocument.updateMany({
+    where: { id: { in: batch.map(d => d.id) } },
     data: { status: 'error', errorMsg: 'Processing timed out' },
   });
 
-  if (result.count > 0) {
-    log.warn('Marked stale documents as error', { count: result.count });
-  }
+  log.warn('Marked stale documents as error', { count: result.count });
 }

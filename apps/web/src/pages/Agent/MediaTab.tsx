@@ -62,10 +62,7 @@ export default function MediaTab({ agentId }: { agentId: string }) {
     queryKey: ['media', agentId, subTab],
     queryFn: () => api.get(`/agents/${agentId}/media?type=${subTab}`).then((r) => r.data.data),
     enabled: subTab !== 'settings',
-    refetchInterval: (q) => {
-      const data = q.state.data;
-      return Array.isArray(data) && data.some((i) => i.status === 'processing') ? 3_000 : false;
-    },
+    refetchInterval: 300_000,
   });
 
   const { data: settings } = useQuery<MediaSettings>({

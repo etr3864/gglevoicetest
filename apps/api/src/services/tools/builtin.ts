@@ -75,7 +75,7 @@ export function registerBuiltinTools(): void {
     },
     async (args, ctx) => {
       if (ctx.contactPhone) {
-        const contact = await prisma.contact.findUnique({ where: { phone: ctx.contactPhone } });
+        const contact = await prisma.contact.findFirst({ where: { phone: ctx.contactPhone, agentId: ctx.agentId } });
         if (contact) {
           const existing = contact.notes || '';
           const timestamp = formatTimestamp(new Date());
@@ -99,7 +99,7 @@ export function registerBuiltinTools(): void {
     },
     async (_args, ctx) => {
       if (!ctx.contactPhone) return { found: false };
-      const contact = await prisma.contact.findUnique({ where: { phone: ctx.contactPhone } });
+      const contact = await prisma.contact.findFirst({ where: { phone: ctx.contactPhone, agentId: ctx.agentId } });
       if (!contact) return { found: false };
       return {
         found: true,
@@ -133,8 +133,8 @@ export function registerBuiltinTools(): void {
         }
       }
       const contact = await prisma.contact.upsert({
-        where:  { phone: ctx.contactPhone },
-        create: { phone: ctx.contactPhone, ...data },
+        where:  { phone_agentId: { phone: ctx.contactPhone, agentId: ctx.agentId } },
+        create: { phone: ctx.contactPhone, agentId: ctx.agentId, ...data },
         update: data,
         select: { id: true, name: true },
       });
@@ -162,8 +162,8 @@ export function registerBuiltinTools(): void {
       }
       if (Object.keys(data).length === 0) return { updated: false, reason: 'No fields provided' };
       await prisma.contact.upsert({
-        where:  { phone: ctx.contactPhone },
-        create: { phone: ctx.contactPhone, ...data },
+        where:  { phone_agentId: { phone: ctx.contactPhone, agentId: ctx.agentId } },
+        create: { phone: ctx.contactPhone, agentId: ctx.agentId, ...data },
         update: data,
       });
       return { updated: true, fields: Object.keys(data) };

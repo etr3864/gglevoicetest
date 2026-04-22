@@ -93,6 +93,7 @@ async function executeReminder(reminderId: string): Promise<void> {
     });
 
     await publishCallEvent(reminder.agentId, 'call_created', { call });
+    await publishCallEvent(reminder.agentId, 'reminder_updated', {});
 
     const delay = Math.round(Math.random() * 30_000);
     await outboundQueue.add(

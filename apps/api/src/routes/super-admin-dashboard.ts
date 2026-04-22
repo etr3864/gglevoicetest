@@ -35,31 +35,31 @@ router.get('/', requireSuperAdmin, async (req, res) => {
   const agentMap = new Map(agents.map((a) => [a.id, a]));
   const usageMap = groupUsageByAgent(usageRows);
 
-  const agentResults = await Promise.all(
-    agents.map(async (agent) => {
-      const usage = usageMap.get(agent.id);
-      const costs = usage ? calculateCosts(usage, pricing) : zeroCosts();
-      const perf = await fetchPerformance(agent.id, fromDate, toDate);
-      const totalMin = perf.totalMinutes;
-      const clientName = agent.user ? (agent.user.name || agent.user.companyName || agent.user.email) : null;
+  const perfMap = await fetchAllPerformance(fromDate, toDate);
 
-      return {
-        id: agent.id,
-        name: agent.name,
-        clientName,
-        calls: perf.totalCalls,
-        minutes: totalMin,
-        totalCostIls: costs.totalCost,
+  const agentResults = agents.map((agent) => {
+    const usage = usageMap.get(agent.id);
+    const costs = usage ? calculateCosts(usage, pricing) : zeroCosts();
+    const perf = perfMap.get(agent.id) ?? zeroPerformance();
+    const totalMin = perf.totalMinutes;
+    const clientName = agent.user ? (agent.user.name || agent.user.companyName || agent.user.email) : null;
+
+    return {
+      id: agent.id,
+      name: agent.name,
+      clientName,
+      calls: perf.totalCalls,
+      minutes: totalMin,
+      totalCostIls: costs.totalCost,
+      costPerMinIls: totalMin > 0 ? round2(costs.totalCost / totalMin) : 0,
+      performance: perf,
+      costs: {
+        ...costs,
+        costPerCallIls: perf.totalCalls > 0 ? round2(costs.totalCost / perf.totalCalls) : 0,
         costPerMinIls: totalMin > 0 ? round2(costs.totalCost / totalMin) : 0,
-        performance: perf,
-        costs: {
-          ...costs,
-          costPerCallIls: perf.totalCalls > 0 ? round2(costs.totalCost / perf.totalCalls) : 0,
-          costPerMinIls: totalMin > 0 ? round2(costs.totalCost / totalMin) : 0,
-        },
-      };
-    })
-  );
+      },
+    };
+  });
 
   agentResults.sort((a, b) => b.totalCostIls - a.totalCostIls);
 
@@ -138,7 +138,7 @@ function groupUsageByAgent(rows: UsageRow[]) {
   return map;
 }
 
-// --- Performance fetching (same logic as admin dashboard, per-agent) ---
+// --- Performance fetching (single GROUP BY instead of per-agent) ---
 
 interface PerformanceStats {
   inboundCalls: number; inboundMinutes: number;
@@ -148,46 +148,75 @@ interface PerformanceStats {
   conversionRate: number; outboundNoAnswer: number; outboundAnswerRate: number;
 }
 
-async function fetchPerformance(agentId: string, from: Date | null, to: Date | null): Promise<PerformanceStats> {
-  const createdAt =
-    from || to ? { ...(from && { gte: from }), ...(to && { lte: to }) } : undefined;
+interface PerfRow {
+  agent_id: string;
+  inbound_calls: bigint; inbound_sec: bigint;
+  outbound_calls: bigint; outbound_sec: bigint;
+  outbound_answered: bigint; outbound_no_answer: bigint;
+  avg_duration_sec: number | null;
+  appointments_booked: bigint;
+}
 
-  const base: Prisma.CallWhereInput = { agentId, status: { not: 'queued' } };
-  if (createdAt) base.createdAt = createdAt;
+async function fetchAllPerformance(from: Date | null, to: Date | null): Promise<Map<string, PerformanceStats>> {
+  const rows = await prisma.$queryRaw<PerfRow[]>(Prisma.sql`
+    SELECT
+      c.agent_id,
+      COUNT(*) FILTER (WHERE c.direction = 'inbound')::bigint AS inbound_calls,
+      COALESCE(SUM(c.duration_sec) FILTER (WHERE c.direction = 'inbound'), 0)::bigint AS inbound_sec,
+      COUNT(*) FILTER (WHERE c.direction = 'outbound')::bigint AS outbound_calls,
+      COALESCE(SUM(c.duration_sec) FILTER (WHERE c.direction = 'outbound'), 0)::bigint AS outbound_sec,
+      COUNT(*) FILTER (WHERE c.direction = 'outbound' AND c.status = 'completed')::bigint AS outbound_answered,
+      COUNT(*) FILTER (WHERE c.direction = 'outbound' AND c.status != 'completed')::bigint AS outbound_no_answer,
+      AVG(c.duration_sec) FILTER (WHERE c.status = 'completed') AS avg_duration_sec,
+      COALESCE(a.cnt, 0)::bigint AS appointments_booked
+    FROM calls c
+    LEFT JOIN (
+      SELECT agent_id, COUNT(*)::bigint AS cnt
+      FROM appointments
+      ${from ? Prisma.sql`WHERE created_at >= ${from}` : Prisma.empty}
+      ${from && to ? Prisma.sql`AND created_at <= ${to}` : to ? Prisma.sql`WHERE created_at <= ${to}` : Prisma.empty}
+      GROUP BY agent_id
+    ) a ON a.agent_id = c.agent_id
+    WHERE c.status != 'queued'
+      ${from ? Prisma.sql`AND c.created_at >= ${from}` : Prisma.empty}
+      ${to ? Prisma.sql`AND c.created_at <= ${to}` : Prisma.empty}
+    GROUP BY c.agent_id, a.cnt
+  `);
 
-  const apptWhere: Prisma.AppointmentWhereInput = { agentId };
-  if (createdAt) apptWhere.createdAt = createdAt;
+  const map = new Map<string, PerformanceStats>();
+  for (const r of rows) {
+    const inboundCalls = Number(r.inbound_calls);
+    const outboundCalls = Number(r.outbound_calls);
+    const inSec = Number(r.inbound_sec);
+    const outSec = Number(r.outbound_sec);
+    const outAnswered = Number(r.outbound_answered);
+    const outNoAnswer = Number(r.outbound_no_answer);
+    const totalOutbound = outAnswered + outNoAnswer;
+    const completed = outAnswered + inboundCalls;
+    const appts = Number(r.appointments_booked);
 
-  const [inAgg, outAgg, outAnswered, outNoAnswer, avgAgg, appts] = await Promise.all([
-    prisma.call.aggregate({ where: { ...base, direction: 'inbound' }, _count: { id: true }, _sum: { durationSec: true } }),
-    prisma.call.aggregate({ where: { ...base, direction: 'outbound' }, _count: { id: true }, _sum: { durationSec: true } }),
-    prisma.call.count({ where: { ...base, direction: 'outbound', status: 'completed' } }),
-    prisma.call.count({ where: { ...base, direction: 'outbound', status: { not: 'completed' } } }),
-    prisma.call.aggregate({ where: { ...base, status: 'completed' }, _avg: { durationSec: true } }),
-    prisma.appointment.count({ where: apptWhere }),
-  ]);
+    map.set(r.agent_id, {
+      inboundCalls,
+      inboundMinutes: Math.round(inSec / 60),
+      outboundCalls,
+      outboundMinutes: Math.round(outSec / 60),
+      totalCalls: inboundCalls + outboundCalls,
+      totalMinutes: Math.round((inSec + outSec) / 60),
+      avgDurationSec: Math.round(r.avg_duration_sec ?? 0),
+      appointmentsBooked: appts,
+      conversionRate: completed > 0 ? Math.round((appts / completed) * 100) : 0,
+      outboundNoAnswer: outNoAnswer,
+      outboundAnswerRate: totalOutbound > 0 ? Math.round((outAnswered / totalOutbound) * 100) : 0,
+    });
+  }
+  return map;
+}
 
-  const inboundCalls = inAgg._count.id;
-  const outboundCalls = outAgg._count.id;
-  const inSec = inAgg._sum.durationSec ?? 0;
-  const outSec = outAgg._sum.durationSec ?? 0;
-  const totalCalls = inboundCalls + outboundCalls;
-  const totalSec = inSec + outSec;
-  const totalOutbound = outAnswered + outNoAnswer;
-  const completed = outAnswered + inboundCalls;
-
+function zeroPerformance(): PerformanceStats {
   return {
-    inboundCalls,
-    inboundMinutes: Math.round(inSec / 60),
-    outboundCalls,
-    outboundMinutes: Math.round(outSec / 60),
-    totalCalls,
-    totalMinutes: Math.round(totalSec / 60),
-    avgDurationSec: Math.round(avgAgg._avg.durationSec ?? 0),
-    appointmentsBooked: appts,
-    conversionRate: completed > 0 ? Math.round((appts / completed) * 100) : 0,
-    outboundNoAnswer: outNoAnswer,
-    outboundAnswerRate: totalOutbound > 0 ? Math.round((outAnswered / totalOutbound) * 100) : 0,
+    inboundCalls: 0, inboundMinutes: 0, outboundCalls: 0, outboundMinutes: 0,
+    totalCalls: 0, totalMinutes: 0, avgDurationSec: 0, appointmentsBooked: 0,
+    conversionRate: 0, outboundNoAnswer: 0, outboundAnswerRate: 0,
   };
 }
 

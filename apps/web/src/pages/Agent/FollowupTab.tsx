@@ -88,13 +88,13 @@ export default function FollowupTab({ agentId }: Props) {
   const { data: stats } = useQuery<FollowupStats>({
     queryKey: ['followup-stats', agentId],
     queryFn: () => api.get(`/agents/${agentId}/followup/stats`).then(r => r.data.data),
-    refetchInterval: 60_000,
+    refetchInterval: 300_000,
   });
 
   const { data: activeData, isLoading: activeLoading } = useQuery({
     queryKey: ['followup-active', agentId],
     queryFn: () => api.get(`/agents/${agentId}/followup/active?limit=50`).then(r => r.data),
-    refetchInterval: 30_000,
+    refetchInterval: 300_000,
   });
 
   if (configLoading) {
