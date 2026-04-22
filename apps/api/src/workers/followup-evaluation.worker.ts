@@ -7,7 +7,6 @@ import {
   advanceToNextStep,
   completeFollowup,
   optOutFollowup,
-  rescheduleCurrentStep,
 } from '../services/followup/followup.engine';
 
 const log = createLogger('followup-eval');
@@ -15,8 +14,7 @@ const log = createLogger('followup-eval');
 interface ExistingFollowup {
   id: string;
   currentStepOrder: number;
-  attemptCount: number;
-  stepDelayMinutes: number | null;
+  lastDisposition: string | null;
 }
 
 interface FollowupEvalConfig {
@@ -106,7 +104,7 @@ async function evaluateCall(callId: string): Promise<void> {
       agentId: call.agentId,
       status: { in: ['PENDING', 'SCHEDULED', 'EXECUTING'] },
     },
-    select: { id: true, currentStepOrder: true, attemptCount: true, stepDelayMinutes: true },
+    select: { id: true, currentStepOrder: true, lastDisposition: true },
   });
 
   await applyDispositionRules(disposition, call, config, existingFollowup);
@@ -288,25 +286,11 @@ async function handleRetryOrAdvance(
 ): Promise<void> {
   if (!call.contactId) return;
 
-  if (existingFollowup) {
-    const rescheduled = await rescheduleCurrentStep(
-      existingFollowup.id,
-      call.contactId,
-      config,
-      existingFollowup.stepDelayMinutes ?? config.steps[0]?.delayMinutes ?? 60,
-      call.id,
-      disposition,
-    );
-    if (!rescheduled) {
-      await handleAdvanceOrCreate(disposition, call, config, existingFollowup);
-    }
-    return;
-  }
+  const effectiveDisposition = existingFollowup?.lastDisposition === 'callback_requested'
+    ? 'callback_no_answer'
+    : disposition;
 
-  if (call.callType === 'followup') return;
-  const firstStep = config.steps[0];
-  if (!firstStep) return;
-  await createNewFollowup(call.contactId, call.agentId, firstStep, config, call.id, disposition);
+  return handleAdvanceOrCreate(effectiveDisposition, call, config, existingFollowup);
 }
 
 async function handleAdvanceOrCreate(
