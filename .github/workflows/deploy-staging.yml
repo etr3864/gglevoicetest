@@ -54,4 +54,4 @@ jobs:
             voice-api=${{ env.REGISTRY }}/${{ env.IMAGE }}:staging-${{ github.sha }} \
             -n ${{ env.NAMESPACE }}
           kubectl rollout status deployment/voice-api-staging \
-            -n ${{ env.NAMESPACE }} --timeout=10m
+            -n ${{ env.NAMESPACE }} --timeout=20m

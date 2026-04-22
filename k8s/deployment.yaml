@@ -95,7 +95,7 @@ spec:
               port: 3000
             failureThreshold: 10
             periodSeconds: 3
-      terminationGracePeriodSeconds: 120
+      terminationGracePeriodSeconds: 900
       volumes:
         - name: google-cloud-key
           secret:

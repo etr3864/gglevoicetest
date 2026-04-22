@@ -126,11 +126,19 @@ app.use('/agents/:agentId', authMiddleware, templateRoutes);
 
 app.use(errorHandler);
 
+const DRAIN_TIMEOUT_MS = 840_000; // 14 minutes — leaves buffer before K8s SIGKILL at 900s
+
 function waitForCallsToFinish(): Promise<void> {
   return new Promise((resolve) => {
+    const deadline = Date.now() + DRAIN_TIMEOUT_MS;
     const check = () => {
-      if (activeConnectionCount() === 0) return resolve();
-      setTimeout(check, 1000);
+      const remaining = activeConnectionCount();
+      if (remaining === 0) return resolve();
+      if (Date.now() >= deadline) {
+        log.warn('Drain timeout reached, forcing shutdown', { remaining });
+        return resolve();
+      }
+      setTimeout(check, 2000);
     };
     check();
   });
