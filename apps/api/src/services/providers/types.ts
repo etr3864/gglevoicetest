@@ -65,7 +65,6 @@ export const DEFAULT_MODEL_CONFIG: ModelConfig = {
 // --- Provider Config ---
 
 export interface ProviderConfig {
-  apiKey: string;
   model: string;
   voice: string;
   systemPrompt: string;

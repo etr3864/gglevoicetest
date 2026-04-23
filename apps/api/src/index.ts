@@ -22,7 +22,6 @@ import recordingRoutes from './routes/recordings';
 import eventsRouter from './routes/events';
 import { registerBuiltinTools } from './services/tools';
 import { attachWebSocket, activeConnectionCount, closeMediaBridge, drainWarmups } from './services/call';
-import { geminiKeyPool } from './services/providers';
 import { startOutboundWorker } from './workers/outbound';
 import { startRecordingWorker } from './services/recording/recording.worker';
 import { startSummaryWorker } from './workers/summary.worker';
@@ -168,7 +167,7 @@ async function start() {
     attachWebSocket(server);
 
     server.listen(PORT, '0.0.0.0', () => {
-      log.info(`Server ready on :${PORT}`, { geminiKeys: geminiKeyPool.size });
+      log.info(`Server ready on :${PORT}`);
     });
 
     const shutdown = async () => {

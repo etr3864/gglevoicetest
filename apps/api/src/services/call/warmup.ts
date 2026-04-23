@@ -4,7 +4,7 @@
 import { prisma } from '@voice/db';
 import { createLogger } from '../../lib/logger';
 import { GEMINI_MODEL, DEFAULT_VOICE } from '../../lib/constants';
-import { GeminiProvider, geminiKeyPool } from '../providers';
+import { GeminiProvider } from '../providers';
 import { globalRegistry } from '../tools';
 import type { DeepgramTranscriber } from '../transcription';
 import { buildContactContext } from '../contact-context';
@@ -273,12 +273,6 @@ export async function buildProviderConfig(
     }
   }
 
-  const apiKey = geminiKeyPool.next();
-  if (!apiKey) {
-    log.error('No Gemini API keys available', undefined, { agentId });
-    return null;
-  }
-
   const knowledgeMeta = knowledgeCtx?.meta;
   const tools = globalRegistry.getDefinitions().filter((t) => {
     if (t.name === 'send_whatsapp') return !!agent.whatsappProvider;
@@ -293,7 +287,6 @@ export async function buildProviderConfig(
   if (modelConfig.vad) modelConfig.vad = resolveVadSensitivity(modelConfig.vad);
 
   return {
-    apiKey,
     model: GEMINI_MODEL,
     voice: agent.voice || DEFAULT_VOICE,
     systemPrompt: capSystemPrompt(systemPrompt),
