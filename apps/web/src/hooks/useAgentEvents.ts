@@ -52,8 +52,14 @@ export function useAgentEvents(
     const handleEvent = (type: string, data: string) => {
       try {
         const parsed = JSON.parse(data);
-        if (type === 'call_created') onNewCallRef.current?.(parsed.call);
-        else if (type === 'call_updated' || type === 'recording_ready') updateInCache(parsed.call);
+        if (type === 'call_created') {
+          onNewCallRef.current?.(parsed.call);
+          qc.invalidateQueries({ queryKey: ['calls', agentId], exact: false });
+        }
+        else if (type === 'call_updated' || type === 'recording_ready') {
+          updateInCache(parsed.call);
+          qc.invalidateQueries({ queryKey: ['calls', agentId], exact: false });
+        }
         else if (type === 'reminder_updated') qc.invalidateQueries({ queryKey: ['agent-reminders', agentId] });
         else if (type === 'followup_updated') {
           qc.invalidateQueries({ queryKey: ['followup-stats', agentId] });
