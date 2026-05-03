@@ -2,6 +2,9 @@ import { PhoneOutgoing, PhoneIncoming, Save } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 
+const SYSTEM_PROMPT_MAX_CHARS = 12000;
+const SYSTEM_PROMPT_WARNING_CHARS = 10500;
+
 interface PromptTabProps {
   prompt: string;
   setPrompt: (v: string) => void;
@@ -35,14 +38,14 @@ export default function PromptTab({
           <Card>
             <div className="p-1">
               <div className="flex items-center justify-between px-5 pt-4 pb-2">
-                <span className={`text-xs ${charCount > 7000 ? 'text-amber-400' : 'text-[var(--text-muted)]'}`}>{charCount} / 8000 תווים &bull; {wordCount} מילים</span>
+                <span className={`text-xs ${charCount > SYSTEM_PROMPT_WARNING_CHARS ? 'text-amber-400' : 'text-[var(--text-muted)]'}`}>{charCount} / {SYSTEM_PROMPT_MAX_CHARS} תווים &bull; {wordCount} מילים</span>
                 <h3 className="font-semibold text-[var(--text-primary)] text-sm">System Prompt</h3>
               </div>
               <div className="px-3 pb-3">
                 <textarea
                   value={prompt}
                   onChange={(e) => setPrompt(e.target.value)}
-                  maxLength={8000}
+                  maxLength={SYSTEM_PROMPT_MAX_CHARS}
                   rows={12}
                   className="w-full rounded-lg bg-[var(--bg-primary)] border border-[var(--border)] px-4 py-3 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]/30 resize-none leading-relaxed transition-colors"
                   placeholder="כתוב כאן את ההנחיות לסוכן לשיחות יוצאות..."
@@ -82,14 +85,14 @@ export default function PromptTab({
           <Card>
             <div className="p-1">
               <div className="flex items-center justify-between px-5 pt-4 pb-2">
-                <span className={`text-xs ${inboundPrompt.length > 7000 ? 'text-amber-400' : 'text-[var(--text-muted)]'}`}>{inboundPrompt.length} / 8000 תווים</span>
+                <span className={`text-xs ${inboundPrompt.length > SYSTEM_PROMPT_WARNING_CHARS ? 'text-amber-400' : 'text-[var(--text-muted)]'}`}>{inboundPrompt.length} / {SYSTEM_PROMPT_MAX_CHARS} תווים</span>
                 <h3 className="font-semibold text-[var(--text-primary)] text-sm">System Prompt</h3>
               </div>
               <div className="px-3 pb-3">
                 <textarea
                   value={inboundPrompt}
                   onChange={(e) => setInboundPrompt(e.target.value)}
-                  maxLength={8000}
+                  maxLength={SYSTEM_PROMPT_MAX_CHARS}
                   rows={12}
                   className="w-full rounded-lg bg-[var(--bg-primary)] border border-[var(--border)] px-4 py-3 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]/30 resize-none leading-relaxed transition-colors"
                   placeholder="אם ריק, ישתמש ב-System Prompt של שיחות יוצאות..."
