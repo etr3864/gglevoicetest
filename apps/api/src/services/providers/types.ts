@@ -36,10 +36,16 @@ export interface ContextCompressionConfig {
 
 // --- Silence Detection ---
 
+// All durations are gaps (relative offsets), not absolute timestamps:
+//  firstCheckSec  — gap from agent's last turn end → first prompt (0 = disabled)
+//  secondCheckSec — gap from first prompt → second prompt (0 = skip second stage)
+//  hangupSec      — gap from last prompt fired → hangup
 export interface SilenceConfig {
-  firstCheckSec: number;  // 0 = disabled
+  firstCheckSec: number;
+  secondCheckSec?: number;
   hangupSec: number;
-  message?: string;
+  message?: string | null;
+  secondMessage?: string | null;
 }
 
 // --- Unified Model Config ---

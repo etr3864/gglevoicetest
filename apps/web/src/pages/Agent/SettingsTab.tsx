@@ -40,8 +40,6 @@ function responseDelayLabel(ms: number): string {
   return 'מאוד אטי';
 }
 
-const MIN_HANGUP_GAP_SEC = 5;
-
 function Tooltip({ text }: { text: string }) {
   return (
     <span
@@ -266,8 +264,10 @@ export default function SettingsTab({ agent, form, setForm, voices, onSave, onDe
               vad: { prefixPaddingMs: form.prefixPaddingMs, silenceDurationMs: form.silenceDurationMs },
               silence: {
                 firstCheckSec: form.silenceCheckEnabled ? form.silenceFirstCheckSec : 0,
+                secondCheckSec: form.silenceSecondCheckSec,
                 hangupSec: form.silenceHangupSec,
                 message: form.silenceMessage.trim() || null,
+                secondMessage: form.silenceSecondMessage.trim() || null,
               },
             },
           })}
@@ -288,10 +288,54 @@ export default function SettingsTab({ agent, form, setForm, voices, onSave, onDe
   );
 }
 
+function SilenceStage({
+  title, anchorLabel, seconds, min, max, onChange,
+  message, messagePlaceholder, onMessageChange,
+}: {
+  title: string;
+  anchorLabel: string;
+  seconds: number;
+  min: number;
+  max: number;
+  onChange: (n: number) => void;
+  message?: string;
+  messagePlaceholder?: string;
+  onMessageChange?: (s: string) => void;
+}) {
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-xs text-[var(--text-muted)]">{seconds} שניות</span>
+        <label className="text-sm font-medium text-[var(--text-secondary)]">{title}</label>
+      </div>
+      <div className="text-[10px] text-[var(--text-muted)] mb-1.5 text-left">{anchorLabel}</div>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={1}
+        value={seconds}
+        onChange={(e) => onChange(parseInt(e.target.value))}
+        className="w-full accent-violet-500"
+      />
+      {onMessageChange !== undefined && (
+        <textarea
+          value={message ?? ''}
+          onChange={(e) => onMessageChange(e.target.value)}
+          rows={2}
+          placeholder={messagePlaceholder}
+          className="mt-2 w-full rounded-lg bg-[var(--bg-primary)] border border-[var(--border)] px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]/30 transition-colors resize-none"
+          dir="rtl"
+        />
+      )}
+    </div>
+  );
+}
+
 function SilenceCard({ form, setForm }: { form: any; setForm: (fn: (f: any) => any) => void }) {
   const enabled = form.silenceCheckEnabled;
-  const firstCheck = form.silenceFirstCheckSec;
-  const hangup = Math.max(form.silenceHangupSec, firstCheck + MIN_HANGUP_GAP_SEC);
+  const hasSecondStage = form.silenceSecondCheckSec > 0;
+  const totalSec = form.silenceFirstCheckSec + form.silenceSecondCheckSec + form.silenceHangupSec;
 
   return (
     <Card>
@@ -304,61 +348,60 @@ function SilenceCard({ form, setForm }: { form: any; setForm: (fn: (f: any) => a
       </div>
       <CardContent className="space-y-5">
         <p className="text-xs text-[var(--text-muted)]">
-          אם הלקוח שותק, הסוכן יבדוק שהוא עדיין על הקו. אם השתיקה נמשכת — השיחה תנותק אוטומטית.
+          אם הלקוח שותק, הסוכן יבדוק שהוא על הקו. אפשר להגדיר עד שתי בדיקות לפני ניתוק. הזמנים יחסיים — כל שלב מתחיל אחרי הקודם.
         </p>
 
-        <div className={enabled ? '' : 'opacity-50 pointer-events-none'}>
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <span className="text-xs text-[var(--text-muted)]">{firstCheck} שניות</span>
-              <label className="text-sm font-medium text-[var(--text-secondary)]">בדיקה אחרי</label>
+        <div className={enabled ? 'space-y-5' : 'space-y-5 opacity-50 pointer-events-none'}>
+          <SilenceStage
+            title="בדיקה ראשונה אחרי"
+            anchorLabel="מהרגע שהסוכן סיים לדבר"
+            seconds={form.silenceFirstCheckSec}
+            min={3}
+            max={20}
+            onChange={(n) => setForm((f: any) => ({ ...f, silenceFirstCheckSec: n }))}
+            message={form.silenceMessage}
+            messagePlaceholder="ברירת מחדל: הסוכן ישאל בנימוס אם הלקוח עדיין על הקו"
+            onMessageChange={(s) => setForm((f: any) => ({ ...f, silenceMessage: s }))}
+          />
+
+          <div className="border-t border-[var(--border)] pt-4">
+            <div className="flex items-center justify-between mb-3">
+              <Toggle
+                checked={hasSecondStage}
+                onChange={(checked) => setForm((f: any) => ({ ...f, silenceSecondCheckSec: checked ? 7 : 0 }))}
+              />
+              <label className="text-sm font-medium text-[var(--text-secondary)]">בדיקה שנייה לפני ניתוק</label>
             </div>
-            <input
-              type="range"
-              min={3}
-              max={20}
-              step={1}
-              value={firstCheck}
-              onChange={(e) => {
-                const next = parseInt(e.target.value);
-                setForm((f: any) => ({
-                  ...f,
-                  silenceFirstCheckSec: next,
-                  silenceHangupSec: Math.max(f.silenceHangupSec, next + MIN_HANGUP_GAP_SEC),
-                }));
-              }}
-              className="w-full accent-violet-500"
-            />
+
+            {hasSecondStage && (
+              <SilenceStage
+                title="בדיקה שנייה אחרי"
+                anchorLabel="מהבדיקה הראשונה (לא משתיקת הלקוח)"
+                seconds={form.silenceSecondCheckSec}
+                min={3}
+                max={20}
+                onChange={(n) => setForm((f: any) => ({ ...f, silenceSecondCheckSec: n }))}
+                message={form.silenceSecondMessage}
+                messagePlaceholder="ברירת מחדל: כמו ההודעה הראשונה"
+                onMessageChange={(s) => setForm((f: any) => ({ ...f, silenceSecondMessage: s }))}
+              />
+            )}
           </div>
 
-          <div className="mt-4">
-            <div className="flex items-center justify-between mb-1.5">
-              <span className="text-xs text-[var(--text-muted)]">{hangup} שניות</span>
-              <label className="text-sm font-medium text-[var(--text-secondary)]">ניתוק אחרי</label>
-            </div>
-            <input
-              type="range"
-              min={firstCheck + MIN_HANGUP_GAP_SEC}
-              max={90}
-              step={1}
-              value={hangup}
-              onChange={(e) => setForm((f: any) => ({ ...f, silenceHangupSec: parseInt(e.target.value) }))}
-              className="w-full accent-violet-500"
-            />
-          </div>
+          <SilenceStage
+            title="ניתוק אחרי"
+            anchorLabel={hasSecondStage ? 'מהבדיקה השנייה' : 'מהבדיקה הראשונה'}
+            seconds={form.silenceHangupSec}
+            min={3}
+            max={60}
+            onChange={(n) => setForm((f: any) => ({ ...f, silenceHangupSec: n }))}
+          />
 
-          <div className="mt-4">
-            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">
-              מה הסוכן יגיד (אופציונלי)
-            </label>
-            <textarea
-              value={form.silenceMessage}
-              onChange={(e) => setForm((f: any) => ({ ...f, silenceMessage: e.target.value }))}
-              rows={2}
-              placeholder="ברירת מחדל: הסוכן ישאל בנימוס אם הלקוח עדיין על הקו"
-              className="w-full rounded-lg bg-[var(--bg-primary)] border border-[var(--border)] px-4 py-2.5 text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]/30 transition-colors resize-none"
-              dir="rtl"
-            />
+          <div className="border-t border-[var(--border)] pt-3 flex items-center justify-between text-sm">
+            <span className="text-[var(--text-muted)] text-xs">±2 שניות לחוויה טבעית</span>
+            <span className="text-[var(--text-secondary)]">
+              סה״כ עד ניתוק: <span className="text-[var(--accent)] font-semibold">{totalSec} שניות</span>
+            </span>
           </div>
         </div>
       </CardContent>

@@ -122,8 +122,10 @@ export default function AgentDetailPage() {
     ambientSoundVolume: 0.04,
     silenceCheckEnabled: false,
     silenceFirstCheckSec: 8,
-    silenceHangupSec: 25,
+    silenceSecondCheckSec: 0,
+    silenceHangupSec: 17,
     silenceMessage: '',
+    silenceSecondMessage: '',
   });
 
   useEffect(() => {
@@ -142,6 +144,13 @@ export default function AgentDetailPage() {
         webhookRetryDelay: agent.webhookRetryDelay ?? 60,
       });
       const silence = agent.modelConfig?.silence;
+      const firstCheckSec = silence?.firstCheckSec || 8;
+      const secondCheckSec = silence?.secondCheckSec ?? 0;
+      // Backward compat: old data stored hangupSec as absolute. Normalize to gap.
+      const rawHangupSec = silence?.hangupSec ?? 17;
+      const hangupSec = silence?.secondCheckSec === undefined && rawHangupSec > firstCheckSec
+        ? rawHangupSec - firstCheckSec
+        : rawHangupSec;
       setForm({
         name: agent.name,
         voice: agent.voice || 'Aoede',
@@ -154,9 +163,11 @@ export default function AgentDetailPage() {
         ambientSoundType: agent.ambientSoundType ?? 'NONE',
         ambientSoundVolume: agent.ambientSoundVolume ?? 0.04,
         silenceCheckEnabled: !!(silence?.firstCheckSec && silence.firstCheckSec > 0),
-        silenceFirstCheckSec: silence?.firstCheckSec || 8,
-        silenceHangupSec: silence?.hangupSec || 25,
+        silenceFirstCheckSec: firstCheckSec,
+        silenceSecondCheckSec: secondCheckSec,
+        silenceHangupSec: hangupSec,
         silenceMessage: silence?.message || '',
+        silenceSecondMessage: silence?.secondMessage || '',
       });
     }
   }, [agent]);

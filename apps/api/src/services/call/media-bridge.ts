@@ -58,7 +58,7 @@ function buildSilenceDetector(
   interruptRef: { enabled: boolean; greetingLive: boolean },
 ): SilenceDetector | null {
   const modelConfig = agent?.modelConfig as Partial<ModelConfig> | undefined;
-  const silenceConfig = modelConfig?.silence;
+  const silenceConfig = normalizeSilenceConfig(modelConfig?.silence);
   if (!SilenceDetector.isEnabled(silenceConfig)) return null;
 
   return new SilenceDetector({
@@ -67,6 +67,17 @@ function buildSilenceDetector(
     provider,
     isAgentSilent: () => interruptRef.enabled && !interruptRef.greetingLive,
   });
+}
+
+// Backward compat: old data stored hangupSec as absolute (from agent end).
+// New schema treats hangupSec as a gap from the last prompt fired.
+function normalizeSilenceConfig(config: ModelConfig['silence']): ModelConfig['silence'] {
+  if (!config) return undefined;
+  if (config.secondCheckSec !== undefined) return config;
+  if (config.hangupSec > config.firstCheckSec) {
+    return { ...config, hangupSec: config.hangupSec - config.firstCheckSec };
+  }
+  return config;
 }
 
 const activeConnections = new Map<string, ActiveConnection>();

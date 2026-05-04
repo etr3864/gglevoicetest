@@ -14,8 +14,10 @@ const modelConfigSchema = z.object({
   }).optional(),
   silence: z.object({
     firstCheckSec: z.number().int().min(0).max(60),
-    hangupSec: z.number().int().min(5).max(120),
+    secondCheckSec: z.number().int().min(0).max(60).optional(),
+    hangupSec: z.number().int().min(1).max(120),
     message: z.string().max(500).nullable().optional(),
+    secondMessage: z.string().max(500).nullable().optional(),
   }).optional(),
 }).optional();
 
