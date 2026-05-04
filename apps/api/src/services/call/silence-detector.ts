@@ -31,12 +31,17 @@ export class SilenceDetector {
   }
 
   reset(trigger: SilenceTrigger): void {
-    // Agent finishing speech after our silence prompt — keep waiting for customer.
+    // Agent finishing speech after our silence prompt — keep counting toward hangup.
     if (trigger === 'agent' && this.stage === 'awaiting-customer') return;
 
     this.clear();
     this.stage = 'idle';
-    this.timer = setTimeout(() => this.fireFirstCheck(), this.opts.config.firstCheckSec * 1000);
+
+    // Timer only starts when agent finishes its turn. Customer activity
+    // just clears the timer — we wait for the agent to respond first.
+    if (trigger === 'agent') {
+      this.timer = setTimeout(() => this.fireFirstCheck(), this.opts.config.firstCheckSec * 1000);
+    }
   }
 
   stop(): void {
