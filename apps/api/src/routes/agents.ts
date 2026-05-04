@@ -114,6 +114,7 @@ router.patch('/:id', async (req, res) => {
       ...next,
       ...(next.generation ? { generation: { ...(prev.generation as object ?? {}), ...(next.generation as object) } } : {}),
       ...(next.vad        ? { vad:        { ...(prev.vad        as object ?? {}), ...(next.vad        as object) } } : {}),
+      ...(next.silence    ? { silence:    { ...(prev.silence    as object ?? {}), ...(next.silence    as object) } } : {}),
     };
   }
 

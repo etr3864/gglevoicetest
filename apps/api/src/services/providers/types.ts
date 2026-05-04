@@ -34,6 +34,14 @@ export interface ContextCompressionConfig {
   triggerTokens?: number;
 }
 
+// --- Silence Detection ---
+
+export interface SilenceConfig {
+  firstCheckSec: number;  // 0 = disabled
+  hangupSec: number;
+  message?: string;
+}
+
 // --- Unified Model Config ---
 
 export interface ModelConfig {
@@ -41,6 +49,7 @@ export interface ModelConfig {
   vad?: VadConfig;
   languageCode?: string;
   contextCompression?: ContextCompressionConfig;
+  silence?: SilenceConfig;
 }
 
 export const DEFAULT_MODEL_CONFIG: ModelConfig = {
@@ -148,6 +157,7 @@ export interface VoiceProvider {
   disconnect(): void;
   isReady(): boolean;
   injectContext?(text: string): void;
+  promptSpeech?(text: string): void;
 }
 
 /** Deep-merge agent overrides onto defaults */
@@ -162,5 +172,6 @@ export function mergeModelConfig(overrides?: Partial<ModelConfig>): ModelConfig 
     contextCompression: overrides.contextCompression
       ? { ...DEFAULT_MODEL_CONFIG.contextCompression, ...overrides.contextCompression }
       : DEFAULT_MODEL_CONFIG.contextCompression,
+    silence: overrides.silence,
   };
 }

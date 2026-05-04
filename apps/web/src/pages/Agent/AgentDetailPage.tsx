@@ -120,6 +120,10 @@ export default function AgentDetailPage() {
     silenceDurationMs: 150,
     ambientSoundType: 'NONE' as string,
     ambientSoundVolume: 0.04,
+    silenceCheckEnabled: false,
+    silenceFirstCheckSec: 8,
+    silenceHangupSec: 25,
+    silenceMessage: '',
   });
 
   useEffect(() => {
@@ -137,6 +141,7 @@ export default function AgentDetailPage() {
         webhookRetryCount: agent.webhookRetryCount ?? 3,
         webhookRetryDelay: agent.webhookRetryDelay ?? 60,
       });
+      const silence = agent.modelConfig?.silence;
       setForm({
         name: agent.name,
         voice: agent.voice || 'Aoede',
@@ -148,6 +153,10 @@ export default function AgentDetailPage() {
         silenceDurationMs: agent.modelConfig?.vad?.silenceDurationMs ?? 150,
         ambientSoundType: agent.ambientSoundType ?? 'NONE',
         ambientSoundVolume: agent.ambientSoundVolume ?? 0.04,
+        silenceCheckEnabled: !!(silence?.firstCheckSec && silence.firstCheckSec > 0),
+        silenceFirstCheckSec: silence?.firstCheckSec || 8,
+        silenceHangupSec: silence?.hangupSec || 25,
+        silenceMessage: silence?.message || '',
       });
     }
   }, [agent]);

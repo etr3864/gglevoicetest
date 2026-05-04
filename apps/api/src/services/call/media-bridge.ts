@@ -19,6 +19,8 @@ import {
 import { getAmbientBuffer, createLoopState, createAmbientSession, type AmbientSession } from '../audio/ambient';
 import { injectMidCallSummary } from './context-refresh';
 import { CONTEXT_REFRESH_TOKEN_THRESHOLD } from '../../lib/constants';
+import { SilenceDetector } from './silence-detector';
+import type { ModelConfig } from '../providers/types';
 
 const log = createLogger('bridge');
 
@@ -35,6 +37,7 @@ interface ActiveConnection {
   contextInjecting: boolean;
   contextInjected: boolean;
   lastTokenCount: number;
+  silenceDetector: SilenceDetector | null;
 }
 
 interface BridgeContext {
@@ -46,6 +49,24 @@ interface BridgeContext {
   sendToTelnyx: (payload: Buffer) => void;
   interruptRef: { enabled: boolean; greetingLive: boolean };
   ambientSession: AmbientSession;
+}
+
+function buildSilenceDetector(
+  agent: { modelConfig: unknown } | null,
+  callControlId: string,
+  provider: VoiceProvider,
+  interruptRef: { enabled: boolean; greetingLive: boolean },
+): SilenceDetector | null {
+  const modelConfig = agent?.modelConfig as Partial<ModelConfig> | undefined;
+  const silenceConfig = modelConfig?.silence;
+  if (!SilenceDetector.isEnabled(silenceConfig)) return null;
+
+  return new SilenceDetector({
+    config: silenceConfig,
+    callControlId,
+    provider,
+    isAgentSilent: () => interruptRef.enabled && !interruptRef.greetingLive,
+  });
 }
 
 const activeConnections = new Map<string, ActiveConnection>();
@@ -193,7 +214,7 @@ async function buildActiveConnection(
 
   const agentAmbient = await prisma.agent.findUnique({
     where: { id: session.agentId },
-    select: { ambientSoundType: true, ambientSoundVolume: true },
+    select: { ambientSoundType: true, ambientSoundVolume: true, modelConfig: true },
   });
   const ambientType = (agentAmbient?.ambientSoundType ?? 'NONE') as AmbientSoundType;
   const ambientVolume = agentAmbient?.ambientSoundVolume ?? 0.04;
@@ -228,12 +249,18 @@ async function buildActiveConnection(
       ambientSession.onAgentAudioSent();
     }
 
+    const silenceDetector = buildSilenceDetector(agentAmbient, callControlId, prewarmed.provider, interruptRef);
+
     if (prewarmed.preloadedAudio.length > 0) {
       const totalBytes = prewarmed.preloadedAudio.reduce((s, b) => s + b.length, 0);
       const durationMs = Math.ceil((totalBytes / 2 / OUTBOUND.sampleRate) * 1000) + 300;
-      setTimeout(() => { interruptRef.enabled = true; }, durationMs);
+      setTimeout(() => {
+        interruptRef.enabled = true;
+        silenceDetector?.reset('agent');
+      }, durationMs);
     } else {
       interruptRef.enabled = true;
+      silenceDetector?.reset('agent');
     }
 
     log.info('Connection ready', {
@@ -242,7 +269,7 @@ async function buildActiveConnection(
       elapsed: Date.now() - streamStartTs,
       preloadedChunks: prewarmed.preloadedAudio.length,
     });
-    return { provider: prewarmed.provider, transcriber, agentTranscriber, greetingPreloaded: true, interruptRef, downsampleCarry: Buffer.alloc(0), ambientSession, pendingContextRefresh: false, contextInjecting: false, contextInjected: false, lastTokenCount: 0 };
+    return { provider: prewarmed.provider, transcriber, agentTranscriber, greetingPreloaded: true, interruptRef, downsampleCarry: Buffer.alloc(0), ambientSession, pendingContextRefresh: false, contextInjecting: false, contextInjected: false, lastTokenCount: 0, silenceDetector };
   }
 
   const provider = await connectProvider(session, events);
@@ -267,8 +294,10 @@ async function buildActiveConnection(
 
   interruptRef.enabled = true;
 
+  const silenceDetector = buildSilenceDetector(agentAmbient, callControlId, provider, interruptRef);
+
   log.info('Connection ready', { callId: session.callId, type: 'cold', elapsed: Date.now() - streamStartTs });
-  return { provider, transcriber, agentTranscriber, greetingPreloaded: false, interruptRef, downsampleCarry: Buffer.alloc(0), ambientSession, pendingContextRefresh: false, contextInjecting: false, contextInjected: false, lastTokenCount: 0 };
+  return { provider, transcriber, agentTranscriber, greetingPreloaded: false, interruptRef, downsampleCarry: Buffer.alloc(0), ambientSession, pendingContextRefresh: false, contextInjecting: false, contextInjected: false, lastTokenCount: 0, silenceDetector };
 }
 
 function teardown(callControlId: string | null): void {
@@ -278,6 +307,7 @@ function teardown(callControlId: string | null): void {
   if (!conn) return;
 
   activeConnections.delete(callControlId);
+  conn.silenceDetector?.stop();
   conn.ambientSession.destroy();
   conn.transcriber?.close();
   conn.agentTranscriber?.close();
@@ -325,6 +355,9 @@ function createTranscriber(
   const sampleRate = speaker === 'customer' ? DEEPGRAM.customerRate : DEEPGRAM.agentRate;
   const transcriber = new DeepgramTranscriber(async (result) => {
     if (!result.isFinal || !result.text.trim()) return;
+    if (speaker === 'customer') {
+      activeConnections.get(callControlId)?.silenceDetector?.reset('customer');
+    }
     await addTranscript(callControlId, {
       speaker,
       text: result.text,
@@ -370,6 +403,9 @@ function buildProviderEvents(ctx: BridgeContext): ProviderEvents {
     },
 
     onTranscript: async (entry) => {
+      if (entry.speaker === 'customer' && !hasDeepgram) {
+        activeConnections.get(callControlId)?.silenceDetector?.reset('customer');
+      }
       if (entry.speaker === 'customer' || !hasDeepgram) {
         await addTranscript(callControlId, entry);
       }
@@ -402,6 +438,7 @@ function buildProviderEvents(ctx: BridgeContext): ProviderEvents {
         telnyxWs.send(JSON.stringify({ event: 'clear' }));
       }
       ambientSession.onInterrupt();
+      activeConnections.get(callControlId)?.silenceDetector?.reset('customer');
     },
 
     onTurnComplete: () => {
@@ -412,6 +449,8 @@ function buildProviderEvents(ctx: BridgeContext): ProviderEvents {
       }
 
       const conn = activeConnections.get(callControlId);
+      conn?.silenceDetector?.reset('agent');
+
       if (!conn?.pendingContextRefresh || conn.contextInjecting || conn.contextInjected) return;
       conn.pendingContextRefresh = false;
       conn.contextInjecting = true;

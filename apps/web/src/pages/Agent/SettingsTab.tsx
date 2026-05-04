@@ -11,6 +11,7 @@ import { Input } from '../../components/ui/Input';
 import { Badge } from '../../components/ui/Badge';
 import { useToast } from '../../components/ui/Toast';
 import AmbientSoundSection from './AmbientSoundSection';
+import { Toggle } from '../../components/ui/Toggle';
 
 const TEMPERATURE_LABELS: Record<number, string> = {
   0.0: 'דטרמיניסטי', 0.3: 'שמרני', 0.5: 'מקצועי', 0.7: 'מאוזן',
@@ -38,6 +39,8 @@ function responseDelayLabel(ms: number): string {
   if (ms <= 1100) return 'אטי';
   return 'מאוד אטי';
 }
+
+const MIN_HANGUP_GAP_SEC = 5;
 
 function Tooltip({ text }: { text: string }) {
   return (
@@ -188,6 +191,8 @@ export default function SettingsTab({ agent, form, setForm, voices, onSave, onDe
         </CardContent>
       </Card>
 
+      <SilenceCard form={form} setForm={setForm} />
+
       <Card>
         <div className="px-5 pt-4 pb-2 flex items-center gap-2">
           <h3 className="font-semibold text-[var(--text-primary)]">טלפוניה (Telnyx)</h3>
@@ -259,6 +264,11 @@ export default function SettingsTab({ agent, form, setForm, voices, onSave, onDe
             modelConfig: {
               generation: { temperature: form.temperature },
               vad: { prefixPaddingMs: form.prefixPaddingMs, silenceDurationMs: form.silenceDurationMs },
+              silence: {
+                firstCheckSec: form.silenceCheckEnabled ? form.silenceFirstCheckSec : 0,
+                hangupSec: form.silenceHangupSec,
+                message: form.silenceMessage.trim() || null,
+              },
             },
           })}
           disabled={isSaving}
@@ -275,6 +285,84 @@ export default function SettingsTab({ agent, form, setForm, voices, onSave, onDe
         </Button>
       </div>
     </div>
+  );
+}
+
+function SilenceCard({ form, setForm }: { form: any; setForm: (fn: (f: any) => any) => void }) {
+  const enabled = form.silenceCheckEnabled;
+  const firstCheck = form.silenceFirstCheckSec;
+  const hangup = Math.max(form.silenceHangupSec, firstCheck + MIN_HANGUP_GAP_SEC);
+
+  return (
+    <Card>
+      <div className="px-5 pt-4 pb-2 flex items-center justify-between">
+        <Toggle
+          checked={enabled}
+          onChange={(checked) => setForm((f: any) => ({ ...f, silenceCheckEnabled: checked }))}
+        />
+        <h3 className="font-semibold text-[var(--text-primary)]">מענה לשתיקה</h3>
+      </div>
+      <CardContent className="space-y-5">
+        <p className="text-xs text-[var(--text-muted)]">
+          אם הלקוח שותק, הסוכן יבדוק שהוא עדיין על הקו. אם השתיקה נמשכת — השיחה תנותק אוטומטית.
+        </p>
+
+        <div className={enabled ? '' : 'opacity-50 pointer-events-none'}>
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-xs text-[var(--text-muted)]">{firstCheck} שניות</span>
+              <label className="text-sm font-medium text-[var(--text-secondary)]">בדיקה אחרי</label>
+            </div>
+            <input
+              type="range"
+              min={3}
+              max={20}
+              step={1}
+              value={firstCheck}
+              onChange={(e) => {
+                const next = parseInt(e.target.value);
+                setForm((f: any) => ({
+                  ...f,
+                  silenceFirstCheckSec: next,
+                  silenceHangupSec: Math.max(f.silenceHangupSec, next + MIN_HANGUP_GAP_SEC),
+                }));
+              }}
+              className="w-full accent-violet-500"
+            />
+          </div>
+
+          <div className="mt-4">
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-xs text-[var(--text-muted)]">{hangup} שניות</span>
+              <label className="text-sm font-medium text-[var(--text-secondary)]">ניתוק אחרי</label>
+            </div>
+            <input
+              type="range"
+              min={firstCheck + MIN_HANGUP_GAP_SEC}
+              max={90}
+              step={1}
+              value={hangup}
+              onChange={(e) => setForm((f: any) => ({ ...f, silenceHangupSec: parseInt(e.target.value) }))}
+              className="w-full accent-violet-500"
+            />
+          </div>
+
+          <div className="mt-4">
+            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">
+              מה הסוכן יגיד (אופציונלי)
+            </label>
+            <textarea
+              value={form.silenceMessage}
+              onChange={(e) => setForm((f: any) => ({ ...f, silenceMessage: e.target.value }))}
+              rows={2}
+              placeholder="ברירת מחדל: הסוכן ישאל בנימוס אם הלקוח עדיין על הקו"
+              className="w-full rounded-lg bg-[var(--bg-primary)] border border-[var(--border)] px-4 py-2.5 text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]/30 transition-colors resize-none"
+              dir="rtl"
+            />
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
