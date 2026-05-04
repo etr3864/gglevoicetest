@@ -86,6 +86,15 @@ export class GeminiMapper {
     };
   }
 
+  static buildSilencePromptPayload(text: string): Record<string, unknown> {
+    return {
+      clientContent: {
+        turns: [{ role: 'user', parts: [{ text }] }],
+        turnComplete: true,
+      },
+    };
+  }
+
   static buildToolResponsePayload(responses: Array<{ id: string; name: string; response: unknown; silent?: boolean }>): Record<string, unknown> {
     return {
       toolResponse: {
