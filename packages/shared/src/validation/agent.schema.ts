@@ -12,6 +12,11 @@ const modelConfigSchema = z.object({
     prefixPaddingMs: z.number().int().min(0).max(500),
     silenceDurationMs: z.number().int().min(100).max(1500),
   }).optional(),
+  silence: z.object({
+    firstCheckSec: z.number().int().min(0).max(60),
+    hangupSec: z.number().int().min(5).max(120),
+    message: z.string().max(500).nullable().optional(),
+  }).optional(),
 }).optional();
 
 export const createAgentSchema = z.object({
