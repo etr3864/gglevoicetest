@@ -24,6 +24,7 @@ interface DetectorOptions {
 export class SilenceDetector {
   private timer: NodeJS.Timeout | null = null;
   private stage: Stage = 'idle';
+  private agentAudioMs = 0;
 
   constructor(private opts: DetectorOptions) {}
 
@@ -31,21 +32,33 @@ export class SilenceDetector {
     return !!config && config.firstCheckSec > 0 && config.hangupSec > 0;
   }
 
+  // Called whenever the agent produces an audio chunk. Used to estimate how
+  // much audio is still buffered toward the customer when the model signals
+  // turnComplete — so we don't start the silence timer too early.
+  onAgentAudio(bytes: number, sampleRate: number): void {
+    this.agentAudioMs += (bytes / 2 / sampleRate) * 1000;
+  }
+
   reset(trigger: SilenceTrigger): void {
-    // Agent finishing speech after we already prompted — keep counting toward next stage / hangup.
-    if (trigger === 'agent' && this.stage !== 'idle') return;
+    if (trigger === 'agent' && this.stage !== 'idle') {
+      this.agentAudioMs = 0;
+      return;
+    }
 
     this.clear();
     this.stage = 'idle';
+    const bufferMs = this.agentAudioMs;
+    this.agentAudioMs = 0;
 
     if (trigger === 'agent') {
-      this.timer = scheduleJittered(this.opts.config.firstCheckSec, () => this.fireFirstCheck());
+      this.timer = scheduleJittered(this.opts.config.firstCheckSec, bufferMs, () => this.fireFirstCheck());
     }
   }
 
   stop(): void {
     this.clear();
     this.stage = 'idle';
+    this.agentAudioMs = 0;
   }
 
   private clear(): void {
@@ -66,9 +79,9 @@ export class SilenceDetector {
     this.stage = 'after-first';
 
     if ((this.opts.config.secondCheckSec ?? 0) > 0) {
-      this.timer = scheduleJittered(this.opts.config.secondCheckSec!, () => this.fireSecondCheck());
+      this.timer = scheduleJittered(this.opts.config.secondCheckSec!, 0, () => this.fireSecondCheck());
     } else {
-      this.timer = scheduleJittered(this.opts.config.hangupSec, () => this.fireHangup());
+      this.timer = scheduleJittered(this.opts.config.hangupSec, 0, () => this.fireHangup());
     }
   }
 
@@ -81,7 +94,7 @@ export class SilenceDetector {
 
     this.sendPrompt(this.opts.config.secondMessage ?? this.opts.config.message);
     this.stage = 'after-second';
-    this.timer = scheduleJittered(this.opts.config.hangupSec, () => this.fireHangup());
+    this.timer = scheduleJittered(this.opts.config.hangupSec, 0, () => this.fireHangup());
   }
 
   private fireHangup(): void {
@@ -105,8 +118,8 @@ export class SilenceDetector {
   }
 }
 
-function scheduleJittered(seconds: number, callback: () => void): NodeJS.Timeout {
+function scheduleJittered(seconds: number, leadingMs: number, callback: () => void): NodeJS.Timeout {
   const offset = (Math.random() * 2 - 1) * JITTER_SEC;
-  const ms = Math.max(1, seconds + offset) * 1000;
+  const ms = Math.max(1000, leadingMs + (seconds + offset) * 1000);
   return setTimeout(callback, ms);
 }

@@ -400,7 +400,7 @@ function buildProviderEvents(ctx: BridgeContext): ProviderEvents {
   return {
     onReady: () => {},
 
-    onAudio: (chunk: { data: Buffer }) => {
+    onAudio: (chunk: { data: Buffer; sampleRate: number }) => {
       if (chunk.data.length === 0) return;
       const muted = !interruptRef.enabled && !interruptRef.greetingLive;
       if (!muted) {
@@ -410,6 +410,7 @@ function buildProviderEvents(ctx: BridgeContext): ProviderEvents {
         sendToTelnyx(ambientSession.processAgentChunk(chunk.data));
         ambientSession.onAgentAudioSent();
         agentTranscriber?.sendAudio(chunk.data);
+        activeConnections.get(callControlId)?.silenceDetector?.onAgentAudio(chunk.data.length, chunk.sampleRate);
       }
     },
 
