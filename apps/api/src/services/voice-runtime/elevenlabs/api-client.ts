@@ -49,7 +49,15 @@ export interface ElevenLabsAgentPayload {
   name: string;
   conversation_config: {
     agent: {
-      prompt: { prompt: string };
+      prompt: {
+        prompt: string;
+        llm?: string;
+        custom_llm?: {
+          url: string;
+          model_id: string;
+          api_key: string;
+        };
+      };
       language: string;
       first_message: string;
     };
@@ -74,19 +82,7 @@ export interface ElevenLabsAgentPayload {
       eagerness: string;
     };
   };
-  platform_settings?: {
-    custom_llm?: {
-      url: string;
-      api_key: string;
-      model: string;
-    };
-    phone?: {
-      phone_number_sip_uri: string;
-    };
-  };
-  built_in_tools?: {
-    end_call?: { enabled: boolean };
-  };
+  platform_settings?: Record<string, unknown>;
   metadata?: Record<string, string>;
 }
 

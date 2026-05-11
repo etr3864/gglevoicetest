@@ -28,7 +28,15 @@ export function buildAgentPayload(input: PayloadInput): ElevenLabsAgentPayload {
     name: displayName,
     conversation_config: {
       agent: {
-        prompt: { prompt: input.systemPrompt },
+        prompt: {
+          prompt: input.systemPrompt,
+          llm: 'custom-llm',
+          custom_llm: {
+            url: `${apiUrl}/llm/v1/chat/completions`,
+            model_id: 'custom',
+            api_key: input.customLlmToken,
+          },
+        },
         language: 'he',
         first_message: input.openingMessage,
       },
@@ -52,19 +60,6 @@ export function buildAgentPayload(input: PayloadInput): ElevenLabsAgentPayload {
         turn_timeout: config.turnTimeout,
         eagerness: config.turnEagerness,
       },
-    },
-    platform_settings: {
-      custom_llm: {
-        url: `${apiUrl}/llm/v1/chat/completions`,
-        api_key: input.customLlmToken,
-        model: 'custom',
-      },
-      ...(sipUri && input.phoneNumber && {
-        phone: { phone_number_sip_uri: sipUri },
-      }),
-    },
-    built_in_tools: {
-      end_call: { enabled: true },
     },
     metadata: {
       platform: 'gglvoice',

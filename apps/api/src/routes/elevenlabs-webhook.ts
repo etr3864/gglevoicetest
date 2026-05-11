@@ -79,7 +79,8 @@ function verifySignature(
   if (!secret) return true;
   if (!rawBody) return false;
 
-  const signature = headers['x-elevenlabs-signature'] as string
+  const signature = headers['elevenlabs-signature'] as string
+    ?? headers['x-elevenlabs-signature'] as string
     ?? headers['x-signature'] as string;
   if (!signature) return false;
 
