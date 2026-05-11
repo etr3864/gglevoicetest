@@ -37,7 +37,7 @@ function getApiKey(): string {
 }
 
 async function telnyxFetch(
-  method: 'GET' | 'POST',
+  method: 'GET' | 'POST' | 'PATCH',
   path: string,
   body?: Record<string, unknown>,
   timeoutMs = DEFAULT_TIMEOUT_MS,
@@ -121,7 +121,7 @@ export async function updatePhoneNumberConnection(
   telnyxPhoneId: string,
   connectionId: string,
 ): Promise<void> {
-  await telnyxFetch('POST', `/phone_numbers/${telnyxPhoneId}`, {
+  await telnyxFetch('PATCH', `/phone_numbers/${telnyxPhoneId}`, {
     connection_id: connectionId,
   });
 }
