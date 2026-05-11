@@ -10,7 +10,7 @@ import { normalizePhone } from '../lib/phone';
 import { publishCallEvent } from '../services/events/pubsub';
 import { encryptConfig, decryptConfig } from '../services/whatsapp/config-crypto';
 import { createLogger } from '../lib/logger';
-import { getRuntime } from '../services/voice-runtime';
+import { getRuntime, upsertBinding } from '../services/voice-runtime';
 import { switchProvider } from '../services/voice-runtime/provider-switch';
 import type { VoiceProviderId } from '../services/voice-runtime/types';
 
@@ -82,7 +82,7 @@ router.get('/:id', async (req, res) => {
     include: {
       _count: { select: { calls: true } },
       voiceProviderBindings: {
-        select: { provider: true, syncStatus: true, syncError: true, syncedAt: true },
+        select: { provider: true, config: true, syncStatus: true, syncError: true, syncedAt: true },
       },
     },
   });
@@ -102,6 +102,7 @@ router.get('/:id', async (req, res) => {
       ...agent,
       whatsappConfig,
       voiceProviderBindings: undefined,
+      elevenlabsConfig: binding?.config ?? null,
       syncStatus: binding?.syncStatus ?? null,
       syncError: binding?.syncError ?? null,
     },
@@ -171,9 +172,19 @@ router.patch('/:id', async (req, res) => {
     }
   }
 
+  const elevenlabsConfig = data.elevenlabsConfig;
+  delete data.elevenlabsConfig;
+
   const agent = await prisma.agent.update({ where: { id }, data });
 
   const provider = (agent.voiceProvider ?? 'gemini_live') as VoiceProviderId;
+
+  if (provider === 'elevenlabs' && elevenlabsConfig) {
+    await upsertBinding(agent.id, 'elevenlabs', {
+      config: elevenlabsConfig as Prisma.InputJsonValue,
+    });
+  }
+
   getRuntime(provider).onAgentUpdated(agent.id).catch((err) => {
     log.error('Voice runtime onAgentUpdated failed', err, { agentId: agent.id, provider });
   });

@@ -392,6 +392,17 @@ export default function SettingsTab({ agent, form, setForm, voices, voiceProvide
               data.modelConfig = {
                 generation: { temperature: form.temperature },
               };
+              data.elevenlabsConfig = {
+                voiceId: form.voice,
+                stability: form.elStability ?? 0.5,
+                similarityBoost: 0.8,
+                speed: form.elSpeed ?? 1.0,
+                expressiveMode: true,
+                temperature: form.temperature,
+                turnTimeout: 7,
+                turnEagerness: form.elEagerness ?? 'normal',
+                silenceEndCallTimeout: -1,
+              };
             } else {
               data.voice = form.voice;
               data.ambientSoundType = form.ambientSoundType;

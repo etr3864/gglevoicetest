@@ -133,6 +133,9 @@ export default function AgentDetailPage() {
     silenceHangupSec: 17,
     silenceMessage: '',
     silenceSecondMessage: '',
+    elStability: 0.5,
+    elSpeed: 1.0,
+    elEagerness: 'normal' as string,
   });
 
   useEffect(() => {
@@ -160,7 +163,9 @@ export default function AgentDetailPage() {
         : rawHangupSec;
       setForm({
         name: agent.name,
-        voice: agent.voice || 'Aoede',
+        voice: agent.voiceProvider === 'elevenlabs'
+          ? (agent.elevenlabsConfig?.voiceId || 'cjVigY5qzO86Huf0OWal')
+          : (agent.voice || 'Aoede'),
         voiceProvider: agent.voiceProvider || 'gemini_live',
         phoneNumber: agent.phoneNumber || '',
         telnyxPhoneId: agent.telnyxPhoneId || '',
@@ -176,6 +181,9 @@ export default function AgentDetailPage() {
         silenceHangupSec: hangupSec,
         silenceMessage: silence?.message || '',
         silenceSecondMessage: silence?.secondMessage || '',
+        elStability: agent.elevenlabsConfig?.stability ?? 0.5,
+        elSpeed: agent.elevenlabsConfig?.speed ?? 1.0,
+        elEagerness: agent.elevenlabsConfig?.turnEagerness ?? 'normal',
       });
     }
   }, [agent]);
