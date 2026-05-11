@@ -67,10 +67,9 @@ export interface ElevenLabsAgentPayload {
     };
     conversation: {
       max_duration_seconds: number;
-      client_events: string[];
     };
     turn: {
-      mode: { type: string };
+      mode: string;
       turn_timeout: number;
       eagerness: string;
     };

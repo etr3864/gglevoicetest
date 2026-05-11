@@ -46,10 +46,9 @@ export function buildAgentPayload(input: PayloadInput): ElevenLabsAgentPayload {
       },
       conversation: {
         max_duration_seconds: 1800,
-        client_events: ['conversation_initiation_client_data'],
       },
       turn: {
-        mode: { type: 'turn_based' },
+        mode: 'turn',
         turn_timeout: config.turnTimeout,
         eagerness: config.turnEagerness,
       },
