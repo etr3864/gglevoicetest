@@ -14,7 +14,12 @@ async function handleWebhook(req: Request, res: Response): Promise<void> {
   const rawBody = getRawBody(req);
 
   if (!verifySignature(rawBody, req.headers)) {
-    log.warn('Invalid ElevenLabs webhook signature');
+    const sigHeaders = Object.keys(req.headers).filter(h => h.includes('sig') || h.includes('hmac') || h.includes('eleven') || h.includes('hash'));
+    log.warn('Invalid ElevenLabs webhook signature', {
+      signatureHeaders: sigHeaders,
+      hasRawBody: !!rawBody,
+      bodyLength: rawBody?.length,
+    });
     res.status(401).end();
     return;
   }
