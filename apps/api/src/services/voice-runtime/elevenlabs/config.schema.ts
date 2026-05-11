@@ -1,7 +1,8 @@
 import { z } from 'zod';
+import { DEFAULT_VOICE_ID } from './voices';
 
 export const ElevenLabsConfigSchema = z.object({
-  voiceId: z.string().min(1),
+  voiceId: z.string().default(DEFAULT_VOICE_ID),
   stability: z.number().min(0).max(1).default(0.5),
   similarityBoost: z.number().min(0).max(1).default(0.8),
   speed: z.number().min(0.7).max(1.2).default(1.0),
@@ -17,7 +18,7 @@ export const ElevenLabsConfigSchema = z.object({
 export type ElevenLabsConfig = z.infer<typeof ElevenLabsConfigSchema>;
 
 export const DEFAULT_ELEVENLABS_CONFIG: ElevenLabsConfig = {
-  voiceId: '',
+  voiceId: DEFAULT_VOICE_ID,
   stability: 0.5,
   similarityBoost: 0.8,
   speed: 1.0,
