@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle } from 'lucide-react';
 import {
   Save, Trash2, PhoneCall, PhoneOutgoing,
   Eye, EyeOff, RefreshCw, Copy, Check,
@@ -54,80 +53,22 @@ function Tooltip({ text }: { text: string }) {
 
 type AmbientSoundType = 'NONE' | 'OFFICE' | 'CAFE' | 'RESTAURANT' | 'CITY' | 'PEOPLE_TALKING';
 
-interface VoiceProviderInfo {
-  id: string;
-  capabilities: Record<string, unknown>;
-  voices: { id: string; name: string; gender?: string }[];
-}
-
 interface SettingsTabProps {
   agent: any;
   form: any;
   setForm: (fn: (f: any) => any) => void;
   voices: { id: string; label: string; gender: string; description: string }[];
-  voiceProviders: VoiceProviderInfo[];
   onSave: (data: Record<string, unknown>) => void;
   onDelete: () => void;
   isSaving: boolean;
 }
 
-export default function SettingsTab({ agent, form, setForm, voices, voiceProviders, onSave, onDelete, isSaving }: SettingsTabProps) {
-  const [showProviderWarning, setShowProviderWarning] = useState(false);
-  const [pendingProvider, setPendingProvider] = useState<string | null>(null);
-
-  const isElevenLabs = form.voiceProvider === 'elevenlabs';
-  const currentProviderData = voiceProviders.find(p => p.id === form.voiceProvider);
-
-  const geminiVoices = voices;
-  const elevenLabsVoices = voiceProviders.find(p => p.id === 'elevenlabs')?.voices ?? [];
-  const activeVoices = isElevenLabs ? elevenLabsVoices : geminiVoices;
-
-  const femaleVoices = activeVoices.filter((v: any) => v.gender === 'female');
-  const maleVoices = activeVoices.filter((v: any) => v.gender === 'male');
-
-  function handleProviderChange(newProvider: string) {
-    if (newProvider === form.voiceProvider) return;
-
-    if (agent.voiceProvider !== newProvider) {
-      setPendingProvider(newProvider);
-      setShowProviderWarning(true);
-    } else {
-      setForm((f: any) => ({ ...f, voiceProvider: newProvider }));
-    }
-  }
-
-  function confirmProviderSwitch() {
-    if (!pendingProvider) return;
-    setForm((f: any) => ({ ...f, voiceProvider: pendingProvider }));
-    setShowProviderWarning(false);
-    setPendingProvider(null);
-  }
+export default function SettingsTab({ agent, form, setForm, voices, onSave, onDelete, isSaving }: SettingsTabProps) {
+  const femaleVoices = voices.filter(v => v.gender === 'female');
+  const maleVoices = voices.filter(v => v.gender === 'male');
 
   return (
     <div className="space-y-4">
-      {showProviderWarning && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
-          <div className="bg-[var(--bg-primary)] rounded-xl p-6 max-w-md mx-4 space-y-4">
-            <h3 className="font-semibold text-[var(--text-primary)] text-lg">שינוי ספק קול</h3>
-            <p className="text-sm text-[var(--text-secondary)]">
-              מעבר לספק קול אחר יחיל את השינוי בשמירה הבאה.
-              {pendingProvider === 'elevenlabs' && ' שים לב: שיחות יוצאות ותזכורות לא נתמכות עדיין ב-ElevenLabs.'}
-            </p>
-            <div className="flex gap-3 justify-end">
-              <Button
-                variant="secondary"
-                onClick={() => { setShowProviderWarning(false); setPendingProvider(null); }}
-              >
-                ביטול
-              </Button>
-              <Button onClick={confirmProviderSwitch}>
-                אישור
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-
       <Card>
         <div className="px-5 pt-4 pb-2">
           <h3 className="font-semibold text-[var(--text-primary)]">כללי</h3>
@@ -138,62 +79,25 @@ export default function SettingsTab({ agent, form, setForm, voices, voiceProvide
             value={form.name}
             onChange={(e) => setForm((f: any) => ({ ...f, name: e.target.value }))}
           />
-
-          <div>
-            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">ספק קול</label>
-            <div className="flex gap-2">
-              <button
-                className={`flex-1 py-2 px-3 rounded-lg border text-sm font-medium transition-colors ${
-                  !isElevenLabs
-                    ? 'border-[var(--accent)] bg-[var(--accent)]/10 text-[var(--accent)]'
-                    : 'border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--text-secondary)]'
-                }`}
-                onClick={() => handleProviderChange('gemini_live')}
-              >
-                Gemini Live
-              </button>
-              <button
-                className={`flex-1 py-2 px-3 rounded-lg border text-sm font-medium transition-colors ${
-                  isElevenLabs
-                    ? 'border-[var(--accent)] bg-[var(--accent)]/10 text-[var(--accent)]'
-                    : 'border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--text-secondary)]'
-                }`}
-                onClick={() => handleProviderChange('elevenlabs')}
-              >
-                ElevenLabs
-              </button>
-            </div>
-          </div>
-
           <div>
             <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">קול</label>
             <select
-              value={isElevenLabs ? (form.elevenLabsVoiceId || '') : form.voice}
-              onChange={(e) => {
-                if (isElevenLabs) {
-                  setForm((f: any) => ({ ...f, elevenLabsVoiceId: e.target.value }));
-                } else {
-                  setForm((f: any) => ({ ...f, voice: e.target.value }));
-                }
-              }}
+              value={form.voice}
+              onChange={(e) => setForm((f: any) => ({ ...f, voice: e.target.value }))}
               className="w-full rounded-lg bg-[var(--bg-primary)] border border-[var(--border)] px-4 py-2.5 text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]/30 transition-colors"
               dir="rtl"
             >
               {femaleVoices.length > 0 && (
                 <optgroup label="נשי">
-                  {femaleVoices.map((v: any) => (
-                    <option key={v.id} value={v.id}>
-                      {isElevenLabs ? v.name : `${v.label} — ${v.description}`}
-                    </option>
+                  {femaleVoices.map(v => (
+                    <option key={v.id} value={v.id}>{v.label} — {v.description}</option>
                   ))}
                 </optgroup>
               )}
               {maleVoices.length > 0 && (
                 <optgroup label="גברי">
-                  {maleVoices.map((v: any) => (
-                    <option key={v.id} value={v.id}>
-                      {isElevenLabs ? v.name : `${v.label} — ${v.description}`}
-                    </option>
+                  {maleVoices.map(v => (
+                    <option key={v.id} value={v.id}>{v.label} — {v.description}</option>
                   ))}
                 </optgroup>
               )}
@@ -213,7 +117,7 @@ export default function SettingsTab({ agent, form, setForm, voices, voiceProvide
             <input
               type="range"
               min={0}
-              max={isElevenLabs ? 1 : 2}
+              max={2}
               step={0.1}
               value={form.temperature}
               onChange={(e) => setForm((f: any) => ({ ...f, temperature: parseFloat(e.target.value) }))}
@@ -221,79 +125,71 @@ export default function SettingsTab({ agent, form, setForm, voices, voiceProvide
             />
             <div className="flex justify-between text-xs text-[var(--text-muted)] mt-1">
               <span>0.0</span>
-              <span>{isElevenLabs ? '0.5' : '1.0'}</span>
-              <span>{isElevenLabs ? '1.0' : '2.0'}</span>
+              <span>1.0</span>
+              <span>2.0</span>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {!isElevenLabs && (
-        <>
-          <Card>
-            <div className="px-5 pt-4 pb-2">
-              <h3 className="font-semibold text-[var(--text-primary)]">הגדרות קול</h3>
+      <Card>
+        <div className="px-5 pt-4 pb-2">
+          <h3 className="font-semibold text-[var(--text-primary)]">הגדרות קול</h3>
+        </div>
+        <CardContent className="space-y-5">
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-xs text-[var(--text-muted)]">
+                {noiseSensitivityLabel(form.prefixPaddingMs)} ({form.prefixPaddingMs}ms)
+              </span>
+              <div className="flex items-center">
+                <Tooltip text="גבוה = הסוכן מתעלם מרעשים קצרים, שיעולים ונשימות. נמוך = הסוכן שומע כל צליל ועוצר מיידית." />
+                <label className="text-sm font-medium text-[var(--text-secondary)]">עמידות לרעשי רקע</label>
+              </div>
             </div>
-            <CardContent className="space-y-5">
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-xs text-[var(--text-muted)]">
-                    {noiseSensitivityLabel(form.prefixPaddingMs)} ({form.prefixPaddingMs}ms)
-                  </span>
-                  <div className="flex items-center">
-                    <Tooltip text="גבוה = הסוכן מתעלם מרעשים קצרים, שיעולים ונשימות. נמוך = הסוכן שומע כל צליל ועוצר מיידית." />
-                    <label className="text-sm font-medium text-[var(--text-secondary)]">עמידות לרעשי רקע</label>
-                  </div>
-                </div>
-                <input
-                  type="range"
-                  min={0}
-                  max={500}
-                  step={10}
-                  value={form.prefixPaddingMs}
-                  onChange={(e) => setForm((f: any) => ({ ...f, prefixPaddingMs: parseInt(e.target.value) }))}
-                  className="w-full accent-violet-500"
-                />
-                <div className="flex justify-between text-xs text-[var(--text-muted)] mt-1">
-                  <span>רגיש לכל צליל</span>
-                  <span>עמיד לרעשים</span>
-                </div>
+            <input
+              type="range"
+              min={0}
+              max={500}
+              step={10}
+              value={form.prefixPaddingMs}
+              onChange={(e) => setForm((f: any) => ({ ...f, prefixPaddingMs: parseInt(e.target.value) }))}
+              className="w-full accent-violet-500"
+            />
+            <div className="flex justify-between text-xs text-[var(--text-muted)] mt-1">
+              <span>רגיש לכל צליל</span>
+              <span>עמיד לרעשים</span>
+            </div>
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-xs text-[var(--text-muted)]">
+                {responseDelayLabel(form.silenceDurationMs)} ({form.silenceDurationMs}ms)
+              </span>
+              <div className="flex items-center">
+                <Tooltip text="כמה שתיקה נדרשת לפני שהסוכן מגיב. נמוך = עונה מהר, גבוה = ממתין שתסיים לדבר לחלוטין." />
+                <label className="text-sm font-medium text-[var(--text-secondary)]">עיכוב לפני תגובה</label>
               </div>
+            </div>
+            <input
+              type="range"
+              min={100}
+              max={1500}
+              step={50}
+              value={form.silenceDurationMs}
+              onChange={(e) => setForm((f: any) => ({ ...f, silenceDurationMs: parseInt(e.target.value) }))}
+              className="w-full accent-violet-500"
+            />
+            <div className="flex justify-between text-xs text-[var(--text-muted)] mt-1">
+              <span>עונה מהר</span>
+              <span>ממתין לסיום</span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-xs text-[var(--text-muted)]">
-                    {responseDelayLabel(form.silenceDurationMs)} ({form.silenceDurationMs}ms)
-                  </span>
-                  <div className="flex items-center">
-                    <Tooltip text="כמה שתיקה נדרשת לפני שהסוכן מגיב. נמוך = עונה מהר, גבוה = ממתין שתסיים לדבר לחלוטין." />
-                    <label className="text-sm font-medium text-[var(--text-secondary)]">עיכוב לפני תגובה</label>
-                  </div>
-                </div>
-                <input
-                  type="range"
-                  min={100}
-                  max={1500}
-                  step={50}
-                  value={form.silenceDurationMs}
-                  onChange={(e) => setForm((f: any) => ({ ...f, silenceDurationMs: parseInt(e.target.value) }))}
-                  className="w-full accent-violet-500"
-                />
-                <div className="flex justify-between text-xs text-[var(--text-muted)] mt-1">
-                  <span>עונה מהר</span>
-                  <span>ממתין לסיום</span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <SilenceCard form={form} setForm={setForm} />
-        </>
-      )}
-
-      {isElevenLabs && (
-        <ElevenLabsSettingsCard form={form} setForm={setForm} />
-      )}
+      <SilenceCard form={form} setForm={setForm} />
 
       <Card>
         <div className="px-5 pt-4 pb-2 flex items-center gap-2">
@@ -340,88 +236,41 @@ export default function SettingsTab({ agent, form, setForm, voices, voiceProvide
               {new Date(agent.createdAt).toLocaleString('he-IL')}
             </p>
           </div>
-          {isElevenLabs && agent.syncStatus && (
-            <div className="col-span-2">
-              <p className="text-[var(--text-secondary)]">סטטוס סנכרון</p>
-              <div className="flex items-center gap-2 mt-0.5">
-                <span className={`inline-block w-2 h-2 rounded-full ${
-                  agent.syncStatus === 'synced' ? 'bg-green-500' :
-                  agent.syncStatus === 'provisioning' ? 'bg-yellow-500 animate-pulse' :
-                  agent.syncStatus === 'failed' ? 'bg-red-500' : 'bg-gray-400'
-                }`} />
-                <span className="text-xs text-[var(--text-muted)]">
-                  {agent.syncStatus === 'synced' ? 'מסונכרן' :
-                   agent.syncStatus === 'provisioning' ? 'מסנכרן...' :
-                   agent.syncStatus === 'failed' ? 'נכשל' : agent.syncStatus}
-                </span>
-                {agent.syncError && (
-                  <span className="text-xs text-red-500" title={agent.syncError}>
-                    — {agent.syncError.slice(0, 80)}
-                  </span>
-                )}
-              </div>
-            </div>
-          )}
         </CardContent>
       </Card>
 
-      {!isElevenLabs && (
-        <AmbientSoundSection
-          agentId={agent.id}
-          soundType={form.ambientSoundType as AmbientSoundType}
-          volume={form.ambientSoundVolume}
-          onTypeChange={(type) => setForm((f: any) => ({ ...f, ambientSoundType: type }))}
-          onVolumeChange={(vol) => setForm((f: any) => ({ ...f, ambientSoundVolume: vol }))}
-        />
-      )}
+      <AmbientSoundSection
+        agentId={agent.id}
+        soundType={form.ambientSoundType as AmbientSoundType}
+        volume={form.ambientSoundVolume}
+        onTypeChange={(type) => setForm((f: any) => ({ ...f, ambientSoundType: type }))}
+        onVolumeChange={(vol) => setForm((f: any) => ({ ...f, ambientSoundVolume: vol }))}
+      />
 
       <ApiReferenceCard agentId={agent.id} apiKey={agent.apiKey} />
 
       <div className="flex items-center gap-3">
         <Button
-          onClick={() => {
-            const data: Record<string, unknown> = {
-              name: form.name,
-              voiceProvider: form.voiceProvider,
-              phoneNumber: form.phoneNumber || null,
-              telnyxPhoneId: form.telnyxPhoneId || null,
-              telnyxAppId: form.telnyxAppId || null,
-            };
-
-            if (isElevenLabs) {
-              data.modelConfig = {
-                generation: { temperature: form.temperature },
-              };
-              data.elevenlabsConfig = {
-                voiceId: form.voice,
-                stability: form.elStability ?? 0.5,
-                similarityBoost: 0.8,
-                speed: form.elSpeed ?? 1.0,
-                expressiveMode: true,
-                temperature: form.temperature,
-                turnTimeout: 7,
-                turnEagerness: form.elEagerness ?? 'normal',
-                silenceEndCallTimeout: -1,
-              };
-            } else {
-              data.voice = form.voice;
-              data.ambientSoundType = form.ambientSoundType;
-              data.ambientSoundVolume = form.ambientSoundVolume;
-              data.modelConfig = {
-                generation: { temperature: form.temperature },
-                vad: { prefixPaddingMs: form.prefixPaddingMs, silenceDurationMs: form.silenceDurationMs },
-                silence: {
-                  firstCheckSec: form.silenceCheckEnabled ? form.silenceFirstCheckSec : 0,
-                  secondCheckSec: form.silenceSecondCheckSec,
-                  hangupSec: form.silenceHangupSec,
-                  message: form.silenceMessage.trim() || null,
-                  secondMessage: form.silenceSecondMessage.trim() || null,
-                },
-              };
-            }
-
-            onSave(data);
-          }}
+          onClick={() => onSave({
+            name: form.name,
+            voice: form.voice,
+            phoneNumber: form.phoneNumber || null,
+            telnyxPhoneId: form.telnyxPhoneId || null,
+            telnyxAppId: form.telnyxAppId || null,
+            ambientSoundType: form.ambientSoundType,
+            ambientSoundVolume: form.ambientSoundVolume,
+            modelConfig: {
+              generation: { temperature: form.temperature },
+              vad: { prefixPaddingMs: form.prefixPaddingMs, silenceDurationMs: form.silenceDurationMs },
+              silence: {
+                firstCheckSec: form.silenceCheckEnabled ? form.silenceFirstCheckSec : 0,
+                secondCheckSec: form.silenceSecondCheckSec,
+                hangupSec: form.silenceHangupSec,
+                message: form.silenceMessage.trim() || null,
+                secondMessage: form.silenceSecondMessage.trim() || null,
+              },
+            },
+          })}
           disabled={isSaving}
         >
           <Save className="w-4 h-4" />
@@ -436,94 +285,6 @@ export default function SettingsTab({ agent, form, setForm, voices, voiceProvide
         </Button>
       </div>
     </div>
-  );
-}
-
-function ElevenLabsSettingsCard({ form, setForm }: { form: any; setForm: (fn: (f: any) => any) => void }) {
-  const eagernessLabels: Record<string, string> = {
-    low: 'ממתין בסבלנות',
-    normal: 'מאוזן',
-    high: 'מגיב מהר',
-  };
-
-  return (
-    <Card>
-      <div className="px-5 pt-4 pb-2 flex items-center gap-2">
-        <h3 className="font-semibold text-[var(--text-primary)]">הגדרות ElevenLabs</h3>
-      </div>
-      <CardContent className="space-y-5">
-        <div>
-          <div className="flex items-center justify-between mb-1.5">
-            <span className="text-xs text-[var(--text-muted)]">
-              {form.elStability?.toFixed(2) ?? '0.50'}
-            </span>
-            <label className="text-sm font-medium text-[var(--text-secondary)]">יציבות קול</label>
-          </div>
-          <input
-            type="range"
-            min={0}
-            max={1}
-            step={0.05}
-            value={form.elStability ?? 0.5}
-            onChange={(e) => setForm((f: any) => ({ ...f, elStability: parseFloat(e.target.value) }))}
-            className="w-full accent-violet-500"
-          />
-          <div className="flex justify-between text-xs text-[var(--text-muted)] mt-1">
-            <span>גמיש</span>
-            <span>יציב</span>
-          </div>
-        </div>
-
-        <div>
-          <div className="flex items-center justify-between mb-1.5">
-            <span className="text-xs text-[var(--text-muted)]">
-              {form.elSpeed?.toFixed(2) ?? '1.00'}
-            </span>
-            <label className="text-sm font-medium text-[var(--text-secondary)]">מהירות דיבור</label>
-          </div>
-          <input
-            type="range"
-            min={0.7}
-            max={1.2}
-            step={0.05}
-            value={form.elSpeed ?? 1.0}
-            onChange={(e) => setForm((f: any) => ({ ...f, elSpeed: parseFloat(e.target.value) }))}
-            className="w-full accent-violet-500"
-          />
-          <div className="flex justify-between text-xs text-[var(--text-muted)] mt-1">
-            <span>0.7x</span>
-            <span>1.0x</span>
-            <span>1.2x</span>
-          </div>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">נחישות תשובה</label>
-          <div className="flex gap-2">
-            {(['low', 'normal', 'high'] as const).map((level) => (
-              <button
-                key={level}
-                className={`flex-1 py-2 px-3 rounded-lg border text-sm transition-colors ${
-                  (form.elEagerness ?? 'normal') === level
-                    ? 'border-[var(--accent)] bg-[var(--accent)]/10 text-[var(--accent)]'
-                    : 'border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--text-secondary)]'
-                }`}
-                onClick={() => setForm((f: any) => ({ ...f, elEagerness: level }))}
-              >
-                {eagernessLabels[level]}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-start gap-2">
-          <AlertTriangle className="w-4 h-4 text-amber-500 mt-0.5 flex-shrink-0" />
-          <p className="text-xs text-amber-600">
-            שיחות יוצאות ותזכורות אוטומטיות אינן נתמכות עדיין עבור ElevenLabs.
-          </p>
-        </div>
-      </CardContent>
-    </Card>
   );
 }
 

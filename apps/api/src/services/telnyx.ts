@@ -37,7 +37,7 @@ function getApiKey(): string {
 }
 
 async function telnyxFetch(
-  method: 'GET' | 'POST' | 'PATCH',
+  method: 'GET' | 'POST',
   path: string,
   body?: Record<string, unknown>,
   timeoutMs = DEFAULT_TIMEOUT_MS,
@@ -115,15 +115,6 @@ export async function fetchRecordingByCallControlId(callControlId: string): Prom
     log.warn('Failed to fetch recording', { callControlId: callControlId.slice(-12) });
     return null;
   }
-}
-
-export async function updatePhoneNumberConnection(
-  telnyxPhoneId: string,
-  connectionId: string,
-): Promise<void> {
-  await telnyxFetch('PATCH', `/phone_numbers/${telnyxPhoneId}`, {
-    connection_id: connectionId,
-  });
 }
 
 export async function createOutboundCall(params: {

@@ -85,12 +85,6 @@ export default function AgentDetailPage() {
     staleTime: Infinity,
   });
 
-  const { data: voiceProviders } = useQuery({
-    queryKey: ['voice-providers'],
-    queryFn: () => api.get('/voice-providers').then(r => r.data.data),
-    staleTime: Infinity,
-  });
-
   // ─── Local state ───
 
   const [selectedCallId, setSelectedCallId] = useState<string | null>(null);
@@ -118,7 +112,6 @@ export default function AgentDetailPage() {
   const [form, setForm] = useState({
     name: '',
     voice: 'Aoede',
-    voiceProvider: 'gemini_live' as string,
     phoneNumber: '',
     telnyxPhoneId: '',
     telnyxAppId: '',
@@ -133,9 +126,6 @@ export default function AgentDetailPage() {
     silenceHangupSec: 17,
     silenceMessage: '',
     silenceSecondMessage: '',
-    elStability: 0.5,
-    elSpeed: 1.0,
-    elEagerness: 'normal' as string,
   });
 
   useEffect(() => {
@@ -163,10 +153,7 @@ export default function AgentDetailPage() {
         : rawHangupSec;
       setForm({
         name: agent.name,
-        voice: agent.voiceProvider === 'elevenlabs'
-          ? (agent.elevenlabsConfig?.voiceId || 'cjVigY5qzO86Huf0OWal')
-          : (agent.voice || 'Aoede'),
-        voiceProvider: agent.voiceProvider || 'gemini_live',
+        voice: agent.voice || 'Aoede',
         phoneNumber: agent.phoneNumber || '',
         telnyxPhoneId: agent.telnyxPhoneId || '',
         telnyxAppId: agent.telnyxAppId || '',
@@ -181,9 +168,6 @@ export default function AgentDetailPage() {
         silenceHangupSec: hangupSec,
         silenceMessage: silence?.message || '',
         silenceSecondMessage: silence?.secondMessage || '',
-        elStability: agent.elevenlabsConfig?.stability ?? 0.5,
-        elSpeed: agent.elevenlabsConfig?.speed ?? 1.0,
-        elEagerness: agent.elevenlabsConfig?.turnEagerness ?? 'normal',
       });
     }
   }, [agent]);
@@ -375,7 +359,6 @@ export default function AgentDetailPage() {
           form={form}
           setForm={setForm}
           voices={voicesData || []}
-          voiceProviders={voiceProviders || []}
           onSave={(data) => updateSettings.mutate(data)}
           onDelete={() => remove.mutate()}
           isSaving={updateSettings.isPending}

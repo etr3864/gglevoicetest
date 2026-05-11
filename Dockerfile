@@ -4,7 +4,7 @@
 # =============================================================================
 FROM node:22-alpine AS deps
 
-RUN corepack enable && corepack prepare pnpm@10.30.0 --activate
+RUN corepack enable && corepack prepare pnpm@latest --activate
 
 WORKDIR /app
 
@@ -23,7 +23,7 @@ RUN pnpm install --frozen-lockfile
 # =============================================================================
 FROM node:22-alpine AS builder
 
-RUN corepack enable && corepack prepare pnpm@10.30.0 --activate
+RUN corepack enable && corepack prepare pnpm@latest --activate
 
 WORKDIR /app
 
@@ -51,7 +51,7 @@ RUN pnpm --filter @voice/api    build
 # =============================================================================
 FROM node:22-alpine AS runner
 
-RUN corepack enable && corepack prepare pnpm@10.30.0 --activate
+RUN corepack enable && corepack prepare pnpm@latest --activate
 
 # Non-root user for Kubernetes security policy
 RUN addgroup -S nodejs && adduser -S nodejs -G nodejs
