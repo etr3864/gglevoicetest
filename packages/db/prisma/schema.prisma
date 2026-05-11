@@ -87,6 +87,11 @@ model Agent {
   contactFollowups         ContactFollowup[]
   whatsappTemplates        WhatsappTemplate[]
 
+  voiceProvider            String              @default("gemini_live") @map("voice_provider")
+  llmModel                 String?             @map("llm_model")
+  customLlmToken           String?             @unique @map("custom_llm_token")
+  voiceProviderBindings    VoiceProviderBinding[]
+
   @@map("agents")
 }
 
@@ -138,9 +143,12 @@ model Call {
   textOutputTokens   Int?                @map("text_output_tokens")
   telnyxBilledSec    Int?                @map("telnyx_billed_sec")
   deepgramSec        Int?                @map("deepgram_sec")
-  disposition        String?
-  callbackTime       DateTime?           @map("callback_time")
-  createdAt          DateTime            @default(now()) @map("created_at")
+  disposition              String?
+  callbackTime             DateTime?           @map("callback_time")
+  llmModel                 String?             @map("llm_model")
+  externalConversationId   String?             @unique @map("external_conversation_id")
+  externalProviderCost     Float?              @map("external_provider_cost")
+  createdAt                DateTime            @default(now()) @map("created_at")
   agent              Agent               @relation(fields: [agentId], references: [id])
   contact            Contact?            @relation(fields: [contactId], references: [id])
   utterances         Utterance[]
@@ -153,6 +161,24 @@ model Call {
   @@index([contactId, createdAt])
   @@index([callControlId])
   @@map("calls")
+}
+
+model VoiceProviderBinding {
+  id           String    @id @default(uuid())
+  agentId      String    @map("agent_id")
+  provider     String
+  externalId   String?   @map("external_id")
+  config       Json      @default("{}")
+  syncStatus   String    @default("synced") @map("sync_status")
+  syncError    String?   @map("sync_error") @db.Text
+  syncedAt     DateTime? @map("synced_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+  agent        Agent     @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@unique([agentId, provider])
+  @@index([provider, externalId])
+  @@map("voice_provider_bindings")
 }
 
 model Utterance {

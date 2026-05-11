@@ -10,6 +10,9 @@ import { normalizePhone } from '../lib/phone';
 import { publishCallEvent } from '../services/events/pubsub';
 import { encryptConfig, decryptConfig } from '../services/whatsapp/config-crypto';
 import { createLogger } from '../lib/logger';
+import { getRuntime } from '../services/voice-runtime';
+import { switchProvider } from '../services/voice-runtime/provider-switch';
+import type { VoiceProviderId } from '../services/voice-runtime/types';
 
 const log = createLogger('agents');
 
@@ -61,6 +64,12 @@ router.get('/', async (req, res) => {
 router.post('/', requireSuperAdmin, async (req, res) => {
   const body = createAgentSchema.parse(req.body);
   const agent = await prisma.agent.create({ data: { ...body, apiKey: generateApiKey() } });
+
+  const provider = (agent.voiceProvider ?? 'gemini_live') as VoiceProviderId;
+  getRuntime(provider).onAgentCreated(agent.id).catch((err) => {
+    log.error('Voice runtime onAgentCreated failed', err, { agentId: agent.id, provider });
+  });
+
   res.status(201).json({ data: agent });
 });
 
@@ -70,7 +79,12 @@ router.get('/:id', async (req, res) => {
 
   const agent = await prisma.agent.findUnique({
     where: { id },
-    include: { _count: { select: { calls: true } } },
+    include: {
+      _count: { select: { calls: true } },
+      voiceProviderBindings: {
+        select: { provider: true, syncStatus: true, syncError: true, syncedAt: true },
+      },
+    },
   });
   if (!agent) throw new AppError(404, 'NOT_FOUND', 'Agent not found');
 
@@ -81,7 +95,17 @@ router.get('/:id', async (req, res) => {
     } catch {}
   }
 
-  res.json({ data: { ...agent, whatsappConfig } });
+  const binding = agent.voiceProviderBindings.find(b => b.provider === agent.voiceProvider);
+
+  res.json({
+    data: {
+      ...agent,
+      whatsappConfig,
+      voiceProviderBindings: undefined,
+      syncStatus: binding?.syncStatus ?? null,
+      syncError: binding?.syncError ?? null,
+    },
+  });
 });
 
 router.patch('/:id', async (req, res) => {
@@ -96,6 +120,22 @@ router.patch('/:id', async (req, res) => {
 
   const body = updateAgentSchema.parse(req.body);
   const data: Record<string, unknown> = { ...body };
+
+  const existingAgent = await prisma.agent.findUnique({ where: { id }, select: { voiceProvider: true } });
+  let activeProvider = (existingAgent?.voiceProvider ?? 'gemini_live') as VoiceProviderId;
+
+  if (data.voiceProvider !== undefined) {
+    const to = data.voiceProvider as VoiceProviderId;
+    if (activeProvider !== to) {
+      delete data.voiceProvider;
+      await switchProvider(id, activeProvider, to);
+      activeProvider = to;
+    }
+  }
+
+  if (activeProvider === 'elevenlabs' && data.voice !== undefined) {
+    delete data.voice;
+  }
 
   if (data.activeHours === null) data.activeHours = Prisma.DbNull;
   if (data.businessHours === null) data.businessHours = Prisma.DbNull;
@@ -132,6 +172,12 @@ router.patch('/:id', async (req, res) => {
   }
 
   const agent = await prisma.agent.update({ where: { id }, data });
+
+  const provider = (agent.voiceProvider ?? 'gemini_live') as VoiceProviderId;
+  getRuntime(provider).onAgentUpdated(agent.id).catch((err) => {
+    log.error('Voice runtime onAgentUpdated failed', err, { agentId: agent.id, provider });
+  });
+
   res.json({ data: agent, ...(validationWarning && { validationWarning }) });
 });
 
@@ -153,6 +199,17 @@ router.get('/:id/ambient/preview/:type', async (req, res) => {
 
 router.delete('/:id', requireSuperAdmin, async (req, res) => {
   const { id } = req.params as { id: string };
+
+  const agent = await prisma.agent.findUnique({ where: { id }, select: { voiceProvider: true } });
+  if (agent) {
+    const provider = (agent.voiceProvider ?? 'gemini_live') as VoiceProviderId;
+    try {
+      await getRuntime(provider).onAgentDeleted(id);
+    } catch (err) {
+      log.error('Voice runtime onAgentDeleted failed', err, { agentId: id, provider });
+    }
+  }
+
   await prisma.agent.delete({ where: { id } });
   res.json({ data: { success: true } });
 });
@@ -205,6 +262,9 @@ router.post('/:id/outbound', async (req, res) => {
   const phone = normalizePhone(rawPhone);
   const agent = await prisma.agent.findUnique({ where: { id } });
   if (!agent) throw new AppError(404, 'NOT_FOUND', 'Agent not found');
+  if (agent.voiceProvider === 'elevenlabs') {
+    throw new AppError(400, 'UNSUPPORTED', 'שיחות יוצאות לא נתמכות עדיין עבור ElevenLabs');
+  }
   if (agent.status !== 'active') throw new AppError(400, 'AGENT_INACTIVE', 'Agent is not active');
   if (!agent.phoneNumber) throw new AppError(400, 'NO_PHONE', 'Agent has no phone number');
   if (!agent.telnyxAppId && !process.env.TELNYX_APP_ID) {

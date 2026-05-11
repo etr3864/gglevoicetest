@@ -62,4 +62,6 @@ export const updateAgentSchema = z.object({
   whatsappContextMessages: z.number().int().min(0).max(100).optional(),
   ambientSoundType: z.enum(['NONE', 'OFFICE', 'CAFE', 'RESTAURANT', 'CITY', 'PEOPLE_TALKING']).optional(),
   ambientSoundVolume: z.number().min(0).max(0.5).optional(),
+  voiceProvider: z.enum(['gemini_live', 'elevenlabs']).optional(),
+  llmModel: z.string().max(50).nullable().optional(),
 });

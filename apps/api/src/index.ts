@@ -18,6 +18,7 @@ import calendarRoutes from './routes/calendar';
 import reminderRoutes from './routes/reminders';
 import whatsappRoutes from './routes/whatsapp';
 import webhookRoutes from './routes/webhooks';
+import llmRoutes from './routes/llm';
 import recordingRoutes from './routes/recordings';
 import eventsRouter from './routes/events';
 import { registerBuiltinTools } from './services/tools';
@@ -33,6 +34,10 @@ import { startKnowledgeWorker } from './workers/knowledge.worker';
 import { startMediaWorker } from './workers/media.worker';
 import { startFollowupEvaluationWorker } from './workers/followup-evaluation.worker';
 import { startFollowupExecutionWorker } from './workers/followup-execution.worker';
+import { startElevenLabsPostCallWorker } from './services/voice-runtime/elevenlabs/post-call.worker';
+import { startElevenLabsOrphanCron } from './services/voice-runtime/elevenlabs/orphan.cron';
+import elevenLabsWebhookRoutes from './routes/elevenlabs-webhook';
+import voiceProviderRoutes from './routes/voice-providers';
 import knowledgeRoutes from './routes/knowledge';
 import mediaRoutes from './routes/media';
 import followupRoutes from './routes/followup';
@@ -70,7 +75,11 @@ app.use(
 );
 app.use(express.json({
   verify: (req: any, _res, buf) => {
-    if (req.path?.startsWith('/webhooks/telnyx') || req.path?.startsWith('/webhooks/whatsapp/meta')) {
+    if (
+      req.path?.startsWith('/webhooks/telnyx') ||
+      req.path?.startsWith('/webhooks/whatsapp/meta') ||
+      req.path?.startsWith('/webhooks/elevenlabs')
+    ) {
       req.rawBody = buf;
     }
   },
@@ -102,13 +111,16 @@ app.get('/health/ready', async (_req, res) => {
 });
 
 app.get('/voices', (_req, res) => res.json({ data: VOICES }));
+app.use('/llm', llmRoutes);
 app.use('/auth', authRoutes);
 app.use('/', outboundRoutes);
 app.use('/webhooks', webhookRoutes);
+app.use('/webhooks', elevenLabsWebhookRoutes);
 
 app.use('/agents', calendarRoutes);
 app.use('/agents', authMiddleware, reminderRoutes);
 app.use('/', eventsRouter);
+app.use('/', authMiddleware, voiceProviderRoutes);
 app.use('/agents', authMiddleware, agentRoutes);
 app.use('/', authMiddleware, callRoutes);
 app.use('/', recordingRoutes);
@@ -160,10 +172,12 @@ async function start() {
     const mediaWorker = startMediaWorker();
     const followupEvalWorker = startFollowupEvaluationWorker();
     const followupExecWorker = startFollowupExecutionWorker();
+    const elevenLabsSyncWorker = startElevenLabsPostCallWorker();
     startRecordingCrons();
     startKnowledgeCrons();
     startMediaCrons();
     startFollowupCrons();
+    startElevenLabsOrphanCron();
     attachWebSocket(server);
 
     server.listen(PORT, '0.0.0.0', () => {
@@ -179,7 +193,7 @@ async function start() {
 
       log.info('All calls finished, shutting down');
       sseManager.shutdown();
-      await Promise.all([outboundWorker.close(), recordingWorker.close(), summaryWorker.close(), webhookWorker.close(), appointmentWebhookWorker.close(), reminderWorker.close(), whatsappSendWorker.close(), knowledgeWorker.close(), mediaWorker.close(), followupEvalWorker.close(), followupExecWorker.close()]);
+      await Promise.all([outboundWorker.close(), recordingWorker.close(), summaryWorker.close(), webhookWorker.close(), appointmentWebhookWorker.close(), reminderWorker.close(), whatsappSendWorker.close(), knowledgeWorker.close(), mediaWorker.close(), followupEvalWorker.close(), followupExecWorker.close(), elevenLabsSyncWorker.close()]);
       await Promise.all([drainWarmups(), closeMediaBridge()]);
       await closePubSub();
       server.close(() => process.exit(0));
