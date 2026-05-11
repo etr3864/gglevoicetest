@@ -54,6 +54,8 @@ export const followupEvalQueue = new Queue('followup-evaluation', {
   defaultJobOptions: { removeOnComplete: 1000, removeOnFail: 500 },
 });
 
+export const elevenLabsSyncQueue = createQueue('elevenlabs-post-call');
+
 // Lower number = higher priority in BullMQ.
 // Inbound calls bypass the queue entirely (Priority 0 effectively).
 // Priority 1: reminders + customer-requested callbacks (customer is expecting the call)

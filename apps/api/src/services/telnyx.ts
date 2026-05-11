@@ -117,6 +117,15 @@ export async function fetchRecordingByCallControlId(callControlId: string): Prom
   }
 }
 
+export async function updatePhoneNumberConnection(
+  telnyxPhoneId: string,
+  connectionId: string,
+): Promise<void> {
+  await telnyxFetch('POST', `/phone_numbers/${telnyxPhoneId}`, {
+    connection_id: connectionId,
+  });
+}
+
 export async function createOutboundCall(params: {
   from: string;
   to: string;

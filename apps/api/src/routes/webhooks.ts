@@ -190,6 +190,15 @@ async function handleIncomingCall(
     return;
   }
 
+  if (agent.voiceProvider !== 'gemini_live') {
+    log.warn('Telnyx webhook for non-Gemini agent — should be SIP routed', {
+      agentId: agent.id,
+      voiceProvider: agent.voiceProvider,
+    });
+    await hangupCall(callControlId);
+    return;
+  }
+
   const call = await initCallRecord(callControlId, agent.id, contact.id, phone);
 
   warmup(call.id, agent.id, phone, undefined, 'inbound').catch((err) =>
