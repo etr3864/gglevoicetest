@@ -90,6 +90,13 @@ export interface ElevenLabsAgentPayload {
   metadata?: Record<string, string>;
 }
 
+interface PhoneNumberEntry {
+  phone_number_id: string;
+  phone_number: string;
+  agent_id: string | null;
+  label: string;
+}
+
 interface AgentResponse {
   agent_id: string;
   name: string;
@@ -125,6 +132,21 @@ export async function updateAgent(externalId: string, payload: ElevenLabsAgentPa
 export async function deleteAgent(externalId: string): Promise<void> {
   await request<void>('DELETE', `/convai/agents/${externalId}`);
   log.info('ElevenLabs agent deleted', { externalId });
+}
+
+export async function listPhoneNumbers(): Promise<PhoneNumberEntry[]> {
+  const res = await request<{ phone_numbers: PhoneNumberEntry[] }>('GET', '/convai/phone-numbers');
+  return res.phone_numbers ?? [];
+}
+
+export async function assignAgentToPhoneNumber(
+  phoneNumberId: string,
+  agentId: string,
+): Promise<void> {
+  await request<unknown>('PATCH', `/convai/phone-numbers/${phoneNumberId}`, {
+    agent_id: agentId,
+  });
+  log.info('Phone number assigned to agent', { phoneNumberId, agentId });
 }
 
 export async function getConversation(conversationId: string): Promise<ConversationResponse> {

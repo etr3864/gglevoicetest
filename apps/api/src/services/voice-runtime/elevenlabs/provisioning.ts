@@ -5,7 +5,7 @@ import { upsertBinding, getActiveBinding } from '../binding';
 import { ElevenLabsConfigSchema, DEFAULT_ELEVENLABS_CONFIG } from './config.schema';
 import type { ElevenLabsConfig } from './config.schema';
 import { buildAgentPayload } from './payload-builder';
-import { createAgent, updateAgent, deleteAgent, ElevenLabsApiError } from './api-client';
+import { createAgent, updateAgent, deleteAgent, listPhoneNumbers, assignAgentToPhoneNumber, ElevenLabsApiError } from './api-client';
 import { buildProviderConfig } from '../../call/warmup';
 import { updatePhoneNumberConnection } from '../../telnyx';
 
@@ -72,6 +72,7 @@ export async function provisionAgent(agentId: string): Promise<void> {
     });
 
     await routePhoneToSipConnection(agent);
+    await assignPhoneInElevenLabs(agent.phoneNumber, externalId);
 
     log.info('Agent provisioned', { agentId, externalId });
   } catch (err) {
@@ -139,6 +140,30 @@ async function routePhoneToSipConnection(
     log.error('Failed to route phone to SIP connection', err, {
       phoneId: agent.telnyxPhoneId,
     });
+  }
+}
+
+async function assignPhoneInElevenLabs(
+  phoneNumber: string | null,
+  externalAgentId: string,
+): Promise<void> {
+  if (!phoneNumber) return;
+
+  try {
+    const numbers = await listPhoneNumbers();
+    const normalized = phoneNumber.replace(/\s/g, '');
+    const match = numbers.find((n) => n.phone_number.replace(/\s/g, '') === normalized);
+
+    if (!match) {
+      log.warn('Phone number not found in ElevenLabs — assign manually', { phoneNumber });
+      return;
+    }
+
+    if (match.agent_id === externalAgentId) return;
+
+    await assignAgentToPhoneNumber(match.phone_number_id, externalAgentId);
+  } catch (err) {
+    log.error('Failed to assign phone in ElevenLabs', err, { phoneNumber });
   }
 }
 
