@@ -25,6 +25,7 @@ export class SilenceDetector {
   private timer: NodeJS.Timeout | null = null;
   private stage: Stage = 'idle';
   private agentAudioMs = 0;
+  private agentTurnStartedAt = 0;
 
   constructor(private opts: DetectorOptions) {}
 
@@ -32,23 +33,25 @@ export class SilenceDetector {
     return !!config && config.firstCheckSec > 0 && config.hangupSec > 0;
   }
 
-  // Called whenever the agent produces an audio chunk. Used to estimate how
-  // much audio is still buffered toward the customer when the model signals
-  // turnComplete — so we don't start the silence timer too early.
+  // Track per-turn agent audio so we can wait for the still-buffered tail
+  // (bytes already sent to Telnyx but not yet played to the customer) before
+  // starting the silence timer.
   onAgentAudio(bytes: number, sampleRate: number): void {
+    if (this.agentTurnStartedAt === 0) this.agentTurnStartedAt = Date.now();
     this.agentAudioMs += (bytes / 2 / sampleRate) * 1000;
   }
 
   reset(trigger: SilenceTrigger): void {
     if (trigger === 'agent' && this.stage !== 'idle') {
-      this.agentAudioMs = 0;
+      this.resetAudioTracking();
       return;
     }
 
     this.clear();
     this.stage = 'idle';
-    const bufferMs = this.agentAudioMs;
-    this.agentAudioMs = 0;
+
+    const bufferMs = trigger === 'agent' ? this.unplayedAudioMs() : 0;
+    this.resetAudioTracking();
 
     if (trigger === 'agent') {
       this.timer = scheduleJittered(this.opts.config.firstCheckSec, bufferMs, () => this.fireFirstCheck());
@@ -58,7 +61,18 @@ export class SilenceDetector {
   stop(): void {
     this.clear();
     this.stage = 'idle';
+    this.resetAudioTracking();
+  }
+
+  private unplayedAudioMs(): number {
+    if (this.agentTurnStartedAt === 0) return 0;
+    const elapsed = Date.now() - this.agentTurnStartedAt;
+    return Math.max(0, this.agentAudioMs - elapsed);
+  }
+
+  private resetAudioTracking(): void {
     this.agentAudioMs = 0;
+    this.agentTurnStartedAt = 0;
   }
 
   private clear(): void {
