@@ -23,6 +23,7 @@ const SAMPLE_APPOINTMENT_WEBHOOK_PAYLOAD = JSON.stringify({
   time: '10:00',
   duration_min: 30,
   call_id: '<call_id>',
+  direction: 'inbound',
   summary: 'תוכן הסיכום שנוצר ע״י ה-AI (null אם סיכומים מבוטלים בסוכן)',
 }, null, 2);
 
