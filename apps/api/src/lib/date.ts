@@ -38,6 +38,32 @@ export function formatTimestamp(date: Date): string {
 }
 
 /**
+ * Calendar-day difference between two dates, in TZ-local terms.
+ * Same calendar day = 0, next day = 1, previous = -1.
+ */
+export function calendarDayDiff(from: Date, to: Date): number {
+  const a = new Date(from.getFullYear(), from.getMonth(), from.getDate()).getTime();
+  const b = new Date(to.getFullYear(), to.getMonth(), to.getDate()).getTime();
+  return Math.round((b - a) / 86_400_000);
+}
+
+/**
+ * Returns a human-readable relative phrase for the AI (English, deterministic).
+ * Examples: "TODAY at 10:30", "TOMORROW (Thursday) at 10:30",
+ *           "in 3 days (Saturday 16 May) at 10:30".
+ */
+export function describeRelativeDateTime(target: Date, now: Date = new Date()): string {
+  const time = formatTime(target);
+  const diff = calendarDayDiff(now, target);
+  const weekdayEn = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][target.getDay()];
+
+  if (diff === 0) return `TODAY at ${time}`;
+  if (diff === 1) return `TOMORROW (${weekdayEn}) at ${time}`;
+  if (diff > 1 && diff < 7) return `in ${diff} days (${weekdayEn} ${target.getDate()} ${MONTHS_HE[target.getMonth()]}) at ${time}`;
+  return `on ${weekdayEn} ${target.getDate()} ${MONTHS_HE[target.getMonth()]} ${target.getFullYear()} at ${time}`;
+}
+
+/**
  * Converts YYYY-MM-DD + HH:MM to an ISO string with the correct Israel offset.
  * Parses as local time (TZ=Asia/Jerusalem) then reads getTimezoneOffset() for DST.
  */

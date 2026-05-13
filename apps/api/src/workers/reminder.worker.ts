@@ -4,7 +4,7 @@ import { createWorker, outboundQueue, scheduleReminderSafetyScan, OUTBOUND_PRIOR
 import { runSafetyScan } from '../services/reminders/reminder.service';
 import { normalizePhone } from '../lib/phone';
 import { publishCallEvent } from '../services/events/pubsub';
-import { formatDateLong, formatTime } from '../lib/date';
+import { formatNow, describeRelativeDateTime } from '../lib/date';
 
 const log = createLogger('reminder-worker');
 
@@ -141,19 +141,19 @@ function buildAiReminderPrompt(reminder: {
   contact: { name: string | null } | null;
 }): string {
   const { appointment, contact, agent } = reminder;
-  const startTime = appointment.startTime;
-  const date = formatDateLong(startTime);
-  const time = formatTime(startTime);
+  const when = describeRelativeDateTime(appointment.startTime);
 
   const base = agent.basePrompt || 'You are a helpful voice assistant.';
 
   return `${base}${DIRECTION_AI_REMINDER}
 
 --- Reminder Details ---
+Current date and time: ${formatNow()}
 Customer: ${contact?.name ?? 'the customer'}
 Appointment: ${appointment.title}
-Date: ${date}
-Time: ${time}
+When: ${when}
 Duration: ${appointment.duration} minutes
-${appointment.description ? `Notes: ${appointment.description}` : ''}`.trim();
+${appointment.description ? `Notes: ${appointment.description}` : ''}
+
+IMPORTANT: Use the "When" field above exactly as given. Do not recompute the date — if it says TODAY, say today; if TOMORROW, say tomorrow.`.trim();
 }
