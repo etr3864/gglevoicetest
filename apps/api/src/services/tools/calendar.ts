@@ -10,9 +10,9 @@ import {
   type FreeBusySlot,
 } from '../calendar/google';
 import { TIMEZONE, formatDate, formatTime, toISOWithTimezone } from '../../lib/date';
-import { appointmentWebhookQueue } from '../../lib/queue';
 import type { BusinessHours, CalendarConfig } from '@voice/shared';
 import type { CalendarReminder } from '../calendar/google';
+import type { AppointmentEvent } from '../calendar/appointment-webhook.service';
 import {
   createRemindersForAppointment,
   cancelRemindersForAppointment,
@@ -232,9 +232,7 @@ async function bookAppointment(
     data: { disposition: 'appointment_booked' },
   });
 
-  appointmentWebhookQueue
-    .add('deliver', { appointmentId: appointment.id, event: 'appointment_booked' }, { jobId: `appt-webhook-${appointment.id}-booked` })
-    .catch(() => {});
+  await markPendingWebhook(appointment.id, ctx.callId, 'appointment_booked');
 
   createRemindersForAppointment(appointment, agent).catch(() => {});
 
@@ -293,9 +291,7 @@ async function rescheduleAppointment(
     },
   });
 
-  appointmentWebhookQueue
-    .add('deliver', { appointmentId, event: 'appointment_rescheduled' }, { jobId: `appt-webhook-${appointmentId}-rescheduled` })
-    .catch(() => {});
+  await markPendingWebhook(appointmentId, ctx.callId, 'appointment_rescheduled');
 
   const updatedAgent = await prisma.agent.findUnique({ where: { id: ctx.agentId } });
   if (updatedAgent) {
@@ -330,9 +326,7 @@ async function cancelAppointment(appointmentId: string, ctx: ToolContext) {
     data: { status: 'cancelled' },
   });
 
-  appointmentWebhookQueue
-    .add('deliver', { appointmentId, event: 'appointment_cancelled' }, { jobId: `appt-webhook-${appointmentId}-cancelled` })
-    .catch(() => {});
+  await markPendingWebhook(appointmentId, ctx.callId, 'appointment_cancelled');
 
   cancelRemindersForAppointment(appointmentId).catch(() => {});
 
@@ -340,6 +334,21 @@ async function cancelAppointment(appointmentId: string, ctx: ToolContext) {
 }
 
 // --- Helpers ---
+
+async function markPendingWebhook(
+  appointmentId: string,
+  callId: string,
+  event: AppointmentEvent,
+): Promise<void> {
+  await prisma.appointment.update({
+    where: { id: appointmentId },
+    data: {
+      pendingWebhookEvent: event,
+      pendingWebhookCallId: callId,
+      webhookStatus: 'PENDING',
+    },
+  });
+}
 
 function validateBusinessHours(date: string, time: string, duration: number, businessHours: BusinessHours | null): string | null {
   const dayHours = getDayHours(date, businessHours);

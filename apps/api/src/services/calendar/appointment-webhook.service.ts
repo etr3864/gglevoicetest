@@ -26,7 +26,14 @@ export async function deliverAppointmentWebhook(appointmentId: string, event: Ap
 
   if (!appointment?.agent.appointmentWebhookUrl) return;
 
-  const payload = buildPayload(appointment, event);
+  const summaryText = appointment.callId
+    ? (await prisma.callSummary.findUnique({
+        where: { callId: appointment.callId },
+        select: { summaryText: true },
+      }))?.summaryText ?? null
+    : null;
+
+  const payload = buildPayload(appointment, event, summaryText);
   const { success, statusCode, error } = await sendPost(
     appointment.agent.appointmentWebhookUrl,
     payload,
@@ -70,6 +77,7 @@ export async function deliverAppointmentWebhook(appointmentId: string, event: Ap
 function buildPayload(
   appointment: AppointmentWithRelations,
   event: AppointmentEvent,
+  summary: string | null,
 ): Record<string, unknown> {
   return {
     event,
@@ -84,6 +92,7 @@ function buildPayload(
     time: formatTime(appointment.startTime),
     duration_min: appointment.duration,
     call_id: appointment.callId ?? null,
+    summary,
   };
 }
 

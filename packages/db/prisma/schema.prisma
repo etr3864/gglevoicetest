@@ -185,6 +185,8 @@ model Appointment {
   webhookAttempts    Int                 @default(0) @map("webhook_attempts")
   webhookLastError   String?             @map("webhook_last_error") @db.Text
   webhookSentAt      DateTime?           @map("webhook_sent_at")
+  pendingWebhookEvent  String?           @map("pending_webhook_event")
+  pendingWebhookCallId String?           @map("pending_webhook_call_id")
   createdAt          DateTime            @default(now()) @map("created_at")
   agent              Agent               @relation(fields: [agentId], references: [id])
   contact            Contact?            @relation(fields: [contactId], references: [id])
@@ -193,6 +195,7 @@ model Appointment {
 
   @@index([agentId, startTime])
   @@index([contactId])
+  @@index([pendingWebhookCallId])
   @@map("appointments")
 }
 

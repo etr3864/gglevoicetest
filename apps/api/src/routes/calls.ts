@@ -218,6 +218,9 @@ router.post('/calls/:id/summary/webhook-retry', requireSuperAdmin, async (req, r
   const summary = await prisma.callSummary.findUnique({ where: { callId: id } });
   if (!summary) throw new AppError(404, 'NOT_FOUND', 'No summary for this call');
   if (summary.webhookStatus === 'SENT') throw new AppError(400, 'ALREADY_SENT', 'Webhook already sent');
+  if (summary.webhookStatus === 'ROUTED_TO_APPOINTMENT') {
+    throw new AppError(400, 'ROUTED_TO_APPOINTMENT', 'Summary was delivered via the appointment webhook for this call');
+  }
   await enqueueWebhookRetry(summary.id);
   res.json({ data: { queued: true } });
 });

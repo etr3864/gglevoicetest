@@ -23,6 +23,7 @@ const SAMPLE_APPOINTMENT_WEBHOOK_PAYLOAD = JSON.stringify({
   time: '10:00',
   duration_min: 30,
   call_id: '<call_id>',
+  summary: 'תוכן הסיכום שנוצר ע״י ה-AI (null אם סיכומים מבוטלים בסוכן)',
 }, null, 2);
 
 interface Props {
@@ -271,7 +272,9 @@ export default function CalendarTab({ agentId, agent }: Props) {
       <Card>
         <div className="px-5 pt-4 pb-2">
           <h3 className="font-semibold text-[var(--text-primary)]">Webhook פגישות</h3>
-          <p className="text-xs text-[var(--text-muted)] mt-0.5">שליחת אירועי יומן (קביעה / שינוי / ביטול) לכתובת חיצונית</p>
+          <p className="text-xs text-[var(--text-muted)] mt-0.5">
+            שליחת אירועי יומן (קביעה / שינוי / ביטול) לכתובת חיצונית. נשלח בסוף השיחה ביחד עם סיכום השיחה (לפי הנחיות הסיכום בטאב סיכומים).
+          </p>
         </div>
         <CardContent className="space-y-4">
           <div>

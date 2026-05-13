@@ -24,7 +24,6 @@ const SAMPLE_WEBHOOK_PAYLOAD = JSON.stringify({
   utterance_count: 23,
   call_context: null,
   summary: 'תוכן הסיכום שנוצר על ידי ה-AI...',
-  appointment_id: '<appointment_id or null>',
 }, null, 2);
 
 
@@ -108,6 +107,9 @@ export default function SummariesTab({ agentId, form, setForm, webhookTestResult
               placeholder="לדוגמה: זהה אם הלקוח מעוניין לקנות, מה עלה בשיחה, ומה הצעד הבא."
               dir="rtl"
             />
+            <p className="text-xs text-[var(--text-muted)] mt-1.5">
+              ההנחיות חלות גם על סיכומים שנשלחים יחד עם פגישה. אם נקבעה פגישה — הסיכום ייווצר ללא תלות באורך השיחה.
+            </p>
           </div>
         </CardContent>
       </Card>
@@ -115,6 +117,9 @@ export default function SummariesTab({ agentId, form, setForm, webhookTestResult
       <Card>
         <div className="px-5 pt-4 pb-2">
           <h3 className="font-semibold text-[var(--text-primary)]">Webhook</h3>
+          <p className="text-xs text-[var(--text-muted)] mt-0.5">
+            נשלח רק לשיחות ללא פגישה. אם בשיחה נקבעה/שונתה/בוטלה פגישה — הסיכום מצורף ל-Webhook הפגישות (בטאב יומן).
+          </p>
         </div>
         <CardContent className="space-y-4">
           <div>

@@ -263,6 +263,7 @@ function SummarySection({ callId, summary }: { callId: string; summary: any }) {
     SENT: { label: 'Webhook נשלח', variant: 'success' },
     FAILED: { label: 'Webhook נכשל', variant: 'danger' },
     PENDING: { label: 'Webhook ממתין', variant: 'warning' },
+    ROUTED_TO_APPOINTMENT: { label: 'נשלח עם הפגישה', variant: 'success' },
     NONE: { label: '', variant: 'neutral' },
   };
 

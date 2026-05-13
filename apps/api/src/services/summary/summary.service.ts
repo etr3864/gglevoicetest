@@ -1,8 +1,9 @@
 import { prisma, Prisma } from '@voice/db';
 import { createLogger } from '../../lib/logger';
 import { generateText } from '../../lib/gemini-text';
-import { webhookQueue } from '../../lib/queue';
+import { webhookQueue, appointmentWebhookQueue } from '../../lib/queue';
 import { upsertMonthlyUsage } from '../usage/usage.service';
+import type { AppointmentEvent } from '../calendar/appointment-webhook.service';
 
 const log = createLogger('summary');
 
@@ -18,9 +19,36 @@ export async function generateCallSummary(callId: string): Promise<void> {
   if (!data) return;
 
   const { call, agent, utterances } = data;
+  const pendingAppointments = await fetchPendingAppointments(callId);
+  const hasAppointment = pendingAppointments.length > 0;
 
-  if (!isEligible(call, agent, utterances.length)) return;
+  let summaryId: string | null = null;
 
+  if (isEligible(call, agent, utterances.length, hasAppointment)) {
+    summaryId = await tryGenerateAndSaveSummary({
+      call, agent, utterances,
+      callId,
+      routeToAppointmentWebhook: hasAppointment,
+      throwOnFailure: !hasAppointment,
+    });
+  }
+
+  if (hasAppointment) {
+    await dispatchAppointmentWebhooks(pendingAppointments);
+  } else if (summaryId && agent.webhookUrl) {
+    await webhookQueue.add('deliver', { summaryId }, { jobId: `webhook-${summaryId}` });
+  }
+}
+
+async function tryGenerateAndSaveSummary(params: {
+  call: { direction: string; durationSec: number | null; startedAt: Date | null; context: unknown };
+  agent: { id: string; name: string; summaryPrompt: string | null; webhookUrl: string | null };
+  utterances: { speaker: string; text: string; startMs: number }[];
+  callId: string;
+  routeToAppointmentWebhook: boolean;
+  throwOnFailure: boolean;
+}): Promise<string | null> {
+  const { call, agent, utterances, callId, routeToAppointmentWebhook, throwOnFailure } = params;
   const prompt = buildPrompt(call, agent, utterances);
   const t0 = Date.now();
 
@@ -29,12 +57,15 @@ export async function generateCallSummary(callId: string): Promise<void> {
     result = await generateText(agent.summaryPrompt || DEFAULT_SUMMARY_PROMPT, prompt);
   } catch (err) {
     log.error('Gemini summary failed', err, { callId });
-    throw err;
+    if (throwOnFailure) throw err;
+    return null;
   }
 
   log.info('Summary generated', { callId, tokenCount: result.tokenCount, latencyMs: Date.now() - t0 });
 
-  const hasWebhook = !!agent.webhookUrl;
+  const webhookStatus = routeToAppointmentWebhook
+    ? 'ROUTED_TO_APPOINTMENT'
+    : (agent.webhookUrl ? 'PENDING' : 'NONE');
   const summary = await saveSummary({
     callId,
     agentId: agent.id,
@@ -42,16 +73,47 @@ export async function generateCallSummary(callId: string): Promise<void> {
     tokenCount: result.tokenCount,
     utteranceCount: utterances.length,
     callDurationSec: call.durationSec ?? 0,
-    webhookStatus: hasWebhook ? 'PENDING' : 'NONE',
+    webhookStatus,
   });
-
-  if (hasWebhook && summary) {
-    await webhookQueue.add('deliver', { summaryId: summary.id }, { jobId: `webhook-${summary.id}` });
-  }
 
   if (summary && result.tokenCount) {
     upsertMonthlyUsage(agent.id, { totalSummaryTokens: result.tokenCount })
       .catch((err) => log.error('Failed to upsert summary usage', err, { callId }));
+  }
+
+  return summary?.id ?? null;
+}
+
+interface PendingAppointment {
+  id: string;
+  event: AppointmentEvent;
+}
+
+async function fetchPendingAppointments(callId: string): Promise<PendingAppointment[]> {
+  const rows = await prisma.appointment.findMany({
+    where: { pendingWebhookCallId: callId, pendingWebhookEvent: { not: null } },
+    select: { id: true, pendingWebhookEvent: true },
+  });
+  return rows
+    .filter((r): r is { id: string; pendingWebhookEvent: AppointmentEvent } => !!r.pendingWebhookEvent)
+    .map((r) => ({ id: r.id, event: r.pendingWebhookEvent }));
+}
+
+async function dispatchAppointmentWebhooks(pending: PendingAppointment[]): Promise<void> {
+  for (const appt of pending) {
+    try {
+      await appointmentWebhookQueue.add(
+        'deliver',
+        { appointmentId: appt.id, event: appt.event },
+        { jobId: `appt-webhook-${appt.id}-${appt.event}` },
+      );
+      await prisma.appointment.update({
+        where: { id: appt.id },
+        data: { pendingWebhookEvent: null, pendingWebhookCallId: null },
+      });
+    } catch (err) {
+      log.error('Failed to enqueue appointment webhook', err, { appointmentId: appt.id, event: appt.event });
+    }
   }
 }
 
@@ -77,15 +139,14 @@ function isEligible(
   call: { durationSec: number | null; status: string },
   agent: { summaryEnabled: boolean; summaryMinDuration: number },
   utteranceCount: number,
+  hasAppointment: boolean,
 ): boolean {
   if (!agent.summaryEnabled) return false;
+  if (utteranceCount === 0) return false;
 
-  const duration = call.durationSec ?? 0;
-  if (duration < agent.summaryMinDuration) return false;
-
-  if (utteranceCount === 0) {
-    log.warn('No utterances found for summary', { durationSec: duration });
-    return false;
+  if (!hasAppointment) {
+    const duration = call.durationSec ?? 0;
+    if (duration < agent.summaryMinDuration) return false;
   }
 
   return true;
