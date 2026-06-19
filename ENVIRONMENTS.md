@@ -17,7 +17,7 @@
 | GKE Namespace | `default` |
 | Cloud SQL Instance | `voice-db` → IP פרטי: `10.33.1.3` |
 | Database Name | `voice_db` |
-| Redis | `10.224.75.131:6379` |
+| Redis | `10.33.0.3:6379` (PSA mode, `voice-ai-redis`) |
 | GCS Recordings | `voice-ai-recordings-gen-lang-0546829339` |
 | GCS Knowledge | `voice-ai-knowledge-gen-lang-0546829339` |
 | GCS Media | `voice-ai-media-gen-lang-0546829339` |
@@ -64,8 +64,8 @@ GCP Infrastructure
 ├── Cloud SQL
 │   ├── voice-db       (production — private IP, VPC only)
 │   └── voice-staging  (staging — public IP, authorized networks)
-├── Redis (Memorystore)
-│   ├── 10.224.75.131  (production)
+├── Redis (Memorystore, PRIVATE_SERVICE_ACCESS)
+│   ├── 10.33.0.3     (production — voice-ai-redis)
 │   └── 10.176.111.211 (staging)
 └── GCS Buckets
     ├── voice-ai-*-gen-lang-0546829339  (production)
@@ -194,4 +194,5 @@ kubectl get ingress -n staging
 - **Project ID:** `gen-lang-client-0546829339`
 - **Region:** `us-central1`
 - **GKE Cluster:** `voice-ai-cluster-us`
-- **Docker Registry:** `me-west1-docker.pkg.dev/gen-lang-client-0546829339/voice-ai`
+- **Docker Registry:** `us-central1-docker.pkg.dev/gen-lang-client-0546829339/voice-ai-us`
+- **Docker Registry (legacy, broken):** `me-west1-docker.pkg.dev/gen-lang-client-0546829339/voice-ai`
